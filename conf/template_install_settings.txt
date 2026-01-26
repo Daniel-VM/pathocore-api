@@ -1,0 +1,23 @@
+### Installation path
+INSTALL_PATH='/opt/pathocore-api'
+PROJECT_NAME='pathocore_api'
+REQUIRED_MODULES='core'
+
+### (optional) Python installation path where pip and python executables are located
+PYTHON_BIN_PATH='python3' # example: /opt/python/3.9.6/bin/python3
+
+### Settings required to access database
+
+DB_USER='<user_name>'
+DB_PASS='<your_passwd>'
+DB_NAME='<your_dbname>'
+DB_SERVER_IP='<IP_db_server>'
+DB_PORT=3306
+
+### Settings required for accessing pathocore-api
+LOCAL_SERVER_IP='<PathocoreAPI_IP>' # example: 172.0.0.1
+DNS_URL='<PathocoreAPI_url_address>' # example: pathocore-api.isciii.es
+
+### Logs settings
+LOG_TYPE="symbolic_link" # can be symbolic link, or regular_folder
+LOG_PATH="" # mandatory if LOG_TYPE="symbolic_link", where is the log folder so we can create a symbolic link in the repository folder.
