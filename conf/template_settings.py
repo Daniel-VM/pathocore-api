@@ -65,7 +65,7 @@ DATABASES = {
         "ENGINE": "django.db.backends.mysql",
         "USER": "djangouser",
         "PASSWORD": "djangopass",
-        "PORT": "djangoport",
+        "PORT": "",
         "NAME": "pathocore_api",
         "HOST": "djangohost",
     },
