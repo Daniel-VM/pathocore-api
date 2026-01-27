@@ -130,6 +130,51 @@ class SchemaIngestResponseSerializer(serializers.Serializer):
     status = serializers.CharField()
 
 
+class SchemaListFilterSerializer(serializers.Serializer):
+    schema_name = serializers.CharField(required=False, allow_blank=False)
+    schema_version = serializers.CharField(required=False, allow_blank=False)
+    schema_in_use = serializers.BooleanField(required=False)
+    schema_default = serializers.BooleanField(required=False)
+    schema_apps_name = serializers.CharField(required=False, allow_blank=False)
+
+    def validate(self, attrs):
+        allowed_keys = set(self.fields.keys())
+        provided_keys = set(self.initial_data.keys())
+        unknown_keys = provided_keys - allowed_keys
+        if unknown_keys:
+            raise serializers.ValidationError(
+                {"error": f"Unknown filter(s): {', '.join(sorted(unknown_keys))}"}
+            )
+        if "schema_in_use" not in self.initial_data:
+            attrs.pop("schema_in_use", None)
+        if "schema_default" not in self.initial_data:
+            attrs.pop("schema_default", None)
+        return attrs
+
+
+class SchemaListItemSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = core.models.Schema
+        fields = [
+            "schema_name",
+            "schema_version",
+            "schema_in_use",
+            "schema_default",
+            "schema_apps_name",
+            "generated_at",
+        ]
+
+
+class SchemaDetailSerializer(serializers.Serializer):
+    schema_name = serializers.CharField()
+    schema_version = serializers.CharField()
+    schema_in_use = serializers.BooleanField()
+    schema_default = serializers.BooleanField()
+    schema_apps_name = serializers.CharField(allow_null=True, allow_blank=True)
+    generated_at = serializers.DateTimeField(allow_null=True)
+    schema = serializers.JSONField()
+
+
 # TODO: Add or remove request filters.
 class SampleFilterSerializer(serializers.Serializer):
     sample_unique_id = serializers.CharField(required=False, allow_blank=False)
