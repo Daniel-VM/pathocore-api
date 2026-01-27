@@ -35,7 +35,7 @@ urlpatterns = [
     path("admin/", admin.site.urls),
     # API-only project: UI routes removed
     # API REST FULL using drf spectacular
-    path("schema/", SpectacularAPIView.as_view(), name="schema"),
+    path("openapi/", SpectacularAPIView.as_view(), name="schema"),
     path(
         "swagger/", SpectacularSwaggerView.as_view(url_name="schema"), name="swagger-ui"
     ),
