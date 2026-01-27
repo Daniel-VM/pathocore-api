@@ -34,6 +34,7 @@ from core.api.services import sample_detail
 from core.api.services import sample_metadata
 from core.api.services import sample_metadata_ingestion
 from core.api.services import sample_history
+from core.api.services import schema_ingestion
 
 
 @extend_schema_view(
@@ -141,6 +142,87 @@ def samples(request):
         queryset, many=True
     )
     return Response(response_serializer.data, status=status.HTTP_200_OK)
+
+
+@extend_schema(
+    request=core.api.v1.serializers.SchemaIngestSerializer,
+    responses={
+        201: core.api.v1.serializers.SchemaIngestResponseSerializer,
+        400: core.api.v1.serializers.ErrorSerializer,
+        401: core.api.v1.serializers.ErrorSerializer,
+        403: core.api.v1.serializers.ErrorSerializer,
+        409: core.api.v1.serializers.ErrorSerializer,
+    },
+    description=(
+        "Upload a schema JSON. You can either send schema file in JSON format with "
+        "`schema` + optional flags (schema_default/schema_in_use), or send the "
+        "raw schema JSON as the body. In both cases, `title` and `version` "
+        "must exist inside the schema."
+    ),
+    examples=[
+        OpenApiExample(
+            "WrapperWithFlags",
+            value={
+                "schema": {
+                    "title": "Mepram Schema",
+                    "version": "1.0.0dev",
+                    "type": "object",
+                    "properties": {"sample_unique_id": {"type": "string"}},
+                    "required": ["sample_unique_id"],
+                },
+                "schema_default": True,
+                "schema_in_use": True,
+                "schema_app_name": "pathocore-api",
+            },
+        ),
+        OpenApiExample(
+            "RawSchemaBody",
+            value={
+                "title": "Mepram Schema",
+                "version": "1.0.0dev",
+                "type": "object",
+                "properties": {"sample_unique_id": {"type": "string"}},
+                "required": ["sample_unique_id"],
+            },
+        ),
+    ],
+)
+@authentication_classes([SessionAuthentication, BasicAuthentication])
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def schema(request):
+    if not request.user.is_staff:
+        return Response(
+            {"error": "Admin privileges required"},
+            status=status.HTTP_403_FORBIDDEN,
+        )
+    serializer = core.api.v1.serializers.SchemaIngestSerializer(data=request.data)
+    serializer.is_valid(raise_exception=True)
+
+    try:
+        schema_obj, properties_count = schema_ingestion.ingest_schema(
+            serializer.validated_data, request_user=request.user
+        )
+    except ValueError as exc:
+        error_message = str(exc)
+        if error_message == "Schema already exists":
+            return Response(
+                {"error": error_message}, status=status.HTTP_409_CONFLICT
+            )
+        return Response({"error": error_message}, status=status.HTTP_400_BAD_REQUEST)
+
+    response_serializer = core.api.v1.serializers.SchemaIngestResponseSerializer(
+        data={
+            "schema_name": schema_obj.schema_name,
+            "schema_version": schema_obj.schema_version,
+            "properties_count": properties_count,
+            "schema_in_use": schema_obj.schema_in_use,
+            "schema_default": schema_obj.schema_default,
+            "status": "created",
+        }
+    )
+    response_serializer.is_valid(raise_exception=True)
+    return Response(response_serializer.data, status=status.HTTP_201_CREATED)
 
 @extend_schema(
     responses={

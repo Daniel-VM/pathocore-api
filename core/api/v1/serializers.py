@@ -82,6 +82,54 @@ class ErrorSerializer(serializers.Serializer):
     error = serializers.CharField()
 
 
+class SchemaIngestSerializer(serializers.Serializer):
+    # Input is raw JSON schema (not a FileField), so we validate title/version here
+    # and later convert the JSON into a file for Schema.file_name in the service.
+    schema = serializers.JSONField(
+        required=False,
+        help_text=(
+            "Schema JSON. If omitted, the raw request body is treated as the schema."
+        ),
+    )
+    schema_name = serializers.CharField(required=False, allow_blank=False)
+    schema_version = serializers.CharField(required=False, allow_blank=False)
+    schema_in_use = serializers.BooleanField(required=False)
+    schema_default = serializers.BooleanField(required=False)
+    schema_app_name = serializers.CharField(required=False, allow_blank=False)
+    schema_apps_name = serializers.CharField(required=False, allow_blank=False)
+
+    def validate(self, attrs):
+        # Accept two formats:
+        # 1) {"schema": {...}, "schema_default": true, ...}
+        # 2) raw schema JSON as body (title/version/properties at top-level)
+        raw_input = self.initial_data if isinstance(self.initial_data, dict) else {}
+        schema = attrs.get("schema") or raw_input
+        if not isinstance(schema, dict):
+            raise serializers.ValidationError({"error": "schema must be a JSON object"})
+
+        title = schema.get("title")
+        version = schema.get("version")
+        if not title or not isinstance(title, str) or not title.strip():
+            raise serializers.ValidationError({"error": "schema title is required"})
+        if not version or not isinstance(version, str) or not version.strip():
+            raise serializers.ValidationError({"error": "schema version is required"})
+
+        # If not explicitly provided, derive from schema file.
+        attrs.setdefault("schema_name", title.strip())
+        attrs.setdefault("schema_version", version.strip())
+        attrs["schema"] = schema
+        return attrs
+
+
+class SchemaIngestResponseSerializer(serializers.Serializer):
+    schema_name = serializers.CharField()
+    schema_version = serializers.CharField()
+    properties_count = serializers.IntegerField()
+    schema_in_use = serializers.BooleanField()
+    schema_default = serializers.BooleanField()
+    status = serializers.CharField()
+
+
 # TODO: Add or remove request filters.
 class SampleFilterSerializer(serializers.Serializer):
     sample_unique_id = serializers.CharField(required=False, allow_blank=False)
@@ -260,4 +308,3 @@ class SampleMetadataIngestResponseSerializer(serializers.Serializer):
     sample_unique_id = serializers.CharField()
     stored_count = serializers.IntegerField()
     status = serializers.CharField()
-
