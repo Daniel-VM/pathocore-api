@@ -3,7 +3,9 @@ from typing import Tuple
 from core import models
 
 
-def ingest_sample(sample_payload: dict, request_user=None) -> Tuple[models.Sample, bool]:
+def ingest_sample(
+    sample_payload: dict, request_user=None
+) -> Tuple[models.Sample, bool]:
     raw_unique_id = sample_payload.get("sample_unique_id")
     if raw_unique_id is None:
         raise ValueError("sample_unique_id is required to ingest a sample")
@@ -28,11 +30,9 @@ def ingest_sample(sample_payload: dict, request_user=None) -> Tuple[models.Sampl
         schema_version = schema_version.strip()
     if not schema_name or not schema_version:
         raise ValueError("schema_name and schema_version are required")
-    schema_obj = (
-        models.Schema.objects.filter(
-            schema_name=schema_name, schema_version=schema_version
-        ).last()
-    )
+    schema_obj = models.Schema.objects.filter(
+        schema_name=schema_name, schema_version=schema_version
+    ).last()
     if schema_obj is None:
         raise ValueError(
             f"Schema not found for name={schema_name} version={schema_version}"

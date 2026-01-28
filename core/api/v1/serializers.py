@@ -48,6 +48,7 @@ class SampleIngestSerializer(serializers.ModelSerializer):
             "sequence_file_path_r2",
         ]
 
+
 class SampleStateHistorySerializer(serializers.ModelSerializer):
     class Meta:
         model = core.models.SampleStateHistory
@@ -70,6 +71,7 @@ class SampleHistoryItemSerializer(serializers.ModelSerializer):
             "is_current",
             "changed_at",
         ]
+
 
 class SampleIngestResponseSerializer(serializers.Serializer):
     sample_unique_id = serializers.CharField()
@@ -181,7 +183,9 @@ class SampleFilterSerializer(serializers.Serializer):
     sequencing_sample_id = serializers.CharField(required=False, allow_blank=False)
     collecting_institution = serializers.CharField(required=False, allow_blank=False)
     collecting_lab_sample_id = serializers.CharField(required=False, allow_blank=False)
-    microbiology_lab_sample_id = serializers.CharField(required=False, allow_blank=False)
+    microbiology_lab_sample_id = serializers.CharField(
+        required=False, allow_blank=False
+    )
     submitting_lab_sample_id = serializers.CharField(required=False, allow_blank=False)
     schema_name = serializers.CharField(required=False, allow_blank=False)
     schema_version = serializers.CharField(required=False, allow_blank=False)
@@ -237,7 +241,7 @@ class SampleListItemSerializer(serializers.ModelSerializer):
         fields = [
             "sample_unique_id",
             "sequencing_sample_id",
-            #"collecting_institution",
+            # "collecting_institution",
             "created_at",
             "schema_name",
             "schema_version",

@@ -11,9 +11,8 @@ def _normalize_list(values):
 
 
 def list_sample_metadata(sample_obj, classifications=None, properties=None):
-    queryset = (
-        models.MetadataValues.objects.filter(sample=sample_obj)
-        .select_related("schema_property", "schema_property__classificationID", "group")
+    queryset = models.MetadataValues.objects.filter(sample=sample_obj).select_related(
+        "schema_property", "schema_property__classificationID", "group"
     )
     classifications = _normalize_list(classifications)
     properties = _normalize_list(properties)
@@ -132,9 +131,10 @@ def search_samples_metadata(filters, match="all"):
                 continue
             if current_filter["value"] is None:
                 matches_filter = True
-            elif item.value is not None and item.value.lower() == current_filter[
-                "value"
-            ].lower():
+            elif (
+                item.value is not None
+                and item.value.lower() == current_filter["value"].lower()
+            ):
                 matches_filter = True
             if matches_filter:
                 break
