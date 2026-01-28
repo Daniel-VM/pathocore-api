@@ -1,0 +1,9 @@
+[tool.black]
+line-length = 88
+target-version = ["py312"]
+skip-string-normalization = false
+exclude = '''
+(
+  /(\.eggs|\.git|\.hg|\.mypy_cache|\.tox|\.venv|build|dist)/
+)
+'''
