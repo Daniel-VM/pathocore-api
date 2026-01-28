@@ -14,7 +14,9 @@ def list_samples(filters: dict):
 
     collecting_institution = filters.get("collecting_institution")
     if collecting_institution:
-        queryset = queryset.filter(collecting_institution__icontains=collecting_institution)
+        queryset = queryset.filter(
+            collecting_institution__icontains=collecting_institution
+        )
 
     collecting_lab_sample_id = filters.get("collecting_lab_sample_id")
     if collecting_lab_sample_id:
@@ -22,7 +24,9 @@ def list_samples(filters: dict):
 
     microbiology_lab_sample_id = filters.get("microbiology_lab_sample_id")
     if microbiology_lab_sample_id:
-        queryset = queryset.filter(microbiology_lab_sample_id=microbiology_lab_sample_id)
+        queryset = queryset.filter(
+            microbiology_lab_sample_id=microbiology_lab_sample_id
+        )
 
     submitting_lab_sample_id = filters.get("submitting_lab_sample_id")
     if submitting_lab_sample_id:

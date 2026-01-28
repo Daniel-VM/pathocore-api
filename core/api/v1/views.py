@@ -91,7 +91,9 @@ def samples(request):
                 return Response(
                     {"error": error_message}, status=status.HTTP_409_CONFLICT
                 )
-            return Response({"error": error_message}, status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {"error": error_message}, status=status.HTTP_400_BAD_REQUEST
+            )
 
         # If created, add initial state history
         if created:
@@ -111,7 +113,7 @@ def samples(request):
                 return Response({"error": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
             if isinstance(result, Response):
                 return result
-        
+
         # Prepare POST response
         response_serializer = core.api.v1.serializers.SampleIngestResponseSerializer(
             data={
@@ -295,6 +297,7 @@ def schema_detail(request, schema_name, schema_version):
     )
     return Response(response_serializer.data, status=status.HTTP_200_OK)
 
+
 @extend_schema(
     responses={
         200: core.api.v1.serializers.SampleDetailSerializer,
@@ -401,7 +404,7 @@ def sample_history_detail_view(request, sample_unique_id):
             required=False,
             location=OpenApiParameter.QUERY,
             description="Optional value to match for the property",
-        )
+        ),
     ],
     responses={
         200: core.api.v1.serializers.SampleMetadataPropertyResultSerializer(many=True),
@@ -462,8 +465,10 @@ def sample_metadata_property_view(request):
     if not results:
         return Response({"error": "No samples found"}, status=status.HTTP_404_NOT_FOUND)
 
-    response_serializer = core.api.v1.serializers.SampleMetadataPropertyResultSerializer(
-        results, many=True
+    response_serializer = (
+        core.api.v1.serializers.SampleMetadataPropertyResultSerializer(
+            results, many=True
+        )
     )
     return Response(response_serializer.data, status=status.HTTP_200_OK)
 
@@ -504,7 +509,9 @@ def sample_metadata_search_view(request):
     data = {"filter": raw_filters}
     if "match" in request.query_params:
         data["match"] = request.query_params.get("match")
-    filter_serializer = core.api.v1.serializers.SampleMetadataSearchSerializer(data=data)
+    filter_serializer = core.api.v1.serializers.SampleMetadataSearchSerializer(
+        data=data
+    )
     filter_serializer.is_valid(raise_exception=True)
 
     filters = []
@@ -600,7 +607,9 @@ def sample_metadata_view(request, sample_unique_id):
             {"error": "Admin privileges required"},
             status=status.HTTP_403_FORBIDDEN,
         )
-    serializer = core.api.v1.serializers.SampleMetadataIngestSerializer(data=request.data)
+    serializer = core.api.v1.serializers.SampleMetadataIngestSerializer(
+        data=request.data
+    )
     try:
         serializer.is_valid(raise_exception=True)
     except serializers.ValidationError as exc:
@@ -658,9 +667,7 @@ def sample_metadata_view(request, sample_unique_id):
                 sample_obj,
                 core.api.utils.common_functions.map_error_name(error_message),
             )
-            return Response(
-                {"error": error_message}, status=status.HTTP_409_CONFLICT
-            )
+            return Response({"error": error_message}, status=status.HTTP_409_CONFLICT)
         core.api.utils.common_functions.record_sample_error(
             sample_obj,
             core.api.utils.common_functions.map_error_name(error_message),
@@ -668,7 +675,9 @@ def sample_metadata_view(request, sample_unique_id):
         return Response({"error": error_message}, status=status.HTTP_400_BAD_REQUEST)
 
     if stored_count:
-        state_obj = core.models.SampleState.objects.filter(state__exact="Bioinfo").last()
+        state_obj = core.models.SampleState.objects.filter(
+            state__exact="Bioinfo"
+        ).last()
         if state_obj is None:
             return Response(
                 {"error": "Sample state 'Bioinfo' not configured"},
@@ -684,12 +693,14 @@ def sample_metadata_view(request, sample_unique_id):
             return result
 
     # TODO: document status and stored_counts in api
-    response_serializer = core.api.v1.serializers.SampleMetadataIngestResponseSerializer(
-        data={
-            "sample_unique_id": sample_unique_id,
-            "stored_count": stored_count,
-            "status": "stored" if stored_count else "no_changes",
-        }
+    response_serializer = (
+        core.api.v1.serializers.SampleMetadataIngestResponseSerializer(
+            data={
+                "sample_unique_id": sample_unique_id,
+                "stored_count": stored_count,
+                "status": "stored" if stored_count else "no_changes",
+            }
+        )
     )
     response_serializer.is_valid(raise_exception=True)
     return Response(response_serializer.data, status=status.HTTP_201_CREATED)

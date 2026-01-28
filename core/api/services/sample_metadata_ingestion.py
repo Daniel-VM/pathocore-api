@@ -15,11 +15,11 @@ def _get_sample_payload_fields():
             sample_payload_fields.add(field_name)
     return sample_payload_fields
 
+
 # TODO: harcoded date due to backward compatibility with models.MetadataValues.analysis_date not allowing nulls
 def _extract_analysis_date(payload):
-    raw_value = (
-        payload.get("bioinformatics_analysis_date")
-        or payload.get("analysis_date")
+    raw_value = payload.get("bioinformatics_analysis_date") or payload.get(
+        "analysis_date"
     )
     if raw_value is None:
         raise ValueError(

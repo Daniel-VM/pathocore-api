@@ -118,7 +118,9 @@ def ingest_schema(payload, request_user):
         fill_mode = _normalize_str(prop_data.get("fill_mode"))
         fmt = _normalize_str(prop_data.get("format"))
 
-        has_enum = isinstance(prop_data.get("enum"), list) and len(prop_data["enum"]) > 0
+        has_enum = (
+            isinstance(prop_data.get("enum"), list) and len(prop_data["enum"]) > 0
+        )
         is_required = prop_name in required_fields
 
         property_obj = core.models.SchemaProperties.objects.create(
