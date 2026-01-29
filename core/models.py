@@ -709,6 +709,7 @@ class Sample(models.Model):
     sequencing_sample_id = models.CharField(max_length=80, null=True, blank=True)
     submitting_lab_sample_id = models.CharField(max_length=80, null=True, blank=True)
     collecting_institution = models.CharField(max_length=120, null=True, blank=True)
+    # TODO: relace sequence_file* and _filepath properties with the ones in metadataplatforms
     sequence_file_R1_fastq = models.CharField(max_length=80, null=True, blank=True)
     sequence_file_R2_fastq = models.CharField(max_length=80, null=True, blank=True)
     sequence_file_R1_md5 = models.CharField(max_length=80, null=True, blank=True)
