@@ -69,8 +69,15 @@ def samples(request):
                 {"error": "Admin privileges required"},
                 status=status.HTTP_403_FORBIDDEN,
             )
+
+        # Two-step validation before ingestion
         serializer = core.api.v1.serializers.SampleIngestSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
+
+        # Precompute generated sample ID for logging if needed.
+        generated_sample_id = sample_ingestion.create_sample_unique_id(
+            serializer.validated_data
+        )
 
         # Create/Ingest Sample
         try:
@@ -81,7 +88,7 @@ def samples(request):
             error_message = str(exc)
             if error_message == "Sample already exists":
                 existing_sample = core.models.Sample.objects.filter(
-                    sample_unique_id=serializer.validated_data.get("sample_unique_id")
+                    sample_unique_id=generated_sample_id
                 ).last()
                 if existing_sample:
                     core.api.utils.common_functions.record_sample_error(
@@ -125,6 +132,8 @@ def samples(request):
         )
         response_serializer.is_valid(raise_exception=True)
 
+        # TODO: this should return the same request.body plus sample_unique_id if created is true
+        # TODO: this should be testet in order to see if it fits within helper-tools requirements
         # Return
         return Response(
             response_serializer.data,

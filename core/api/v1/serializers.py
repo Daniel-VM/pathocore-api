@@ -16,6 +16,18 @@ class SampleIngestSerializer(serializers.ModelSerializer):
     authors = serializers.CharField(
         required=False, allow_blank=True, allow_null=True, write_only=True
     )
+    sequencing_sample_id = serializers.CharField(
+        required=True, allow_blank=False, allow_null=False
+    )
+    collecting_lab_sample_id = serializers.CharField(
+        required=True, allow_blank=False, allow_null=False
+    )
+    submitting_lab_sample_id = serializers.CharField(
+        required=True, allow_blank=False, allow_null=False
+    )
+    collecting_institution = serializers.CharField(
+        required=True, allow_blank=False, allow_null=False
+    )
     sequence_file_path_r1 = serializers.CharField(
         required=False,
         allow_blank=True,
@@ -32,7 +44,6 @@ class SampleIngestSerializer(serializers.ModelSerializer):
     class Meta:
         model = core.models.Sample
         fields = [
-            "sample_unique_id",
             "sequencing_sample_id",
             "authors",
             "collecting_institution",
