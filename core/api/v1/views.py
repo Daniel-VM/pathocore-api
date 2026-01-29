@@ -95,6 +95,14 @@ def samples(request):
                         existing_sample,
                         core.api.utils.common_functions.map_error_name(error_message),
                     )
+                    return Response(
+                        {
+                            "error": error_message,
+                            "sample_unique_id": existing_sample.sample_unique_id,
+                            "sequencing_sample_id": existing_sample.sequencing_sample_id,
+                        },
+                        status=status.HTTP_409_CONFLICT,
+                    )
                 return Response(
                     {"error": error_message}, status=status.HTTP_409_CONFLICT
                 )
