@@ -706,8 +706,11 @@ class Sample(models.Model):
     sample_unique_id = models.CharField(max_length=12)
     microbiology_lab_sample_id = models.CharField(max_length=80, null=True, blank=True)
     collecting_lab_sample_id = models.CharField(max_length=80, null=True, blank=True)
+    collecting_lab_isolate_id = models.CharField(max_length=80, null=True, blank=True)
     sequencing_sample_id = models.CharField(max_length=80, null=True, blank=True)
+    sequencing_isolate_id = models.CharField(max_length=80, null=True, blank=True)
     submitting_lab_sample_id = models.CharField(max_length=80, null=True, blank=True)
+    submitting_lab_isolate_id = models.CharField(max_length=80, null=True, blank=True)
     collecting_institution = models.CharField(max_length=120, null=True, blank=True)
     # TODO: relace sequence_file* and _filepath properties with the ones in metadataplatforms
     sequence_file_R1_fastq = models.CharField(max_length=80, null=True, blank=True)

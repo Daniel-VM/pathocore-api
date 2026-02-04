@@ -17,10 +17,19 @@ class SampleIngestSerializer(serializers.ModelSerializer):
         required=False, allow_blank=True, allow_null=True, write_only=True
     )
     sequencing_sample_id = serializers.CharField(
-        required=True, allow_blank=False, allow_null=False
+        required=False, allow_blank=False, allow_null=True
     )
     collecting_lab_sample_id = serializers.CharField(
-        required=True, allow_blank=False, allow_null=False
+        required=False, allow_blank=False, allow_null=True
+    )
+    collecting_lab_isolate_id = serializers.CharField(
+        required=False, allow_blank=False, allow_null=True
+    )
+    sequencing_isolate_id = serializers.CharField(
+        required=False, allow_blank=False, allow_null=True
+    )
+    submitting_lab_isolate_id = serializers.CharField(
+        required=False, allow_blank=False, allow_null=True
     )
     submitting_lab_sample_id = serializers.CharField(
         required=True, allow_blank=False, allow_null=False
@@ -48,8 +57,11 @@ class SampleIngestSerializer(serializers.ModelSerializer):
             "authors",
             "collecting_institution",
             "collecting_lab_sample_id",
+            "collecting_lab_isolate_id",
+            "sequencing_isolate_id",
             "microbiology_lab_sample_id",
             "submitting_lab_sample_id",
+            "submitting_lab_isolate_id",
             "schema_name",
             "schema_version",
             "sequencing_date",
@@ -58,6 +70,24 @@ class SampleIngestSerializer(serializers.ModelSerializer):
             "sequence_file_path_r1",
             "sequence_file_path_r2",
         ]
+
+    def validate(self, attrs):
+        collecting_sample_id = attrs.get("collecting_lab_sample_id")
+        collecting_isolate_id = attrs.get("collecting_lab_isolate_id")
+        if not collecting_sample_id and not collecting_isolate_id:
+            raise serializers.ValidationError(
+                {
+                    "error": (
+                        "collecting_lab_isolate_id is expected. "
+                        "If it is not available, collecting_lab_sample_id is required."
+                    )
+                }
+            )
+        # Priority for hash generation: isolate_id first, then sample_id fallback.
+        attrs["collecting_id_for_hash"] = (
+            collecting_isolate_id or collecting_sample_id
+        )
+        return attrs
 
 
 class SampleStateHistorySerializer(serializers.ModelSerializer):

@@ -3,9 +3,9 @@ import hashlib
 from core import models
 
 
-def build_sample_unique_id(seq_id, colect_id, submit_inst, colect_inst) -> str:
+def build_sample_unique_id(seq_id, collecting_id, submit_inst, colect_inst) -> str:
     """Return the expected sample unique id given its 4 components."""
-    combined = f"{seq_id}|{colect_id}|{submit_inst}|{colect_inst}".lower()
+    combined = f"{seq_id or ''}|{collecting_id}|{submit_inst}|{colect_inst}".lower()
     return hashlib.sha256(combined.encode()).hexdigest()
 
 
@@ -13,12 +13,24 @@ def create_sample_unique_id(sample_payload: dict) -> str:
     # Generates a deterministic sample_unique_id from required fields.
     # NOTE: Required-field validation is handled in the serializer.
     seq_id = sample_payload.get("sequencing_sample_id")
-    colect_id = sample_payload.get("collecting_lab_sample_id")
-    submit_inst = sample_payload.get("submitting_lab_sample_id")
+    colect_isolate_id = sample_payload.get("collecting_lab_isolate_id")
+    colect_sample_id = sample_payload.get("collecting_lab_sample_id")
+    submit_inst = sample_payload.get("submitting_institution") or sample_payload.get(
+        "submitting_lab_sample_id"
+    )
+    if not submit_inst:
+        submit_inst = sample_payload.get("submitting_lab_isolate_id")
     colect_inst = sample_payload.get("collecting_institution")
 
+    # anyOf semantics: prioritize isolate_id; fallback to sample_id if missing.
+    collecting_id = colect_isolate_id or colect_sample_id
+    if not collecting_id:
+        raise ValueError(
+            "One of collecting_lab_isolate_id or collecting_lab_sample_id is required"
+        )
+
     fingerprint = build_sample_unique_id(
-        seq_id, colect_id, submit_inst, colect_inst
+        seq_id, collecting_id, submit_inst, colect_inst
     )
     max_length = models.Sample._meta.get_field("sample_unique_id").max_length
     return fingerprint[:max_length]
