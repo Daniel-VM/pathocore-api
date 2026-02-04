@@ -8,9 +8,14 @@ import core.models
 
 
 def custom_date_format(self):
-    if self.date:
-        return self.date.strftime("%d %b %Y")
+    # SampleStateHistory stores timestamp in `changed_at`.
+    if self.changed_at:
+        return self.changed_at.strftime("%d %b %Y")
     return ""
+
+
+custom_date_format.short_description = "Changed at"
+custom_date_format.admin_order_field = "changed_at"
 
 
 class ProfileInLine(admin.StackedInline):
