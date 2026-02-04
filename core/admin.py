@@ -116,6 +116,7 @@ class PublicDatabaseValuesAdmin(admin.ModelAdmin):
 
 class SampleAdmin(admin.ModelAdmin):
     list_display = [
+        "sample_unique_id",
         "sequencing_sample_id",
         "submitting_lab_sample_id",
         "collecting_lab_sample_id",
