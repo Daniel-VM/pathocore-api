@@ -140,8 +140,6 @@ def samples(request):
         )
         response_serializer.is_valid(raise_exception=True)
 
-        # TODO: this should return the same request.body plus sample_unique_id if created is true
-        # TODO: this should be testet in order to see if it fits within helper-tools requirements
         # Return
         return Response(
             response_serializer.data,
