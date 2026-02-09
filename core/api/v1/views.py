@@ -339,6 +339,10 @@ def sample_detail_view(request, sample_unique_id):
             fields={
                 "sample_id": serializers.IntegerField(required=False),
                 "sample_unique_id": serializers.CharField(required=False),
+                "sequencing_sample_id": serializers.CharField(required=False),
+                "submitting_lab_sample_id": serializers.CharField(required=False),
+                "collecting_lab_isolate_id": serializers.CharField(required=False),
+                "collecting_lab_sample_id": serializers.CharField(required=False),
                 "state_id": serializers.IntegerField(required=False),
                 "state": serializers.CharField(required=False),
                 "error_name_id": serializers.IntegerField(required=False),

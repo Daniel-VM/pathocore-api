@@ -1,3 +1,5 @@
+from django.db.models.functions import Lower
+
 from core import models
 
 
@@ -98,6 +100,19 @@ def search_samples_metadata(filters, match="all"):
         normalized_filters.append({"property": prop, "value": value})
 
     sample_sets = []
+    # Validate properties exist in any schema (not restricted to schema_in_use).
+    requested_props = {item["property"].lower() for item in normalized_filters}
+    existing_props = set(
+        models.SchemaProperties.objects.annotate(prop=Lower("property"))
+        .values_list("prop", flat=True)
+        .distinct()
+    )
+    missing_props = sorted(requested_props - existing_props)
+    if missing_props:
+        raise ValueError(
+            "Unknown property(ies): " + ", ".join(missing_props)
+        )
+
     for item in normalized_filters:
         queryset = models.MetadataValues.objects.filter(
             schema_property__property__iexact=item["property"]
