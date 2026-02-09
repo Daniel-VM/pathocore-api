@@ -729,8 +729,14 @@ class Sample(models.Model):
     def __str__(self):
         return "%s" % (self.sequencing_sample_id)
 
+    def get_sample_unique_id(self):
+        return "%s" % (self.sample_unique_id)
+    
     def get_sample_name(self):
         return "%s" % (self.sequencing_sample_id)
+
+    def get_isolate_name(self):
+        return "%s" % (self.sequencing_isolate_id)
 
     def get_lineage_values(self):
         return "%s" % (self.lineage_values)

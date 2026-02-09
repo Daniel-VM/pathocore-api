@@ -16,6 +16,30 @@ def list_sample_history(filters: dict):
         if normalized:
             queryset = queryset.filter(sample__sample_unique_id=normalized)
 
+    sequencing_sample_id = filters.get("sequencing_sample_id")
+    if sequencing_sample_id:
+        normalized = sequencing_sample_id.strip()
+        if normalized:
+            queryset = queryset.filter(sample__sequencing_sample_id=normalized)
+
+    submitting_lab_sample_id = filters.get("submitting_lab_sample_id")
+    if submitting_lab_sample_id:
+        normalized = submitting_lab_sample_id.strip()
+        if normalized:
+            queryset = queryset.filter(sample__submitting_lab_sample_id=normalized)
+
+    collecting_lab_isolate_id = filters.get("collecting_lab_isolate_id")
+    if collecting_lab_isolate_id:
+        normalized = collecting_lab_isolate_id.strip()
+        if normalized:
+            queryset = queryset.filter(sample__collecting_lab_isolate_id=normalized)
+
+    collecting_lab_sample_id = filters.get("collecting_lab_sample_id")
+    if collecting_lab_sample_id:
+        normalized = collecting_lab_sample_id.strip()
+        if normalized:
+            queryset = queryset.filter(sample__collecting_lab_sample_id=normalized)
+
     state_id = filters.get("state_id")
     if state_id:
         queryset = queryset.filter(state_id=state_id)

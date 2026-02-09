@@ -249,6 +249,10 @@ class SampleFilterSerializer(serializers.Serializer):
 class SampleHistoryFilterSerializer(serializers.Serializer):
     sample_id = serializers.IntegerField(required=False)
     sample_unique_id = serializers.CharField(required=False, allow_blank=False)
+    sequencing_sample_id = serializers.CharField(required=False, allow_blank=False)
+    submitting_lab_sample_id = serializers.CharField(required=False, allow_blank=False)
+    collecting_lab_isolate_id = serializers.CharField(required=False, allow_blank=False)
+    collecting_lab_sample_id = serializers.CharField(required=False, allow_blank=False)
     state_id = serializers.IntegerField(required=False)
     state = serializers.CharField(required=False, allow_blank=False)
     error_name_id = serializers.IntegerField(required=False)

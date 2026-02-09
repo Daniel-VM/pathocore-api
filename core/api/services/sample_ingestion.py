@@ -15,11 +15,7 @@ def create_sample_unique_id(sample_payload: dict) -> str:
     seq_id = sample_payload.get("sequencing_sample_id")
     colect_isolate_id = sample_payload.get("collecting_lab_isolate_id")
     colect_sample_id = sample_payload.get("collecting_lab_sample_id")
-    submit_inst = sample_payload.get("submitting_institution") or sample_payload.get(
-        "submitting_lab_sample_id"
-    )
-    if not submit_inst:
-        submit_inst = sample_payload.get("submitting_lab_isolate_id")
+    submit_inst = sample_payload.get("submitting_institution")
     colect_inst = sample_payload.get("collecting_institution")
 
     # anyOf semantics: prioritize isolate_id; fallback to sample_id if missing.
