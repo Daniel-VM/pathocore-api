@@ -690,8 +690,10 @@ if [ $install == true ]; then
             echo "Creating the database structure for $PROJECT_NAME"
             python manage.py makemigrations core
             python manage.py migrate
-            echo "Loading in database initial data"
-            python manage.py loaddata conf/first_install_tables.json
+            if [ $tables == true ] ; then
+                echo "Loading in database initial data"
+                python manage.py loaddata conf/first_install_tables.json
+            fi
 
             echo "Updating Apache configuration"
             if [[ $linux_distribution == "Ubuntu" ]]; then
