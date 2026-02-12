@@ -183,7 +183,7 @@ def samples(request):
                 "WrapperWithFlags",
                 value={
                     "schema": {
-                        "title": "Mepram Schema",
+                        "title": "mepram-schema",
                         "version": "1.0.0dev",
                         "type": "object",
                         "properties": {"sample_unique_id": {"type": "string"}},
