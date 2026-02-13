@@ -421,12 +421,20 @@ def sample_history_detail_view(request, sample_unique_id):
             name="value",
             type=str,
             required=False,
+            many=True,
             location=OpenApiParameter.QUERY,
-            description="Optional value to match for the property",
+            description="Optional value(s) to match. Repeat query param for multiple values.",
+        ),
+        OpenApiParameter(
+            name="match",
+            type=str,
+            required=False,
+            location=OpenApiParameter.QUERY,
+            description="When multiple values are provided: all or any (default any)",
         ),
     ],
     responses={
-        200: core.api.v1.serializers.SampleMetadataPropertyResultSerializer(many=True),
+        200: core.api.v1.serializers.SampleMetadataSearchResultSerializer(many=True),
         400: core.api.v1.serializers.ErrorSerializer,
         401: core.api.v1.serializers.ErrorSerializer,
         403: core.api.v1.serializers.ErrorSerializer,
@@ -439,14 +447,12 @@ def sample_history_detail_view(request, sample_unique_id):
 def sample_metadata_property_view(request):
     classification = request.query_params.get("classification")
     property_name = request.query_params.get("property")
+    values = request.query_params.getlist("value")
+    match = request.query_params.get("match")
 
-    if classification and property_name:
-        return Response(
-            {"error": "Use either classification or property, not both"},
-            status=status.HTTP_400_BAD_REQUEST,
-        )
-
-    if classification:
+    # Keep backward-compatible mode:
+    # classification only -> list available properties in that classification.
+    if classification and not property_name and not values:
         filter_serializer = (
             core.api.v1.serializers.SampleMetadataClassificationFilterSerializer(
                 data={"classification": classification}
@@ -470,24 +476,35 @@ def sample_metadata_property_view(request):
         )
         return Response(response_serializer.data, status=status.HTTP_200_OK)
 
-    filter_serializer = core.api.v1.serializers.SampleMetadataPropertyFilterSerializer(
-        data=request.query_params
+    data = {}
+    if classification:
+        data["classification"] = classification
+    if property_name:
+        data["property"] = property_name
+    if values:
+        data["value"] = values
+    if match:
+        data["match"] = match
+
+    filter_serializer = core.api.v1.serializers.SampleMetadataPropertyQuerySerializer(
+        data=data
     )
     filter_serializer.is_valid(raise_exception=True)
-    property_name = filter_serializer.validated_data["property"]
-    value = filter_serializer.validated_data.get("value")
 
     try:
-        results = sample_metadata.list_samples_by_property(property_name, value=value)
+        results = sample_metadata.list_samples_by_metadata_query(
+            property_name=filter_serializer.validated_data.get("property"),
+            values=filter_serializer.validated_data.get("value"),
+            match=filter_serializer.validated_data.get("match", "any"),
+            classification=filter_serializer.validated_data.get("classification"),
+        )
     except ValueError as exc:
         return Response({"error": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
     if not results:
         return Response({"error": "No samples found"}, status=status.HTTP_404_NOT_FOUND)
 
-    response_serializer = (
-        core.api.v1.serializers.SampleMetadataPropertyResultSerializer(
-            results, many=True
-        )
+    response_serializer = core.api.v1.serializers.SampleMetadataSearchResultSerializer(
+        results, many=True
     )
     return Response(response_serializer.data, status=status.HTTP_200_OK)
 
