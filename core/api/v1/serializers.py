@@ -347,6 +347,32 @@ class SampleMetadataPropertyFilterSerializer(serializers.Serializer):
     value = serializers.CharField(required=False, allow_blank=False)
 
 
+class SampleMetadataPropertyQuerySerializer(serializers.Serializer):
+    classification = serializers.CharField(required=False, allow_blank=False)
+    property = serializers.CharField(required=False, allow_blank=False)
+    value = serializers.ListField(
+        child=serializers.CharField(allow_blank=False), required=False, allow_empty=False
+    )
+    match = serializers.ChoiceField(
+        choices=["all", "any"], required=False, default="any"
+    )
+
+    def validate(self, attrs):
+        classification = attrs.get("classification")
+        property_name = attrs.get("property")
+        values = attrs.get("value")
+
+        # classification-only requests are handled by the dedicated branch.
+        if classification and not property_name and not values:
+            return attrs
+
+        if not property_name and not values:
+            raise serializers.ValidationError(
+                {"error": "Provide at least one of: property or value"}
+            )
+        return attrs
+
+
 class SampleMetadataClassificationFilterSerializer(serializers.Serializer):
     classification = serializers.CharField(required=True, allow_blank=False)
 
