@@ -71,6 +71,19 @@ class SampleIngestSerializer(serializers.ModelSerializer):
             "sequence_file_path_r2",
         ]
 
+    def to_internal_value(self, data):
+        # Accept payload keys case-insensitively across projects
+        # (e.g. sequence_file_path_R1 vs sequence_file_path_r1).
+        if isinstance(data, dict):
+            normalized = dict(data)
+            field_map = {name.lower(): name for name in self.fields.keys()}
+            for key, value in data.items():
+                canonical = field_map.get(str(key).lower())
+                if canonical and canonical not in normalized:
+                    normalized[canonical] = value
+            data = normalized
+        return super().to_internal_value(data)
+
     def validate(self, attrs):
         collecting_sample_id = attrs.get("collecting_lab_sample_id")
         collecting_isolate_id = attrs.get("collecting_lab_isolate_id")
