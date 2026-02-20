@@ -18,6 +18,7 @@ from drf_spectacular.utils import (
 )
 from rest_framework import serializers
 from django.http import QueryDict
+from django.core.exceptions import PermissionDenied
 
 # Local imports
 import core.models
@@ -151,7 +152,11 @@ def samples(request):
     filter_serializer = core.api.v1.serializers.SampleFilterSerializer(data=data)
     filter_serializer.is_valid(raise_exception=True)
     try:
-        queryset = sample_listing.list_samples(filter_serializer.validated_data)
+        queryset = sample_listing.list_samples(
+            filter_serializer.validated_data, request_user=request.user
+        )
+    except PermissionDenied as exc:
+        return Response({"error": str(exc)}, status=status.HTTP_403_FORBIDDEN)
     except ValueError as exc:
         return Response({"error": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
     if not queryset.exists():
@@ -176,7 +181,7 @@ def samples(request):
             "Upload a schema JSON. You can either send schema file in JSON format with "
             "`schema` + optional flags (schema_default/schema_in_use), or send the "
             "raw schema JSON as the body. In both cases, `title` and `version` "
-            "must exist inside the schema."
+            "must exist inside the schema. `app_name` is required and must be an allowed client code."
         ),
         examples=[
             OpenApiExample(
@@ -184,6 +189,7 @@ def samples(request):
                 value={
                     "schema": {
                         "title": "mepram-schema",
+                        "app_name": "mepram",
                         "version": "1.0.0dev",
                         "type": "object",
                         "properties": {"sample_unique_id": {"type": "string"}},
@@ -191,13 +197,14 @@ def samples(request):
                     },
                     "schema_default": True,
                     "schema_in_use": True,
-                    "schema_app_name": "pathocore-api",
+                    "app_name": "mepram",
                 },
             ),
             OpenApiExample(
                 "RawSchemaBody",
                 value={
                     "title": "Mepram Schema",
+                    "app_name": "mepram",
                     "version": "1.0.0dev",
                     "type": "object",
                     "properties": {"sample_unique_id": {"type": "string"}},
@@ -215,6 +222,7 @@ def samples(request):
                     "schema_version": serializers.CharField(required=False),
                     "schema_in_use": serializers.BooleanField(required=False),
                     "schema_default": serializers.BooleanField(required=False),
+                    "app_name": serializers.CharField(required=False),
                     "schema_apps_name": serializers.CharField(required=False),
                 },
             )
@@ -257,6 +265,7 @@ def schema(request):
             data={
                 "schema_name": schema_obj.schema_name,
                 "schema_version": schema_obj.schema_version,
+                "app_name": schema_obj.schema_apps_name,
                 "properties_count": properties_count,
                 "schema_in_use": schema_obj.schema_in_use,
                 "schema_default": schema_obj.schema_default,
@@ -270,7 +279,12 @@ def schema(request):
     filter_serializer = core.api.v1.serializers.SchemaListFilterSerializer(data=data)
     filter_serializer.is_valid(raise_exception=True)
 
-    queryset = schema_listing.list_schemas(filter_serializer.validated_data)
+    try:
+        queryset = schema_listing.list_schemas(
+            filter_serializer.validated_data, request_user=request.user
+        )
+    except PermissionDenied as exc:
+        return Response({"error": str(exc)}, status=status.HTTP_403_FORBIDDEN)
     response_serializer = core.api.v1.serializers.SchemaListItemSerializer(
         queryset, many=True
     )
@@ -288,9 +302,12 @@ def schema(request):
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def schema_detail(request, schema_name, schema_version):
-    schema_obj, schema_json = schema_listing.get_schema_by_name_version(
-        schema_name, schema_version
-    )
+    try:
+        schema_obj, schema_json = schema_listing.get_schema_by_name_version(
+            schema_name, schema_version, request_user=request.user
+        )
+    except PermissionDenied as exc:
+        return Response({"error": str(exc)}, status=status.HTTP_403_FORBIDDEN)
     if schema_obj is None:
         return Response({"error": "Schema not found"}, status=status.HTTP_404_NOT_FOUND)
     if schema_json is None:
@@ -305,6 +322,7 @@ def schema_detail(request, schema_name, schema_version):
             "schema_version": schema_obj.schema_version,
             "schema_in_use": schema_obj.schema_in_use,
             "schema_default": schema_obj.schema_default,
+            "app_name": schema_obj.schema_apps_name,
             "schema_apps_name": schema_obj.schema_apps_name,
             "generated_at": schema_obj.generated_at,
             "schema": schema_json,
@@ -325,7 +343,12 @@ def schema_detail(request, schema_name, schema_version):
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def sample_detail_view(request, sample_unique_id):
-    sample_obj = sample_detail.get_sample_detail(sample_unique_id)
+    try:
+        sample_obj = sample_detail.get_sample_detail(
+            sample_unique_id, request_user=request.user
+        )
+    except PermissionDenied as exc:
+        return Response({"error": str(exc)}, status=status.HTTP_403_FORBIDDEN)
     if sample_obj is None:
         return Response({"error": "Sample not found"}, status=status.HTTP_404_NOT_FOUND)
     response_serializer = core.api.v1.serializers.SampleDetailSerializer(sample_obj)
@@ -369,7 +392,12 @@ def sample_history_view(request):
         data=request.query_params
     )
     filter_serializer.is_valid(raise_exception=True)
-    queryset = sample_history.list_sample_history(filter_serializer.validated_data)
+    try:
+        queryset = sample_history.list_sample_history(
+            filter_serializer.validated_data, request_user=request.user
+        )
+    except PermissionDenied as exc:
+        return Response({"error": str(exc)}, status=status.HTTP_403_FORBIDDEN)
     if not queryset.exists():
         return Response({"error": "No history found"}, status=status.HTTP_404_NOT_FOUND)
     response_serializer = core.api.v1.serializers.SampleHistoryItemSerializer(
@@ -390,9 +418,12 @@ def sample_history_view(request):
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def sample_history_detail_view(request, sample_unique_id):
-    queryset = sample_history.list_sample_history(
-        {"sample_unique_id": sample_unique_id}
-    )
+    try:
+        queryset = sample_history.list_sample_history(
+            {"sample_unique_id": sample_unique_id}, request_user=request.user
+        )
+    except PermissionDenied as exc:
+        return Response({"error": str(exc)}, status=status.HTTP_403_FORBIDDEN)
     if not queryset.exists():
         return Response({"error": "No history found"}, status=status.HTTP_404_NOT_FOUND)
     response_serializer = core.api.v1.serializers.SampleHistoryItemSerializer(
@@ -461,8 +492,11 @@ def sample_metadata_property_view(request):
         filter_serializer.is_valid(raise_exception=True)
         try:
             results = sample_metadata.list_properties_by_classification(
-                filter_serializer.validated_data["classification"]
+                filter_serializer.validated_data["classification"],
+                request_user=request.user,
             )
+        except PermissionDenied as exc:
+            return Response({"error": str(exc)}, status=status.HTTP_403_FORBIDDEN)
         except ValueError as exc:
             return Response({"error": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
         if not results:
@@ -497,7 +531,10 @@ def sample_metadata_property_view(request):
             values=filter_serializer.validated_data.get("value"),
             match=filter_serializer.validated_data.get("match", "any"),
             classification=filter_serializer.validated_data.get("classification"),
+            request_user=request.user,
         )
+    except PermissionDenied as exc:
+        return Response({"error": str(exc)}, status=status.HTTP_403_FORBIDDEN)
     except ValueError as exc:
         return Response({"error": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
     if not results:
@@ -581,8 +618,12 @@ def sample_metadata_search_view(request):
 
     try:
         results = sample_metadata.search_samples_metadata(
-            filters, match=filter_serializer.validated_data.get("match", "all")
+            filters,
+            match=filter_serializer.validated_data.get("match", "all"),
+            request_user=request.user,
         )
+    except PermissionDenied as exc:
+        return Response({"error": str(exc)}, status=status.HTTP_403_FORBIDDEN)
     except ValueError as exc:
         return Response({"error": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
     if not results:
@@ -620,7 +661,12 @@ def sample_metadata_search_view(request):
 @api_view(["GET", "POST"])
 @permission_classes([IsAuthenticated])
 def sample_metadata_view(request, sample_unique_id):
-    sample_obj = sample_detail.get_sample_detail(sample_unique_id)
+    try:
+        sample_obj = sample_detail.get_sample_detail(
+            sample_unique_id, request_user=request.user
+        )
+    except PermissionDenied as exc:
+        return Response({"error": str(exc)}, status=status.HTTP_403_FORBIDDEN)
     if sample_obj is None:
         return Response({"error": "Sample not found"}, status=status.HTTP_404_NOT_FOUND)
     # TODO: complex fields (grouped metadata) are not exposed yet.
@@ -631,6 +677,7 @@ def sample_metadata_view(request, sample_unique_id):
             sample_obj,
             classifications=None,
             properties=None,
+            request_user=request.user,
         )
         response_serializer = core.api.v1.serializers.SampleMetadataItemSerializer(
             metadata_list, many=True

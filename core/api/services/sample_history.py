@@ -1,10 +1,13 @@
 from core import models
+from core.api.utils import access_control
 
 
-def list_sample_history(filters: dict):
+def list_sample_history(filters: dict, request_user=None):
     queryset = models.SampleStateHistory.objects.select_related(
         "sample", "state", "error_name"
     )
+    if request_user is not None:
+        queryset = access_control.apply_sample_history_scope(queryset, request_user)
 
     sample_id = filters.get("sample_id")
     if sample_id:

@@ -1,11 +1,14 @@
 import json
 
 import core.models
+from core.api.utils import access_control
 
 
-def list_schemas(filters=None):
+def list_schemas(filters=None, request_user=None):
     filters = filters or {}
     queryset = core.models.Schema.objects.all()
+    if request_user is not None:
+        queryset = access_control.apply_schema_scope(queryset, request_user)
 
     schema_name = filters.get("schema_name")
     if schema_name:
@@ -21,16 +24,22 @@ def list_schemas(filters=None):
         queryset = queryset.filter(schema_default=filters["schema_default"])
 
     schema_apps_name = filters.get("schema_apps_name")
+    app_name = filters.get("app_name")
+    if app_name and not schema_apps_name:
+        schema_apps_name = app_name
     if schema_apps_name:
         queryset = queryset.filter(schema_apps_name__iexact=schema_apps_name)
 
     return queryset.order_by("-generated_at", "-id")
 
 
-def get_schema_by_name_version(schema_name, schema_version):
-    schema_obj = core.models.Schema.objects.filter(
+def get_schema_by_name_version(schema_name, schema_version, request_user=None):
+    queryset = core.models.Schema.objects.filter(
         schema_name=schema_name, schema_version=schema_version
-    ).last()
+    )
+    if request_user is not None:
+        queryset = access_control.apply_schema_scope(queryset, request_user)
+    schema_obj = queryset.last()
     if schema_obj is None:
         return None, None
 

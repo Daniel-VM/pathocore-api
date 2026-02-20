@@ -3,6 +3,7 @@ import json
 from django.core.files.base import ContentFile
 
 import core.models
+from core.api.utils import access_control
 
 
 def _normalize_str(value):
@@ -59,11 +60,14 @@ def ingest_schema(payload, request_user):
         raise ValueError("schema_default requires schema_in_use=true")
 
     schema_app_name = _normalize_str(
-        payload.get("schema_app_name")
+        payload.get("app_name")
+        or schema_data.get("app_name")
+        or payload.get("schema_app_name")
         or payload.get("schema_apps_name")
         or schema_data.get("schema_app_name")
         or schema_data.get("schema_apps_name")
     )
+    schema_app_name = access_control.validate_allowed_app_name(schema_app_name)
 
     file_name = f"{schema_name}_{schema_version}.json".replace(" ", "_")
     file_payload = ContentFile(
