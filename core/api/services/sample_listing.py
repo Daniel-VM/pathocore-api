@@ -1,8 +1,11 @@
 from core import models
+from core.api.utils import access_control
 
 
-def list_samples(filters: dict):
+def list_samples(filters: dict, request_user=None):
     queryset = models.Sample.objects.all()
+    if request_user is not None:
+        queryset = access_control.apply_sample_scope(queryset, request_user)
 
     sample_unique_id = filters.get("sample_unique_id")
     if sample_unique_id:

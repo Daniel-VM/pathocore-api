@@ -2,6 +2,7 @@ from django.db.models import Q
 from django.db.models.functions import Lower
 
 from core import models
+from core.api.utils import access_control
 
 
 def _normalize_list(values):
@@ -13,10 +14,14 @@ def _normalize_list(values):
     return cleaned or None
 
 
-def list_sample_metadata(sample_obj, classifications=None, properties=None):
+def list_sample_metadata(
+    sample_obj, classifications=None, properties=None, request_user=None
+):
     queryset = models.MetadataValues.objects.filter(sample=sample_obj).select_related(
         "schema_property", "schema_property__classificationID", "group"
     )
+    if request_user is not None:
+        queryset = access_control.apply_metadata_values_scope(queryset, request_user)
     classifications = _normalize_list(classifications)
     properties = _normalize_list(properties)
     if classifications:
@@ -44,7 +49,7 @@ def list_sample_metadata(sample_obj, classifications=None, properties=None):
     return results
 
 
-def list_samples_by_property(property_name, value=None):
+def list_samples_by_property(property_name, value=None, request_user=None):
     if not property_name or not isinstance(property_name, str):
         raise ValueError("property is required")
     normalized = property_name.strip()
@@ -64,6 +69,8 @@ def list_samples_by_property(property_name, value=None):
         .select_related("sample")
         .order_by("sample__sample_unique_id")
     )
+    if request_user is not None:
+        queryset = access_control.apply_metadata_values_scope(queryset, request_user)
     if value_filter is not None:
         queryset = queryset.filter(value__iexact=value_filter)
     results = []
@@ -78,7 +85,11 @@ def list_samples_by_property(property_name, value=None):
 
 
 def list_samples_by_metadata_query(
-    property_name=None, values=None, match="any", classification=None
+    property_name=None,
+    values=None,
+    match="any",
+    classification=None,
+    request_user=None,
 ):
     if match not in {"all", "any"}:
         raise ValueError("match must be 'all' or 'any'")
@@ -90,7 +101,14 @@ def list_samples_by_metadata_query(
         normalized_property = property_name.strip()
         if not normalized_property:
             raise ValueError("property cannot be empty")
-        property_exists = models.SchemaProperties.objects.filter(
+        property_queryset = models.SchemaProperties.objects.all()
+        if request_user is not None:
+            property_queryset = property_queryset.filter(
+                schemaID__in=access_control.apply_schema_scope(
+                    models.Schema.objects.all(), request_user
+                )
+            )
+        property_exists = property_queryset.filter(
             property__iexact=normalized_property
         ).exists()
         if not property_exists:
@@ -120,6 +138,8 @@ def list_samples_by_metadata_query(
             raise ValueError("classification cannot be empty")
 
     queryset = models.MetadataValues.objects.select_related("sample", "schema_property")
+    if request_user is not None:
+        queryset = access_control.apply_metadata_values_scope(queryset, request_user)
     if normalized_property:
         queryset = queryset.filter(schema_property__property__iexact=normalized_property)
     if normalized_classification:
@@ -177,7 +197,7 @@ def list_samples_by_metadata_query(
     return list(sample_to_values.values())
 
 
-def search_samples_metadata(filters, match="all"):
+def search_samples_metadata(filters, match="all", request_user=None):
     if not filters:
         raise ValueError("At least one filter is required")
     if match not in {"all", "any"}:
@@ -203,8 +223,15 @@ def search_samples_metadata(filters, match="all"):
     sample_sets = []
     # Validate properties exist in any schema (not restricted to schema_in_use).
     requested_props = {item["property"].lower() for item in normalized_filters}
+    properties_queryset = models.SchemaProperties.objects.all()
+    if request_user is not None:
+        properties_queryset = properties_queryset.filter(
+            schemaID__in=access_control.apply_schema_scope(
+                models.Schema.objects.all(), request_user
+            )
+        )
     existing_props = set(
-        models.SchemaProperties.objects.annotate(prop=Lower("property"))
+        properties_queryset.annotate(prop=Lower("property"))
         .values_list("prop", flat=True)
         .distinct()
     )
@@ -218,6 +245,8 @@ def search_samples_metadata(filters, match="all"):
         queryset = models.MetadataValues.objects.filter(
             schema_property__property__iexact=item["property"]
         )
+        if request_user is not None:
+            queryset = access_control.apply_metadata_values_scope(queryset, request_user)
         if item["value"] is not None:
             queryset = queryset.filter(value__iexact=item["value"])
         sample_sets.append(set(queryset.values_list("sample_id", flat=True)))
@@ -237,6 +266,8 @@ def search_samples_metadata(filters, match="all"):
         .select_related("sample", "schema_property")
         .order_by("sample__sample_unique_id")
     )
+    if request_user is not None:
+        queryset = access_control.apply_metadata_values_scope(queryset, request_user)
     for item in queryset:
         if item.schema_property is None:
             continue
@@ -275,14 +306,21 @@ def search_samples_metadata(filters, match="all"):
     return list(results.values())
 
 
-def list_properties_by_classification(classification_name):
+def list_properties_by_classification(classification_name, request_user=None):
     if not classification_name or not isinstance(classification_name, str):
         raise ValueError("classification is required")
     normalized = classification_name.strip()
     if not normalized:
         raise ValueError("classification is required")
+    queryset = models.SchemaProperties.objects.all()
+    if request_user is not None:
+        queryset = queryset.filter(
+            schemaID__in=access_control.apply_schema_scope(
+                models.Schema.objects.all(), request_user
+            )
+        )
     properties = (
-        models.SchemaProperties.objects.filter(
+        queryset.filter(
             classificationID__classification_name__iexact=normalized
         )
         .values_list("property", flat=True)

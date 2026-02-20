@@ -2,6 +2,7 @@
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "$id": "https://github.com/BU-ISCIII/relecov-tools/blob/develop/relecov_tools/schema/mepram_schema.json",
     "title": "Mepram Schema",
+    "app_name": "mepram",
     "description": "Json Schema that specifies the structure, content, and validation rules for relecov-tools",
     "version": "1.0.0dev",
     "type": "object",
