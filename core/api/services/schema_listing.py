@@ -23,12 +23,12 @@ def list_schemas(filters=None, request_user=None):
     if "schema_default" in filters:
         queryset = queryset.filter(schema_default=filters["schema_default"])
 
-    schema_apps_name = filters.get("schema_apps_name")
+    schema_app_name = filters.get("schema_app_name")
     app_name = filters.get("app_name")
-    if app_name and not schema_apps_name:
-        schema_apps_name = app_name
-    if schema_apps_name:
-        queryset = queryset.filter(schema_apps_name__iexact=schema_apps_name)
+    if app_name and not schema_app_name:
+        schema_app_name = app_name
+    if schema_app_name:
+        queryset = queryset.filter(schema_app_name__iexact=schema_app_name)
 
     return queryset.order_by("-generated_at", "-id")
 

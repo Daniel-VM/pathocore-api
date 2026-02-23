@@ -15,12 +15,12 @@ def get_schema_version_if_exists(data):
         if core.models.Schema.objects.filter(
             schema_name__iexact=data["schema_name"],
             schema_version__iexact=data["schema_version"],
-            schema_apps_name__iexact=apps_name,
+            schema_app_name__iexact=apps_name,
         ).exists():
             return core.models.Schema.objects.filter(
                 schema_name__iexact=data["schema_name"],
                 schema_version__iexact=data["schema_version"],
-                schema_apps_name__iexact=apps_name,
+                schema_app_name__iexact=apps_name,
             ).last()
     return None
 
