@@ -63,9 +63,7 @@ def ingest_schema(payload, request_user):
         payload.get("app_name")
         or schema_data.get("app_name")
         or payload.get("schema_app_name")
-        or payload.get("schema_apps_name")
         or schema_data.get("schema_app_name")
-        or schema_data.get("schema_apps_name")
     )
     schema_app_name = access_control.validate_allowed_app_name(schema_app_name)
 
@@ -81,7 +79,7 @@ def ingest_schema(payload, request_user):
         schema_version=schema_version,
         schema_default=schema_default,
         schema_in_use=schema_in_use,
-        schema_apps_name=schema_app_name,
+        schema_app_name=schema_app_name,
     )
 
     required_fields = schema_data.get("required") or []

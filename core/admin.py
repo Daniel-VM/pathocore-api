@@ -153,7 +153,7 @@ class SchemaAdmin(admin.ModelAdmin):
         "schema_version",
         "schema_default",
         "schema_in_use",
-        "schema_apps_name",
+        "schema_app_name",
     ]
 
 

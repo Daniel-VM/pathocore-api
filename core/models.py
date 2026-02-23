@@ -65,7 +65,7 @@ class SchemaManager(models.Manager):
             schema_version=data["schema_version"],
             schema_default=data["schema_default"],
             schema_in_use=True,
-            schema_apps_name=data["schema_app_name"],
+            schema_app_name=data["schema_app_name"],
         )
         return new_schema
 
@@ -77,7 +77,7 @@ class Schema(models.Model):
     schema_version = models.CharField(max_length=10)
     schema_in_use = models.BooleanField(default=True)
     schema_default = models.BooleanField(default=True)
-    schema_apps_name = models.CharField(max_length=40, null=True, blank=True)
+    schema_app_name = models.CharField(max_length=40, null=True, blank=True)
     generated_at = models.DateTimeField(auto_now_add=True, null=True, blank=True)
 
     class Meta:

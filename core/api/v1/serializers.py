@@ -157,7 +157,6 @@ class SchemaIngestSerializer(serializers.Serializer):
     schema_in_use = serializers.BooleanField(required=False)
     schema_default = serializers.BooleanField(required=False)
     schema_app_name = serializers.CharField(required=False, allow_blank=False)
-    schema_apps_name = serializers.CharField(required=False, allow_blank=False)
 
     def validate(self, attrs):
         # Accept two formats:
@@ -178,10 +177,8 @@ class SchemaIngestSerializer(serializers.Serializer):
         app_name = (
             attrs.get("app_name")
             or attrs.get("schema_app_name")
-            or attrs.get("schema_apps_name")
             or schema.get("app_name")
             or schema.get("schema_app_name")
-            or schema.get("schema_apps_name")
         )
         if not app_name or not isinstance(app_name, str) or not app_name.strip():
             raise serializers.ValidationError({"error": "schema app_name is required"})
@@ -210,7 +207,7 @@ class SchemaListFilterSerializer(serializers.Serializer):
     schema_in_use = serializers.BooleanField(required=False)
     schema_default = serializers.BooleanField(required=False)
     app_name = serializers.CharField(required=False, allow_blank=False)
-    schema_apps_name = serializers.CharField(required=False, allow_blank=False)
+    schema_app_name = serializers.CharField(required=False, allow_blank=False)
 
     def validate(self, attrs):
         allowed_keys = set(self.fields.keys())
@@ -221,8 +218,8 @@ class SchemaListFilterSerializer(serializers.Serializer):
                 {"error": f"Unknown filter(s): {', '.join(sorted(unknown_keys))}"}
             )
         app_name = attrs.get("app_name")
-        if app_name and not attrs.get("schema_apps_name"):
-            attrs["schema_apps_name"] = app_name
+        if app_name and not attrs.get("schema_app_name"):
+            attrs["schema_app_name"] = app_name
         if "schema_in_use" not in self.initial_data:
             attrs.pop("schema_in_use", None)
         if "schema_default" not in self.initial_data:
@@ -231,7 +228,7 @@ class SchemaListFilterSerializer(serializers.Serializer):
 
 
 class SchemaListItemSerializer(serializers.ModelSerializer):
-    app_name = serializers.CharField(source="schema_apps_name", read_only=True)
+    app_name = serializers.CharField(source="schema_app_name", read_only=True)
 
     class Meta:
         model = core.models.Schema
@@ -241,7 +238,7 @@ class SchemaListItemSerializer(serializers.ModelSerializer):
             "schema_in_use",
             "schema_default",
             "app_name",
-            "schema_apps_name",
+            "schema_app_name",
             "generated_at",
         ]
 
@@ -252,7 +249,7 @@ class SchemaDetailSerializer(serializers.Serializer):
     schema_in_use = serializers.BooleanField()
     schema_default = serializers.BooleanField()
     app_name = serializers.CharField(allow_null=True, allow_blank=True)
-    schema_apps_name = serializers.CharField(allow_null=True, allow_blank=True)
+    schema_app_name = serializers.CharField(allow_null=True, allow_blank=True)
     generated_at = serializers.DateTimeField(allow_null=True)
     schema = serializers.JSONField()
 

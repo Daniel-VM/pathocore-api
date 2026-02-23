@@ -44,28 +44,28 @@ def apply_schema_scope(queryset, user):
     if is_admin_user(user):
         return queryset
     project_code = get_user_project_code(user)
-    return queryset.filter(schema_apps_name__iexact=project_code)
+    return queryset.filter(schema_app_name__iexact=project_code)
 
 
 def apply_sample_scope(queryset, user):
     if is_admin_user(user):
         return queryset
     project_code = get_user_project_code(user)
-    return queryset.filter(schema_obj__schema_apps_name__iexact=project_code)
+    return queryset.filter(schema_obj__schema_app_name__iexact=project_code)
 
 
 def apply_sample_history_scope(queryset, user):
     if is_admin_user(user):
         return queryset
     project_code = get_user_project_code(user)
-    return queryset.filter(sample__schema_obj__schema_apps_name__iexact=project_code)
+    return queryset.filter(sample__schema_obj__schema_app_name__iexact=project_code)
 
 
 def apply_metadata_values_scope(queryset, user):
     if is_admin_user(user):
         return queryset
     project_code = get_user_project_code(user)
-    return queryset.filter(sample__schema_obj__schema_apps_name__iexact=project_code)
+    return queryset.filter(sample__schema_obj__schema_app_name__iexact=project_code)
 
 
 def ensure_sample_access(sample_obj, user):
@@ -76,7 +76,7 @@ def ensure_sample_access(sample_obj, user):
     project_code = get_user_project_code(user)
     schema_obj = sample_obj.schema_obj
     schema_project_code = _normalize_project_code(
-        getattr(schema_obj, "schema_apps_name", None)
+        getattr(schema_obj, "schema_app_name", None)
     )
     if schema_project_code != project_code:
         raise PermissionDenied("You are not allowed to access this sample")

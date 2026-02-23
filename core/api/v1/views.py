@@ -223,7 +223,7 @@ def samples(request):
                     "schema_in_use": serializers.BooleanField(required=False),
                     "schema_default": serializers.BooleanField(required=False),
                     "app_name": serializers.CharField(required=False),
-                    "schema_apps_name": serializers.CharField(required=False),
+                    "schema_app_name": serializers.CharField(required=False),
                 },
             )
         ],
@@ -265,7 +265,7 @@ def schema(request):
             data={
                 "schema_name": schema_obj.schema_name,
                 "schema_version": schema_obj.schema_version,
-                "app_name": schema_obj.schema_apps_name,
+                "app_name": schema_obj.schema_app_name,
                 "properties_count": properties_count,
                 "schema_in_use": schema_obj.schema_in_use,
                 "schema_default": schema_obj.schema_default,
@@ -322,8 +322,8 @@ def schema_detail(request, schema_name, schema_version):
             "schema_version": schema_obj.schema_version,
             "schema_in_use": schema_obj.schema_in_use,
             "schema_default": schema_obj.schema_default,
-            "app_name": schema_obj.schema_apps_name,
-            "schema_apps_name": schema_obj.schema_apps_name,
+            "app_name": schema_obj.schema_app_name,
+            "schema_app_name": schema_obj.schema_app_name,
             "generated_at": schema_obj.generated_at,
             "schema": schema_json,
         }
