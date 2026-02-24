@@ -59,13 +59,8 @@ def ingest_schema(payload, request_user):
     if schema_default and not schema_in_use:
         raise ValueError("schema_default requires schema_in_use=true")
 
-    schema_app_name = _normalize_str(
-        payload.get("app_name")
-        or schema_data.get("app_name")
-        or payload.get("schema_app_name")
-        or schema_data.get("schema_app_name")
-    )
-    schema_app_name = access_control.validate_allowed_app_name(schema_app_name)
+    schema_app_name = _normalize_str(payload.get("schema_app_name"))
+    schema_app_name = access_control.validate_allowed_project_name(schema_app_name)
 
     file_name = f"{schema_name}_{schema_version}.json".replace(" ", "_")
     file_payload = ContentFile(

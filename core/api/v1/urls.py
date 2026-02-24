@@ -10,6 +10,11 @@ app_name = "pathocore_api"
 urlpatterns = [
     path("schema", core.api.v1.views.schema, name="schema"),
     path(
+        "schema/project_name=<str:project_name>",
+        core.api.v1.views.schema,
+        name="schema_by_project_name",
+    ),
+    path(
         "schema/<str:schema_name>/<str:schema_version>",
         core.api.v1.views.schema_detail,
         name="schema_detail",

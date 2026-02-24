@@ -169,6 +169,18 @@ def samples(request):
 
 @extend_schema_view(
     post=extend_schema(
+        parameters=[
+            OpenApiParameter(
+                name="project_name",
+                type=str,
+                location=OpenApiParameter.QUERY,
+                required=True,
+                description=(
+                    "Project scope to assign the schema. Allowed values: "
+                    "mepram, relecov, redlabra."
+                ),
+            )
+        ],
         request=core.api.v1.serializers.SchemaIngestSerializer,
         responses={
             201: core.api.v1.serializers.SchemaIngestResponseSerializer,
@@ -178,10 +190,9 @@ def samples(request):
             409: core.api.v1.serializers.ErrorSerializer,
         },
         description=(
-            "Upload a schema JSON. You can either send schema file in JSON format with "
-            "`schema` + optional flags (schema_default/schema_in_use), or send the "
-            "raw schema JSON as the body. In both cases, `title` and `version` "
-            "must exist inside the schema. `app_name` is required and must be an allowed client code."
+            "Upload a schema JSON using wrapper payload. `project_name` is "
+            "required in the URL and must be an allowed client code. "
+            "`title` and `version` must exist inside `schema`."
         ),
         examples=[
             OpenApiExample(
@@ -189,7 +200,6 @@ def samples(request):
                 value={
                     "schema": {
                         "title": "mepram-schema",
-                        "app_name": "mepram",
                         "version": "1.0.0dev",
                         "type": "object",
                         "properties": {"sample_unique_id": {"type": "string"}},
@@ -197,18 +207,6 @@ def samples(request):
                     },
                     "schema_default": True,
                     "schema_in_use": True,
-                    "app_name": "mepram",
-                },
-            ),
-            OpenApiExample(
-                "RawSchemaBody",
-                value={
-                    "title": "Mepram Schema",
-                    "app_name": "mepram",
-                    "version": "1.0.0dev",
-                    "type": "object",
-                    "properties": {"sample_unique_id": {"type": "string"}},
-                    "required": ["sample_unique_id"],
                 },
             ),
         ],
@@ -222,8 +220,7 @@ def samples(request):
                     "schema_version": serializers.CharField(required=False),
                     "schema_in_use": serializers.BooleanField(required=False),
                     "schema_default": serializers.BooleanField(required=False),
-                    "app_name": serializers.CharField(required=False),
-                    "schema_app_name": serializers.CharField(required=False),
+                    "project_name": serializers.CharField(required=False),
                 },
             )
         ],
@@ -237,19 +234,32 @@ def samples(request):
 @authentication_classes([SessionAuthentication, BasicAuthentication])
 @api_view(["GET", "POST"])
 @permission_classes([IsAuthenticated])
-def schema(request):
+def schema(request, project_name=None):
     if request.method == "POST":
         if not request.user.is_staff:
             return Response(
                 {"error": "Admin privileges required"},
                 status=status.HTTP_403_FORBIDDEN,
             )
+        project_name = project_name or request.query_params.get("project_name")
+        if not project_name:
+            return Response(
+                {
+                    "error": (
+                        "project_name is required in URL "
+                        "(e.g. /v1/schema?project_name=mepram)"
+                    )
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
         serializer = core.api.v1.serializers.SchemaIngestSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
+        payload = dict(serializer.validated_data)
+        payload["schema_app_name"] = project_name
 
         try:
             schema_obj, properties_count = schema_ingestion.ingest_schema(
-                serializer.validated_data, request_user=request.user
+                payload, request_user=request.user
             )
         except ValueError as exc:
             error_message = str(exc)
@@ -265,7 +275,7 @@ def schema(request):
             data={
                 "schema_name": schema_obj.schema_name,
                 "schema_version": schema_obj.schema_version,
-                "app_name": schema_obj.schema_app_name,
+                "project_name": schema_obj.schema_app_name,
                 "properties_count": properties_count,
                 "schema_in_use": schema_obj.schema_in_use,
                 "schema_default": schema_obj.schema_default,
@@ -322,8 +332,7 @@ def schema_detail(request, schema_name, schema_version):
             "schema_version": schema_obj.schema_version,
             "schema_in_use": schema_obj.schema_in_use,
             "schema_default": schema_obj.schema_default,
-            "app_name": schema_obj.schema_app_name,
-            "schema_app_name": schema_obj.schema_app_name,
+            "project_name": schema_obj.schema_app_name,
             "generated_at": schema_obj.generated_at,
             "schema": schema_json,
         }

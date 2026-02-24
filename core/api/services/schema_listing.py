@@ -24,9 +24,9 @@ def list_schemas(filters=None, request_user=None):
         queryset = queryset.filter(schema_default=filters["schema_default"])
 
     schema_app_name = filters.get("schema_app_name")
-    app_name = filters.get("app_name")
-    if app_name and not schema_app_name:
-        schema_app_name = app_name
+    project_name = filters.get("project_name")
+    if project_name and not schema_app_name:
+        schema_app_name = project_name
     if schema_app_name:
         queryset = queryset.filter(schema_app_name__iexact=schema_app_name)
 
