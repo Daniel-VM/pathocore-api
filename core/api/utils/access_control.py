@@ -28,16 +28,26 @@ def get_user_project_code(user):
     return project_code
 
 
-def validate_allowed_app_name(app_name):
-    normalized = _normalize_project_code(app_name)
+def validate_allowed_project_name(project_name):
+    normalized = _normalize_project_code(project_name)
     if not normalized:
-        raise ValueError("schema app_name is required")
-    allowed = {_normalize_project_code(item) for item in core.config.ALLOWED_SCHEMA_APP_NAMES}
+        raise ValueError("schema project_name is required")
+    allowed = {
+        _normalize_project_code(item)
+        for item in getattr(
+            core.config, "ALLOWED_SCHEMA_PROJECT_NAMES", core.config.ALLOWED_SCHEMA_APP_NAMES
+        )
+    }
     allowed.discard(None)
     if normalized not in allowed:
         allowed_csv = ", ".join(sorted(allowed))
-        raise ValueError(f"schema app_name must be one of: {allowed_csv}")
+        raise ValueError(f"schema project_name must be one of: {allowed_csv}")
     return normalized
+
+
+def validate_allowed_app_name(app_name):
+    """Backward-compatible alias."""
+    return validate_allowed_project_name(app_name)
 
 
 def apply_schema_scope(queryset, user):

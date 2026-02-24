@@ -145,25 +145,16 @@ class SchemaIngestSerializer(serializers.Serializer):
     # Object creation and schema-property persistence happen in schema service.
     # Input is raw JSON schema (not a FileField), so we validate title/version here
     # and later convert the JSON into a file for Schema.file_name in the service.
-    app_name = serializers.CharField(required=False, allow_blank=False)
     schema = serializers.JSONField(
-        required=False,
-        help_text=(
-            "Schema JSON. If omitted, the raw request body is treated as the schema."
-        ),
+        required=True,
+        help_text="Schema JSON object.",
     )
     schema_name = serializers.CharField(required=False, allow_blank=False)
     schema_version = serializers.CharField(required=False, allow_blank=False)
     schema_in_use = serializers.BooleanField(required=False)
     schema_default = serializers.BooleanField(required=False)
-    schema_app_name = serializers.CharField(required=False, allow_blank=False)
-
     def validate(self, attrs):
-        # Accept two formats:
-        # 1) {"schema": {...}, "schema_default": true, ...}
-        # 2) raw schema JSON as body (title/version/properties at top-level)
-        raw_input = self.initial_data if isinstance(self.initial_data, dict) else {}
-        schema = attrs.get("schema") or raw_input
+        schema = attrs.get("schema")
         if not isinstance(schema, dict):
             raise serializers.ValidationError({"error": "schema must be a JSON object"})
 
@@ -174,19 +165,9 @@ class SchemaIngestSerializer(serializers.Serializer):
         if not version or not isinstance(version, str) or not version.strip():
             raise serializers.ValidationError({"error": "schema version is required"})
 
-        app_name = (
-            attrs.get("app_name")
-            or attrs.get("schema_app_name")
-            or schema.get("app_name")
-            or schema.get("schema_app_name")
-        )
-        if not app_name or not isinstance(app_name, str) or not app_name.strip():
-            raise serializers.ValidationError({"error": "schema app_name is required"})
-
         # If not explicitly provided, derive from schema file.
         attrs.setdefault("schema_name", title.strip())
         attrs.setdefault("schema_version", version.strip())
-        attrs["app_name"] = app_name.strip().lower()
         attrs["schema"] = schema
         return attrs
 
@@ -194,7 +175,7 @@ class SchemaIngestSerializer(serializers.Serializer):
 class SchemaIngestResponseSerializer(serializers.Serializer):
     schema_name = serializers.CharField()
     schema_version = serializers.CharField()
-    app_name = serializers.CharField()
+    project_name = serializers.CharField()
     properties_count = serializers.IntegerField()
     schema_in_use = serializers.BooleanField()
     schema_default = serializers.BooleanField()
@@ -206,8 +187,7 @@ class SchemaListFilterSerializer(serializers.Serializer):
     schema_version = serializers.CharField(required=False, allow_blank=False)
     schema_in_use = serializers.BooleanField(required=False)
     schema_default = serializers.BooleanField(required=False)
-    app_name = serializers.CharField(required=False, allow_blank=False)
-    schema_app_name = serializers.CharField(required=False, allow_blank=False)
+    project_name = serializers.CharField(required=False, allow_blank=False)
 
     def validate(self, attrs):
         allowed_keys = set(self.fields.keys())
@@ -217,9 +197,9 @@ class SchemaListFilterSerializer(serializers.Serializer):
             raise serializers.ValidationError(
                 {"error": f"Unknown filter(s): {', '.join(sorted(unknown_keys))}"}
             )
-        app_name = attrs.get("app_name")
-        if app_name and not attrs.get("schema_app_name"):
-            attrs["schema_app_name"] = app_name
+        project_name = attrs.get("project_name")
+        if project_name:
+            attrs["schema_app_name"] = project_name
         if "schema_in_use" not in self.initial_data:
             attrs.pop("schema_in_use", None)
         if "schema_default" not in self.initial_data:
@@ -228,7 +208,7 @@ class SchemaListFilterSerializer(serializers.Serializer):
 
 
 class SchemaListItemSerializer(serializers.ModelSerializer):
-    app_name = serializers.CharField(source="schema_app_name", read_only=True)
+    project_name = serializers.CharField(source="schema_app_name", read_only=True)
 
     class Meta:
         model = core.models.Schema
@@ -237,8 +217,7 @@ class SchemaListItemSerializer(serializers.ModelSerializer):
             "schema_version",
             "schema_in_use",
             "schema_default",
-            "app_name",
-            "schema_app_name",
+            "project_name",
             "generated_at",
         ]
 
@@ -248,8 +227,7 @@ class SchemaDetailSerializer(serializers.Serializer):
     schema_version = serializers.CharField()
     schema_in_use = serializers.BooleanField()
     schema_default = serializers.BooleanField()
-    app_name = serializers.CharField(allow_null=True, allow_blank=True)
-    schema_app_name = serializers.CharField(allow_null=True, allow_blank=True)
+    project_name = serializers.CharField(allow_null=True, allow_blank=True)
     generated_at = serializers.DateTimeField(allow_null=True)
     schema = serializers.JSONField()
 

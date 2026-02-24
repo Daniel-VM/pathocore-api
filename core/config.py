@@ -6,7 +6,9 @@ ALLOWED_EMPTY_FIELDS_IN_METADATA_SAMPLE_FORM = [
 ]
 SCHEMAS_UPLOAD_FOLDER = "schemas"
 BIOINFO_UPLOAD_FOLDER = ""
-ALLOWED_SCHEMA_APP_NAMES = ["mepram", "relecov", "redlabra"]
+ALLOWED_SCHEMA_PROJECT_NAMES = ["mepram", "relecov", "redlabra"]
+# Backward-compatible alias for older code paths.
+ALLOWED_SCHEMA_APP_NAMES = ALLOWED_SCHEMA_PROJECT_NAMES
 
 SCHEMA_SUCCESSFUL_LOAD = "Schema was successfully loaded"
 BIOINFO_SUCCESSFUL_LOAD = "Bioinfo file was successfully loaded"
