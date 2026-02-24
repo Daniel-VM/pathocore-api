@@ -11,7 +11,7 @@ urlpatterns = [
     path("schema", core.api.v1.views.schema, name="schema"),
     path(
         "schema/project_name=<str:project_name>",
-        core.api.v1.views.schema,
+        core.api.v1.views.schema_create,
         name="schema_by_project_name",
     ),
     path(

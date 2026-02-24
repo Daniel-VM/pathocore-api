@@ -14,7 +14,6 @@ from drf_spectacular.utils import (
     inline_serializer,
     OpenApiResponse,
     OpenApiParameter,
-    extend_schema_view,
 )
 from rest_framework import serializers
 from django.http import QueryDict
@@ -39,25 +38,25 @@ from core.api.services import schema_ingestion
 from core.api.services import schema_listing
 
 
-@extend_schema_view(
-    post=extend_schema(
-        request=core.api.v1.serializers.SampleIngestSerializer,
-        responses={
-            200: core.api.v1.serializers.SampleIngestResponseSerializer,
-            201: core.api.v1.serializers.SampleIngestResponseSerializer,
-            400: core.api.v1.serializers.ErrorSerializer,
-            404: core.api.v1.serializers.ErrorSerializer,
-            409: core.api.v1.serializers.ErrorSerializer,
-        },
-    ),
-    get=extend_schema(
-        request=core.api.v1.serializers.SampleFilterSerializer,
-        responses={
-            200: core.api.v1.serializers.SampleListItemSerializer(many=True),
-            401: core.api.v1.serializers.ErrorSerializer,
-            404: core.api.v1.serializers.ErrorSerializer,
-        },
-    ),
+@extend_schema(
+    methods=["POST"],
+    request=core.api.v1.serializers.SampleIngestSerializer,
+    responses={
+        200: core.api.v1.serializers.SampleIngestResponseSerializer,
+        201: core.api.v1.serializers.SampleIngestResponseSerializer,
+        400: core.api.v1.serializers.ErrorSerializer,
+        404: core.api.v1.serializers.ErrorSerializer,
+        409: core.api.v1.serializers.ErrorSerializer,
+    },
+)
+@extend_schema(
+    methods=["GET"],
+    request=core.api.v1.serializers.SampleFilterSerializer,
+    responses={
+        200: core.api.v1.serializers.SampleListItemSerializer(many=True),
+        401: core.api.v1.serializers.ErrorSerializer,
+        404: core.api.v1.serializers.ErrorSerializer,
+    },
 )
 @authentication_classes([SessionAuthentication, BasicAuthentication])
 @api_view(["GET", "POST"])
@@ -167,124 +166,29 @@ def samples(request):
     return Response(response_serializer.data, status=status.HTTP_200_OK)
 
 
-@extend_schema_view(
-    post=extend_schema(
-        parameters=[
-            OpenApiParameter(
-                name="project_name",
-                type=str,
-                location=OpenApiParameter.QUERY,
-                required=True,
-                description=(
-                    "Project scope to assign the schema. Allowed values: "
-                    "mepram, relecov, redlabra."
-                ),
-            )
-        ],
-        request=core.api.v1.serializers.SchemaIngestSerializer,
-        responses={
-            201: core.api.v1.serializers.SchemaIngestResponseSerializer,
-            400: core.api.v1.serializers.ErrorSerializer,
-            401: core.api.v1.serializers.ErrorSerializer,
-            403: core.api.v1.serializers.ErrorSerializer,
-            409: core.api.v1.serializers.ErrorSerializer,
-        },
-        description=(
-            "Upload a schema JSON using wrapper payload. `project_name` is "
-            "required in the URL and must be an allowed client code. "
-            "`title` and `version` must exist inside `schema`."
-        ),
-        examples=[
-            OpenApiExample(
-                "WrapperWithFlags",
-                value={
-                    "schema": {
-                        "title": "mepram-schema",
-                        "version": "1.0.0dev",
-                        "type": "object",
-                        "properties": {"sample_unique_id": {"type": "string"}},
-                        "required": ["sample_unique_id"],
-                    },
-                    "schema_default": True,
-                    "schema_in_use": True,
-                },
-            ),
-        ],
-    ),
-    get=extend_schema(
-        parameters=[
-            inline_serializer(
-                name="SchemaListQuery",
-                fields={
-                    "schema_name": serializers.CharField(required=False),
-                    "schema_version": serializers.CharField(required=False),
-                    "schema_in_use": serializers.BooleanField(required=False),
-                    "schema_default": serializers.BooleanField(required=False),
-                    "project_name": serializers.CharField(required=False),
-                },
-            )
-        ],
-        responses={
-            200: core.api.v1.serializers.SchemaListItemSerializer(many=True),
-            400: core.api.v1.serializers.ErrorSerializer,
-            401: core.api.v1.serializers.ErrorSerializer,
-        },
-    ),
+@extend_schema(
+    parameters=[
+        inline_serializer(
+            name="SchemaListQuery",
+            fields={
+                "schema_name": serializers.CharField(required=False),
+                "schema_version": serializers.CharField(required=False),
+                "schema_in_use": serializers.BooleanField(required=False),
+                "schema_default": serializers.BooleanField(required=False),
+                "project_name": serializers.CharField(required=False),
+            },
+        )
+    ],
+    responses={
+        200: core.api.v1.serializers.SchemaListItemSerializer(many=True),
+        400: core.api.v1.serializers.ErrorSerializer,
+        401: core.api.v1.serializers.ErrorSerializer,
+    },
 )
 @authentication_classes([SessionAuthentication, BasicAuthentication])
-@api_view(["GET", "POST"])
+@api_view(["GET"])
 @permission_classes([IsAuthenticated])
-def schema(request, project_name=None):
-    if request.method == "POST":
-        if not request.user.is_staff:
-            return Response(
-                {"error": "Admin privileges required"},
-                status=status.HTTP_403_FORBIDDEN,
-            )
-        project_name = project_name or request.query_params.get("project_name")
-        if not project_name:
-            return Response(
-                {
-                    "error": (
-                        "project_name is required in URL "
-                        "(e.g. /v1/schema?project_name=mepram)"
-                    )
-                },
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-        serializer = core.api.v1.serializers.SchemaIngestSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        payload = dict(serializer.validated_data)
-        payload["schema_app_name"] = project_name
-
-        try:
-            schema_obj, properties_count = schema_ingestion.ingest_schema(
-                payload, request_user=request.user
-            )
-        except ValueError as exc:
-            error_message = str(exc)
-            if error_message == "Schema already exists":
-                return Response(
-                    {"error": error_message}, status=status.HTTP_409_CONFLICT
-                )
-            return Response(
-                {"error": error_message}, status=status.HTTP_400_BAD_REQUEST
-            )
-
-        response_serializer = core.api.v1.serializers.SchemaIngestResponseSerializer(
-            data={
-                "schema_name": schema_obj.schema_name,
-                "schema_version": schema_obj.schema_version,
-                "project_name": schema_obj.schema_app_name,
-                "properties_count": properties_count,
-                "schema_in_use": schema_obj.schema_in_use,
-                "schema_default": schema_obj.schema_default,
-                "status": "created",
-            }
-        )
-        response_serializer.is_valid(raise_exception=True)
-        return Response(response_serializer.data, status=status.HTTP_201_CREATED)
-
+def schema(request):
     data = request.query_params
     filter_serializer = core.api.v1.serializers.SchemaListFilterSerializer(data=data)
     filter_serializer.is_valid(raise_exception=True)
@@ -299,6 +203,88 @@ def schema(request, project_name=None):
         queryset, many=True
     )
     return Response(response_serializer.data, status=status.HTTP_200_OK)
+
+
+@extend_schema(
+    parameters=[
+        OpenApiParameter(
+            name="project_name",
+            type=str,
+            location=OpenApiParameter.PATH,
+            required=True,
+            description=(
+                "Project scope to assign the schema. Allowed values: "
+                "mepram, relecov, redlabra."
+            ),
+        )
+    ],
+    request=core.api.v1.serializers.SchemaIngestSerializer,
+    responses={
+        201: core.api.v1.serializers.SchemaIngestResponseSerializer,
+        400: core.api.v1.serializers.ErrorSerializer,
+        401: core.api.v1.serializers.ErrorSerializer,
+        403: core.api.v1.serializers.ErrorSerializer,
+        409: core.api.v1.serializers.ErrorSerializer,
+    },
+    description=(
+        "Upload a schema JSON using wrapper payload. `project_name` is "
+        "required in the URL and must be an allowed client code. "
+        "`title` and `version` must exist inside `schema`."
+    ),
+    examples=[
+        OpenApiExample(
+            "WrapperWithFlags",
+            value={
+                "schema": {
+                    "title": "mepram-schema",
+                    "version": "1.0.0dev",
+                    "type": "object",
+                    "properties": {"sample_unique_id": {"type": "string"}},
+                    "required": ["sample_unique_id"],
+                },
+                "schema_default": True,
+                "schema_in_use": True,
+            },
+        ),
+    ],
+)
+@authentication_classes([SessionAuthentication, BasicAuthentication])
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def schema_create(request, project_name):
+    if not request.user.is_staff:
+        return Response(
+            {"error": "Admin privileges required"},
+            status=status.HTTP_403_FORBIDDEN,
+        )
+    serializer = core.api.v1.serializers.SchemaIngestSerializer(data=request.data)
+    serializer.is_valid(raise_exception=True)
+    payload = dict(serializer.validated_data)
+    payload["schema_app_name"] = project_name
+
+    try:
+        schema_obj, properties_count = schema_ingestion.ingest_schema(
+            payload, request_user=request.user
+        )
+    except ValueError as exc:
+        error_message = str(exc)
+        if error_message == "Schema already exists":
+            return Response({"error": error_message}, status=status.HTTP_409_CONFLICT)
+        return Response({"error": error_message}, status=status.HTTP_400_BAD_REQUEST)
+
+    response_serializer = core.api.v1.serializers.SchemaIngestResponseSerializer(
+        data={
+            "schema_name": schema_obj.schema_name,
+            "schema_version": schema_obj.schema_version,
+            "project_name": schema_obj.schema_app_name,
+            "properties_count": properties_count,
+            "schema_in_use": schema_obj.schema_in_use,
+            "schema_default": schema_obj.schema_default,
+            "status": "created",
+        }
+    )
+    response_serializer.is_valid(raise_exception=True)
+    return Response(response_serializer.data, status=status.HTTP_201_CREATED)
 
 
 @extend_schema(
@@ -644,27 +630,27 @@ def sample_metadata_search_view(request):
     return Response(response_serializer.data, status=status.HTTP_200_OK)
 
 
-@extend_schema_view(
-    get=extend_schema(
-        responses={
-            200: core.api.v1.serializers.SampleMetadataItemSerializer(many=True),
-            401: core.api.v1.serializers.ErrorSerializer,
-            403: core.api.v1.serializers.ErrorSerializer,
-            404: core.api.v1.serializers.ErrorSerializer,
-            400: core.api.v1.serializers.ErrorSerializer,
-        },
-    ),
-    post=extend_schema(
-        request=core.api.v1.serializers.SampleMetadataIngestSerializer,
-        responses={
-            201: core.api.v1.serializers.SampleMetadataIngestResponseSerializer,
-            400: core.api.v1.serializers.ErrorSerializer,
-            401: core.api.v1.serializers.ErrorSerializer,
-            403: core.api.v1.serializers.ErrorSerializer,
-            404: core.api.v1.serializers.ErrorSerializer,
-            409: core.api.v1.serializers.ErrorSerializer,
-        },
-    ),
+@extend_schema(
+    methods=["GET"],
+    responses={
+        200: core.api.v1.serializers.SampleMetadataItemSerializer(many=True),
+        401: core.api.v1.serializers.ErrorSerializer,
+        403: core.api.v1.serializers.ErrorSerializer,
+        404: core.api.v1.serializers.ErrorSerializer,
+        400: core.api.v1.serializers.ErrorSerializer,
+    },
+)
+@extend_schema(
+    methods=["POST"],
+    request=core.api.v1.serializers.SampleMetadataIngestSerializer,
+    responses={
+        201: core.api.v1.serializers.SampleMetadataIngestResponseSerializer,
+        400: core.api.v1.serializers.ErrorSerializer,
+        401: core.api.v1.serializers.ErrorSerializer,
+        403: core.api.v1.serializers.ErrorSerializer,
+        404: core.api.v1.serializers.ErrorSerializer,
+        409: core.api.v1.serializers.ErrorSerializer,
+    },
 )
 @authentication_classes([SessionAuthentication, BasicAuthentication])
 @api_view(["GET", "POST"])
