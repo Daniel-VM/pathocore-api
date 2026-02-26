@@ -38,6 +38,7 @@ from core.api.services import schema_ingestion
 from core.api.services import schema_listing
 
 
+# FIXME: Sample ingest rejects json containing fields not defined in SampleIngestSerializer
 @extend_schema(
     methods=["POST"],
     request=core.api.v1.serializers.SampleIngestSerializer,
@@ -74,10 +75,23 @@ def samples(request):
         serializer = core.api.v1.serializers.SampleIngestSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        # Precompute generated sample ID for logging if needed.
-        generated_sample_id = sample_ingestion.create_sample_unique_id(
-            serializer.validated_data
-        )
+        traceability_data = {
+            "sequencing_sample_id": serializer.validated_data.get("sequencing_sample_id"),
+            "submitting_lab_sample_id": serializer.validated_data.get(
+                "submitting_lab_sample_id"
+            ),
+            "collecting_lab_sample_id": serializer.validated_data.get(
+                "collecting_lab_sample_id"
+            ),
+            "collecting_lab_isolate_id": serializer.validated_data.get(
+                "collecting_lab_isolate_id"
+            ),
+        }
+        traceability_data = {
+            key: value
+            for key, value in traceability_data.items()
+            if value is not None and value != ""
+        }
 
         # Create/Ingest Sample
         try:
@@ -87,6 +101,9 @@ def samples(request):
         except ValueError as exc:
             error_message = str(exc)
             if error_message == "Sample already exists":
+                generated_sample_id = sample_ingestion.create_sample_unique_id(
+                    serializer.validated_data
+                )
                 existing_sample = core.models.Sample.objects.filter(
                     sample_unique_id=generated_sample_id
                 ).last()
@@ -100,14 +117,17 @@ def samples(request):
                             "error": error_message,
                             "sample_unique_id": existing_sample.sample_unique_id,
                             "sequencing_sample_id": existing_sample.sequencing_sample_id,
+                            "submitting_lab_sample_id": existing_sample.submitting_lab_sample_id,
                         },
                         status=status.HTTP_409_CONFLICT,
                     )
                 return Response(
-                    {"error": error_message}, status=status.HTTP_409_CONFLICT
+                    {"error": error_message, **traceability_data},
+                    status=status.HTTP_409_CONFLICT,
                 )
             return Response(
-                {"error": error_message}, status=status.HTTP_400_BAD_REQUEST
+                {"error": error_message, **traceability_data},
+                status=status.HTTP_400_BAD_REQUEST,
             )
 
         # If created, add initial state history
