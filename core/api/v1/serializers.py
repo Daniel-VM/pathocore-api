@@ -39,6 +39,13 @@ class SampleIngestSerializer(serializers.ModelSerializer):
     collecting_institution = serializers.CharField(
         required=True, allow_blank=False, allow_null=False
     )
+    # Accept both formats for ingest compatibility:
+    # `YYYY-MM-DD` and full ISO datetime (`YYYY-MM-DDThh:mm[:ss][Z|+HH:MM]`).
+    sequencing_date = serializers.DateTimeField(
+        required=False,
+        allow_null=True,
+        input_formats=["iso-8601", "%Y-%m-%d"],
+    )
     sequence_file_path_r1 = serializers.CharField(
         required=False,
         allow_blank=True,
@@ -83,6 +90,12 @@ class SampleIngestSerializer(serializers.ModelSerializer):
                 canonical = field_map.get(str(key).lower())
                 if canonical and canonical not in normalized:
                     normalized[canonical] = value
+            # Accept known "not provided" placeholders for nullable datetimes.
+            # sequencing_date still supports both YYYY-MM-DD and ISO datetime.
+            sequencing_date = normalized.get("sequencing_date")
+            if isinstance(sequencing_date, str):
+                if sequencing_date.strip().lower().startswith("not provided"):
+                    normalized["sequencing_date"] = None
             data = normalized
         return super().to_internal_value(data)
 
