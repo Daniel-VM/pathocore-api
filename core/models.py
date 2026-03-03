@@ -77,7 +77,7 @@ class Schema(models.Model):
     schema_version = models.CharField(max_length=10)
     schema_in_use = models.BooleanField(default=True)
     schema_default = models.BooleanField(default=True)
-    schema_app_name = models.CharField(max_length=40, null=True, blank=True)
+    schema_app_name = models.CharField(max_length=40, null=True, blank=True, db_index=True)
     generated_at = models.DateTimeField(auto_now_add=True, null=True, blank=True)
 
     class Meta:
@@ -175,7 +175,7 @@ class SchemaProperties(models.Model):
     classificationID = models.ForeignKey(
         Classification, on_delete=models.CASCADE, null=True, blank=True
     )
-    property = models.CharField(max_length=50)
+    property = models.CharField(max_length=50, db_index=True)
     examples = models.CharField(max_length=250, null=True, blank=True)
     ontology = models.CharField(max_length=40, null=True, blank=True)
     type = models.CharField(max_length=20)
@@ -365,7 +365,7 @@ class MetadataValuesManager(models.Manager):
 
 
 class MetadataValues(models.Model):
-    value = models.CharField(max_length=240, null=True, blank=True)
+    value = models.CharField(max_length=240, null=True, blank=True, db_index=True)
     generated_at = models.DateTimeField(auto_now_add=True, null=True, blank=True)
     analysis_date = models.DateField()
     sample = models.ForeignKey(
@@ -389,6 +389,11 @@ class MetadataValues(models.Model):
         indexes = [
             models.Index(fields=["sample", "schema_property"]),
             models.Index(fields=["group", "schema_property"]),
+            # Hot request paths:
+            # - /samples/metadata?property=X&value=Y
+            # - /samples/metadata?value=Y
+            models.Index(fields=["schema_property", "value"]),
+            models.Index(fields=["value", "sample"]),
         ]
         constraints = [
             models.UniqueConstraint(
@@ -703,7 +708,8 @@ class Sample(models.Model):
     schema_obj = models.ForeignKey(
         Schema, on_delete=models.CASCADE, null=True, blank=True
     )
-    sample_unique_id = models.CharField(max_length=12)
+    # Frequent lookup key for /samples/{sample_unique_id}.
+    sample_unique_id = models.CharField(max_length=12, db_index=True)
     microbiology_lab_sample_id = models.CharField(max_length=80, null=True, blank=True)
     collecting_lab_sample_id = models.CharField(max_length=80, null=True, blank=True)
     collecting_lab_isolate_id = models.CharField(max_length=80, null=True, blank=True)
