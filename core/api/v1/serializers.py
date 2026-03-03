@@ -19,13 +19,28 @@ class SampleIngestSerializer(serializers.ModelSerializer):
         required=False, allow_blank=True, allow_null=True, write_only=True
     )
     sequencing_sample_id = serializers.CharField(
-        required=False, allow_blank=False, allow_null=True
+        required=False,
+        allow_blank=False,
+        allow_null=True,
+        help_text="Sequencing identifier from the laboratory (optional).",
     )
     collecting_lab_sample_id = serializers.CharField(
-        required=False, allow_blank=False, allow_null=True
+        required=False,
+        allow_blank=False,
+        allow_null=True,
+        help_text=(
+            "Collecting lab sample ID. Required only when "
+            "`collecting_lab_isolate_id` is not provided."
+        ),
     )
     collecting_lab_isolate_id = serializers.CharField(
-        required=False, allow_blank=False, allow_null=True
+        required=False,
+        allow_blank=False,
+        allow_null=True,
+        help_text=(
+            "Preferred collecting identifier used for `sample_unique_id` hash. "
+            "If absent, `collecting_lab_sample_id` is used."
+        ),
     )
     sequencing_isolate_id = serializers.CharField(
         required=False, allow_blank=False, allow_null=True
@@ -34,10 +49,16 @@ class SampleIngestSerializer(serializers.ModelSerializer):
         required=False, allow_blank=False, allow_null=True
     )
     submitting_lab_sample_id = serializers.CharField(
-        required=True, allow_blank=False, allow_null=False
+        required=True,
+        allow_blank=False,
+        allow_null=False,
+        help_text="Submitting laboratory sample identifier (required).",
     )
     collecting_institution = serializers.CharField(
-        required=True, allow_blank=False, allow_null=False
+        required=True,
+        allow_blank=False,
+        allow_null=False,
+        help_text="Collecting institution name (required).",
     )
     # Accept both formats for ingest compatibility:
     # `YYYY-MM-DD` and full ISO datetime (`YYYY-MM-DDThh:mm[:ss][Z|+HH:MM]`).
@@ -45,18 +66,24 @@ class SampleIngestSerializer(serializers.ModelSerializer):
         required=False,
         allow_null=True,
         input_formats=["iso-8601", "%Y-%m-%d"],
+        help_text=(
+            "Sequencing date. Accepted formats: full ISO-8601 datetime or YYYY-MM-DD. "
+            "'Not Provided' placeholders are normalized to null."
+        ),
     )
     sequence_file_path_r1 = serializers.CharField(
         required=False,
         allow_blank=True,
         allow_null=True,
         source="r1_fastq_filepath",
+        help_text="Absolute/relative path for FASTQ R1 file.",
     )
     sequence_file_path_r2 = serializers.CharField(
         required=False,
         allow_blank=True,
         allow_null=True,
         source="r2_fastq_filepath",
+        help_text="Absolute/relative path for FASTQ R2 file.",
     )
 
     class Meta:
@@ -162,10 +189,25 @@ class SchemaIngestSerializer(serializers.Serializer):
         required=True,
         help_text="Schema JSON object.",
     )
-    schema_name = serializers.CharField(required=False, allow_blank=False)
-    schema_version = serializers.CharField(required=False, allow_blank=False)
-    schema_in_use = serializers.BooleanField(required=False)
-    schema_default = serializers.BooleanField(required=False)
+    schema_name = serializers.CharField(
+        required=False,
+        allow_blank=False,
+        help_text="Optional override for schema title. Defaults to schema.title",
+    )
+    schema_version = serializers.CharField(
+        required=False,
+        allow_blank=False,
+        help_text="Optional override for schema version. Defaults to schema.version",
+    )
+    schema_in_use = serializers.BooleanField(
+        required=False,
+        help_text="Mark this schema version as in-use (default: true).",
+    )
+    schema_default = serializers.BooleanField(
+        required=False,
+        help_text="Mark this schema version as default (requires schema_in_use=true).",
+    )
+
     def validate(self, attrs):
         schema = attrs.get("schema")
         if not isinstance(schema, dict):
@@ -439,8 +481,16 @@ class SampleMetadataSearchResultSerializer(serializers.Serializer):
 class SampleMetadataIngestSerializer(serializers.Serializer):
     # This serializer validates ingest envelope fields.
     # Metadata persistence and schema-property checks are handled in service layer.
-    schema_name = serializers.CharField(required=False, allow_blank=False)
-    schema_version = serializers.CharField(required=False, allow_blank=False)
+    schema_name = serializers.CharField(
+        required=False,
+        allow_blank=False,
+        help_text="Optional schema title to validate metadata payload.",
+    )
+    schema_version = serializers.CharField(
+        required=False,
+        allow_blank=False,
+        help_text="Optional schema version, must be sent together with schema_name.",
+    )
 
     def validate(self, attrs):
         schema_name = attrs.get("schema_name")

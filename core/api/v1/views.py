@@ -12,18 +12,15 @@ from drf_spectacular.utils import (
     extend_schema,
     OpenApiExample,
     inline_serializer,
-    OpenApiResponse,
     OpenApiParameter,
 )
 from rest_framework import serializers
-from django.http import QueryDict
 from django.core.exceptions import PermissionDenied
 
 # Local imports
 import core.models
 import core.api.utils.samples
 import core.api.v1.serializers
-import core.api.utils.samples
 import core.api.utils.metadata_values
 import core.api.utils.public_db
 import core.api.utils.common_functions
@@ -38,26 +35,118 @@ from core.api.services import schema_ingestion
 from core.api.services import schema_listing
 
 
+TAG_SCHEMAS = "Schemas"
+TAG_SAMPLES = "Samples"
+TAG_SAMPLE_METADATA = "Sample Metadata"
+TAG_SAMPLE_HISTORY = "Sample History"
+
+
 # FIXME: Sample ingest rejects json containing fields not defined in SampleIngestSerializer
 @extend_schema(
     methods=["POST"],
+    tags=[TAG_SAMPLES],
+    summary="Ingest one sample",
+    description=(
+        "Create a sample and generate `sample_unique_id` deterministically from "
+        "project-relevant identifiers. Admin privileges are required."
+    ),
     request=core.api.v1.serializers.SampleIngestSerializer,
     responses={
         200: core.api.v1.serializers.SampleIngestResponseSerializer,
         201: core.api.v1.serializers.SampleIngestResponseSerializer,
         400: core.api.v1.serializers.ErrorSerializer,
+        403: core.api.v1.serializers.ErrorSerializer,
         404: core.api.v1.serializers.ErrorSerializer,
         409: core.api.v1.serializers.ErrorSerializer,
     },
+    examples=[
+        OpenApiExample(
+            "SampleIngestRequest",
+            request_only=True,
+            value={
+                "schema_name": "Mepram Schema",
+                "schema_version": "1.0.0dev",
+                "sequencing_sample_id": "LAB-0008",
+                "collecting_lab_sample_id": "COLL-0008",
+                "submitting_lab_sample_id": "SUB-0008",
+                "collecting_institution": "Hospital Universitario",
+                "sequencing_date": "2026-02-24",
+            },
+        ),
+        OpenApiExample(
+            "SampleIngestCreated",
+            response_only=True,
+            status_codes=["201"],
+            value={
+                "sample_unique_id": "474e5b6670e8",
+                "sequencing_sample_id": "LAB-0008",
+                "created": True,
+                "status": "created",
+            },
+        ),
+        OpenApiExample(
+            "SampleIngestDuplicate",
+            response_only=True,
+            status_codes=["409"],
+            value={
+                "error": "Sample already exists",
+                "sample_unique_id": "474e5b6670e8",
+                "sequencing_sample_id": "LAB-0008",
+                "submitting_lab_sample_id": "SUB-0008",
+            },
+        ),
+    ],
 )
 @extend_schema(
     methods=["GET"],
-    request=core.api.v1.serializers.SampleFilterSerializer,
+    tags=[TAG_SAMPLES],
+    summary="List samples",
+    description=(
+        "Return samples visible to the authenticated user, with optional filters. "
+        "Non-admin users are automatically restricted to their project scope."
+    ),
+    parameters=[
+        inline_serializer(
+            name="SampleListQuery",
+            fields={
+                "sample_unique_id": serializers.CharField(required=False),
+                "sequencing_sample_id": serializers.CharField(required=False),
+                "collecting_institution": serializers.CharField(required=False),
+                "collecting_lab_sample_id": serializers.CharField(required=False),
+                "microbiology_lab_sample_id": serializers.CharField(required=False),
+                "submitting_lab_sample_id": serializers.CharField(required=False),
+                "schema_name": serializers.CharField(required=False),
+                "schema_version": serializers.CharField(required=False),
+                "created_at_from": serializers.DateTimeField(required=False),
+                "created_at_to": serializers.DateTimeField(required=False),
+                "sequencing_date_from": serializers.DateTimeField(required=False),
+                "sequencing_date_to": serializers.DateTimeField(required=False),
+            },
+        )
+    ],
     responses={
         200: core.api.v1.serializers.SampleListItemSerializer(many=True),
+        400: core.api.v1.serializers.ErrorSerializer,
         401: core.api.v1.serializers.ErrorSerializer,
+        403: core.api.v1.serializers.ErrorSerializer,
         404: core.api.v1.serializers.ErrorSerializer,
     },
+    examples=[
+        OpenApiExample(
+            "SampleListBySchema",
+            value=[
+                {
+                    "sample_unique_id": "474e5b6670e8",
+                    "sequencing_sample_id": "LAB-0008",
+                    "created_at": "2026-02-24T09:34:57.167046",
+                    "schema_name": "Mepram Schema",
+                    "schema_version": "1.0.0dev",
+                }
+            ],
+            response_only=True,
+            status_codes=["200"],
+        )
+    ],
 )
 @authentication_classes([SessionAuthentication, BasicAuthentication])
 @api_view(["GET", "POST"])
@@ -187,6 +276,12 @@ def samples(request):
 
 
 @extend_schema(
+    tags=[TAG_SCHEMAS],
+    summary="List schemas",
+    description=(
+        "Return schema registry entries. "
+        "Non-admin users only see schemas for their own project scope."
+    ),
     parameters=[
         inline_serializer(
             name="SchemaListQuery",
@@ -203,7 +298,25 @@ def samples(request):
         200: core.api.v1.serializers.SchemaListItemSerializer(many=True),
         400: core.api.v1.serializers.ErrorSerializer,
         401: core.api.v1.serializers.ErrorSerializer,
+        403: core.api.v1.serializers.ErrorSerializer,
     },
+    examples=[
+        OpenApiExample(
+            "SchemaListResponse",
+            response_only=True,
+            status_codes=["200"],
+            value=[
+                {
+                    "schema_name": "Mepram Schema",
+                    "schema_version": "1.0.0dev",
+                    "schema_in_use": True,
+                    "schema_default": False,
+                    "project_name": "mepram",
+                    "generated_at": "2026-02-20T09:29:29.730943",
+                }
+            ],
+        )
+    ],
 )
 @authentication_classes([SessionAuthentication, BasicAuthentication])
 @api_view(["GET"])
@@ -226,6 +339,8 @@ def schema(request):
 
 
 @extend_schema(
+    tags=[TAG_SCHEMAS],
+    summary="Upload a schema for a project",
     parameters=[
         OpenApiParameter(
             name="project_name",
@@ -247,13 +362,15 @@ def schema(request):
         409: core.api.v1.serializers.ErrorSerializer,
     },
     description=(
-        "Upload a schema JSON using wrapper payload. `project_name` is "
-        "required in the URL and must be an allowed client code. "
-        "`title` and `version` must exist inside `schema`."
+        "Upload a schema JSON using a wrapper payload. "
+        "`project_name` is required in the URL and must be one of the allowed "
+        "project codes (`mepram`, `relecov`, `redlabra`). "
+        "`title` and `version` must exist inside the `schema` object."
     ),
     examples=[
         OpenApiExample(
             "WrapperWithFlags",
+            request_only=True,
             value={
                 "schema": {
                     "title": "mepram-schema",
@@ -265,6 +382,26 @@ def schema(request):
                 "schema_default": True,
                 "schema_in_use": True,
             },
+        ),
+        OpenApiExample(
+            "SchemaCreated",
+            response_only=True,
+            status_codes=["201"],
+            value={
+                "schema_name": "Mepram Schema",
+                "schema_version": "1.0.0dev",
+                "project_name": "mepram",
+                "properties_count": 123,
+                "schema_in_use": True,
+                "schema_default": False,
+                "status": "created",
+            },
+        ),
+        OpenApiExample(
+            "SchemaAlreadyExists",
+            response_only=True,
+            status_codes=["409"],
+            value={"error": "Schema already exists"},
         ),
     ],
 )
@@ -308,11 +445,55 @@ def schema_create(request, project_name):
 
 
 @extend_schema(
+    tags=[TAG_SCHEMAS],
+    summary="Get schema detail",
+    description=(
+        "Return schema metadata and the full schema JSON content for a "
+        "specific `schema_name` + `schema_version`."
+    ),
+    parameters=[
+        OpenApiParameter(
+            name="schema_name",
+            type=str,
+            location=OpenApiParameter.PATH,
+            required=True,
+            description="Schema title stored in registry",
+        ),
+        OpenApiParameter(
+            name="schema_version",
+            type=str,
+            location=OpenApiParameter.PATH,
+            required=True,
+            description="Schema version stored in registry",
+        ),
+    ],
     responses={
         200: core.api.v1.serializers.SchemaDetailSerializer,
+        400: core.api.v1.serializers.ErrorSerializer,
         401: core.api.v1.serializers.ErrorSerializer,
+        403: core.api.v1.serializers.ErrorSerializer,
         404: core.api.v1.serializers.ErrorSerializer,
     },
+    examples=[
+        OpenApiExample(
+            "SchemaDetailResponse",
+            response_only=True,
+            status_codes=["200"],
+            value={
+                "schema_name": "Mepram Schema",
+                "schema_version": "1.0.0dev",
+                "schema_in_use": True,
+                "schema_default": False,
+                "project_name": "mepram",
+                "generated_at": "2026-02-20T09:29:29.730943",
+                "schema": {
+                    "title": "Mepram Schema",
+                    "version": "1.0.0dev",
+                    "type": "object",
+                },
+            },
+        )
+    ],
 )
 @authentication_classes([SessionAuthentication, BasicAuthentication])
 @api_view(["GET"])
@@ -347,12 +528,47 @@ def schema_detail(request, schema_name, schema_version):
 
 
 @extend_schema(
+    tags=[TAG_SAMPLES],
+    summary="Get sample detail",
+    description="Return canonical sample fields for one `sample_unique_id`.",
+    parameters=[
+        OpenApiParameter(
+            name="sample_unique_id",
+            type=str,
+            location=OpenApiParameter.PATH,
+            required=True,
+            description="Deterministic unique sample identifier",
+        )
+    ],
     responses={
         200: core.api.v1.serializers.SampleDetailSerializer,
         401: core.api.v1.serializers.ErrorSerializer,
         403: core.api.v1.serializers.ErrorSerializer,
         404: core.api.v1.serializers.ErrorSerializer,
     },
+    examples=[
+        OpenApiExample(
+            "SampleDetailResponse",
+            response_only=True,
+            status_codes=["200"],
+            value={
+                "sample_unique_id": "474e5b6670e8",
+                "sequencing_sample_id": "LAB-0008",
+                "microbiology_lab_sample_id": "MICRO-0008",
+                "collecting_lab_sample_id": "COLL-0008",
+                "submitting_lab_sample_id": "SUB-0008",
+                "collecting_institution": "Hospital Universitario",
+                "sequence_file_R1_md5": "8c33257f30626aebd39389b9124fe792",
+                "sequence_file_R2_md5": "ca3bec10fe70dfff850a78e5d35fa34e",
+                "r1_fastq_filepath": "/data/fastq/LAB-0008_R1.fastq.gz",
+                "r2_fastq_filepath": "/data/fastq/LAB-0008_R2.fastq.gz",
+                "sequencing_date": "2026-01-08T00:00:00",
+                "created_at": "2026-02-24T09:34:57.167046",
+                "schema_name": "Mepram Schema",
+                "schema_version": "1.0.0dev",
+            },
+        )
+    ],
 )
 @authentication_classes([SessionAuthentication, BasicAuthentication])
 @api_view(["GET"])
@@ -371,6 +587,12 @@ def sample_detail_view(request, sample_unique_id):
 
 
 @extend_schema(
+    tags=[TAG_SAMPLE_HISTORY],
+    summary="List sample history",
+    description=(
+        "Return sample state history rows with optional filters "
+        "(sample identifiers, state, error and date range)."
+    ),
     parameters=[
         inline_serializer(
             name="SampleHistoryQuery",
@@ -398,6 +620,29 @@ def sample_detail_view(request, sample_unique_id):
         403: core.api.v1.serializers.ErrorSerializer,
         404: core.api.v1.serializers.ErrorSerializer,
     },
+    examples=[
+        OpenApiExample(
+            "SampleHistoryResponse",
+            response_only=True,
+            status_codes=["200"],
+            value=[
+                {
+                    "sample_unique_id": "474e5b6670e8",
+                    "state": "Defined",
+                    "error_name": "No error",
+                    "is_current": False,
+                    "changed_at": "2026-02-24T09:34:57.167046",
+                },
+                {
+                    "sample_unique_id": "474e5b6670e8",
+                    "state": "Bioinfo",
+                    "error_name": "No error",
+                    "is_current": True,
+                    "changed_at": "2026-02-24T09:35:45.113002",
+                },
+            ],
+        )
+    ],
 )
 @authentication_classes([SessionAuthentication, BasicAuthentication])
 @api_view(["GET"])
@@ -422,6 +667,18 @@ def sample_history_view(request):
 
 
 @extend_schema(
+    tags=[TAG_SAMPLE_HISTORY],
+    summary="Get history for one sample",
+    description="Return all history rows for one `sample_unique_id`.",
+    parameters=[
+        OpenApiParameter(
+            name="sample_unique_id",
+            type=str,
+            location=OpenApiParameter.PATH,
+            required=True,
+            description="Deterministic unique sample identifier",
+        )
+    ],
     responses={
         200: core.api.v1.serializers.SampleHistoryItemSerializer(many=True),
         401: core.api.v1.serializers.ErrorSerializer,
@@ -448,6 +705,14 @@ def sample_history_detail_view(request, sample_unique_id):
 
 
 @extend_schema(
+    tags=[TAG_SAMPLE_METADATA],
+    summary="Discover metadata by property/value",
+    description=(
+        "Two modes are supported:\n"
+        "1) `classification` only: list available properties for that classification.\n"
+        "2) `property`/`value`: return samples matching metadata constraints.\n"
+        "When multiple `value` params are sent, `match=any|all` controls matching."
+    ),
     parameters=[
         OpenApiParameter(
             name="classification",
@@ -486,6 +751,22 @@ def sample_history_detail_view(request, sample_unique_id):
         403: core.api.v1.serializers.ErrorSerializer,
         404: core.api.v1.serializers.ErrorSerializer,
     },
+    examples=[
+        OpenApiExample(
+            "MetadataSearchResponse",
+            response_only=True,
+            status_codes=["200"],
+            value=[
+                {
+                    "sample_unique_id": "474e5b6670e8",
+                    "values": {
+                        "bioinformatics_protocol_software_version": "3.3.2",
+                        "all_in_one_library_kit": "Ion Xpress",
+                    },
+                }
+            ],
+        ),
+    ],
 )
 @authentication_classes([SessionAuthentication, BasicAuthentication])
 @api_view(["GET"])
@@ -564,6 +845,17 @@ def sample_metadata_property_view(request):
 # TODO: Define response body
 # TODO: not ready for complex fields
 @extend_schema(
+    tags=[TAG_SAMPLE_METADATA],
+    summary="Search metadata with repeatable filter expressions",
+    description=(
+        "Search samples using repeatable `filter` query parameters. "
+        "Each filter accepts `property`, `property:value`, or `property=value`.\n\n"
+        "Examples:\n"
+        "- `filter=bioinformatics_protocol_software_version:3.3.2`\n"
+        "- `filter=all_in_one_library_kit=Ion Xpress`\n"
+        "- `filter=sequence_file_path_R1` (property existence)\n"
+        "Use `match=all|any` to combine multiple filters."
+    ),
     parameters=[
         OpenApiParameter(
             name="filter",
@@ -588,6 +880,28 @@ def sample_metadata_property_view(request):
         403: core.api.v1.serializers.ErrorSerializer,
         404: core.api.v1.serializers.ErrorSerializer,
     },
+    examples=[
+        OpenApiExample(
+            "MetadataSearchByTwoFilters",
+            response_only=True,
+            status_codes=["200"],
+            value=[
+                {
+                    "sample_unique_id": "474e5b6670e8",
+                    "values": {
+                        "bioinformatics_protocol_software_version": "3.3.2",
+                        "all_in_one_library_kit": "Ion Xpress",
+                    },
+                }
+            ],
+        ),
+        OpenApiExample(
+            "MetadataSearchUnknownProperty",
+            response_only=True,
+            status_codes=["400"],
+            value={"error": "Unknown property(ies): property_that_does_not_exist"},
+        ),
+    ],
 )
 @authentication_classes([SessionAuthentication, BasicAuthentication])
 @api_view(["GET"])
@@ -652,6 +966,21 @@ def sample_metadata_search_view(request):
 
 @extend_schema(
     methods=["GET"],
+    tags=[TAG_SAMPLE_METADATA],
+    summary="Get metadata for one sample",
+    description=(
+        "Return stored metadata key/value entries for one sample identified by "
+        "`sample_unique_id`."
+    ),
+    parameters=[
+        OpenApiParameter(
+            name="sample_unique_id",
+            type=str,
+            location=OpenApiParameter.PATH,
+            required=True,
+            description="Deterministic unique sample identifier",
+        )
+    ],
     responses={
         200: core.api.v1.serializers.SampleMetadataItemSerializer(many=True),
         401: core.api.v1.serializers.ErrorSerializer,
@@ -659,9 +988,36 @@ def sample_metadata_search_view(request):
         404: core.api.v1.serializers.ErrorSerializer,
         400: core.api.v1.serializers.ErrorSerializer,
     },
+    examples=[
+        OpenApiExample(
+            "SampleMetadataGetResponse",
+            response_only=True,
+            status_codes=["200"],
+            value=[
+                {"bioinformatics_protocol_software_version": "3.3.2"},
+                {"all_in_one_library_kit": "Ion Xpress"},
+            ],
+        )
+    ],
 )
 @extend_schema(
     methods=["POST"],
+    tags=[TAG_SAMPLE_METADATA],
+    summary="Ingest metadata for one sample",
+    description=(
+        "Store metadata values for one sample. Admin privileges are required. "
+        "By default the sample's assigned schema is used, or a matching "
+        "`schema_name` + `schema_version` can be provided in payload."
+    ),
+    parameters=[
+        OpenApiParameter(
+            name="sample_unique_id",
+            type=str,
+            location=OpenApiParameter.PATH,
+            required=True,
+            description="Deterministic unique sample identifier",
+        )
+    ],
     request=core.api.v1.serializers.SampleMetadataIngestSerializer,
     responses={
         201: core.api.v1.serializers.SampleMetadataIngestResponseSerializer,
@@ -671,6 +1027,28 @@ def sample_metadata_search_view(request):
         404: core.api.v1.serializers.ErrorSerializer,
         409: core.api.v1.serializers.ErrorSerializer,
     },
+    examples=[
+        OpenApiExample(
+            "SampleMetadataIngestRequest",
+            request_only=True,
+            value={
+                "schema_name": "Mepram Schema",
+                "schema_version": "1.0.0dev",
+                "bioinformatics_protocol_software_version": "3.3.2",
+                "all_in_one_library_kit": "Ion Xpress",
+            },
+        ),
+        OpenApiExample(
+            "SampleMetadataIngestResponse",
+            response_only=True,
+            status_codes=["201"],
+            value={
+                "sample_unique_id": "474e5b6670e8",
+                "stored_count": 139,
+                "status": "stored",
+            },
+        ),
+    ],
 )
 @authentication_classes([SessionAuthentication, BasicAuthentication])
 @api_view(["GET", "POST"])

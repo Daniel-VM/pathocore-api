@@ -94,15 +94,59 @@ REST_FRAMEWORK = {
 }
 
 SPECTACULAR_SETTINGS = {
-    "TITLE": "Pathocore API",
-    "DESCRIPTION": "REST API to access pathocore-api",
-    "VERSION": "1.0",
+    "TITLE": "PathoCore API",
+    "DESCRIPTION": (
+        "PathoCore API for schema management, sample ingestion, metadata ingestion, "
+        "and search/discovery endpoints used by multiple client projects "
+        "(e.g. mepram, relecov, redlabra).\n\n"
+        "Authentication: HTTP Basic Auth.\n"
+        "Authorization: users are project-scoped by profile code unless admin/staff."
+    ),
+    "VERSION": "v1",
+    "CONTACT": {
+        "name": "PathoCore API Team",
+    },
     "SERVE_INCLUDE_SCHEMA": True,
     # OTHER SETTINGS
     "GENERIC_ADDITIONAL_PROPERTIES": "dict",
+    "COMPONENT_SPLIT_REQUEST": True,
+    "SORT_OPERATIONS": False,
+    "SECURITY": [{"basicAuth": []}],
     # Keep /v1 in real URLs but hide it in Swagger paths for readability.
     "SCHEMA_PATH_PREFIX": "/v1",
     "SCHEMA_PATH_PREFIX_TRIM": True,
+    # Important for Swagger "Try it out": trimmed paths like "/schema"
+    # must be executed against the "/v1" server base.
+    "SERVERS": [{"url": "/v1", "description": "PathoCore API v1"}],
+    "TAGS": [
+        {
+            "name": "Schemas",
+            "description": (
+                "Upload, list and inspect JSON Schemas. "
+                "Schema upload is admin-only and project-scoped."
+            ),
+        },
+        {
+            "name": "Samples",
+            "description": (
+                "Create and list samples. "
+                "Sample creation is admin-only; listing honors project scope."
+            ),
+        },
+        {
+            "name": "Sample Metadata",
+            "description": (
+                "Ingest metadata for a sample and query metadata values "
+                "using property/value filters."
+            ),
+        },
+        {
+            "name": "Sample History",
+            "description": (
+                "Inspect state transitions and errors recorded per sample."
+            ),
+        },
+    ],
 }
 
 #  enable the use of frames within HTML documents
