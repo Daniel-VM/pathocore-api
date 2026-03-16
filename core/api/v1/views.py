@@ -8,6 +8,8 @@ from rest_framework.decorators import (
 )
 from rest_framework import status
 from rest_framework.response import Response
+from rest_framework.pagination import PageNumberPagination
+from rest_framework.exceptions import NotFound
 from drf_spectacular.utils import (
     extend_schema,
     OpenApiExample,
@@ -34,11 +36,17 @@ from core.api.services import sample_history
 from core.api.services import schema_ingestion
 from core.api.services import schema_listing
 
-
+# Documentation TAGs for drf-spectacular
 TAG_SCHEMAS = "Schemas"
 TAG_SAMPLES = "Samples"
 TAG_SAMPLE_METADATA = "Sample Metadata"
 TAG_SAMPLE_HISTORY = "Sample History"
+
+# API-side agination for /samples list endpoint.
+class SamplesPagination(PageNumberPagination):
+    page_size = 500
+    page_size_query_param = "page_size"
+    max_page_size = 5000
 
 
 # FIXME: Sample ingest rejects json containing fields not defined in SampleIngestSerializer
@@ -121,11 +129,15 @@ TAG_SAMPLE_HISTORY = "Sample History"
                 "created_at_to": serializers.DateTimeField(required=False),
                 "sequencing_date_from": serializers.DateTimeField(required=False),
                 "sequencing_date_to": serializers.DateTimeField(required=False),
+                "page": serializers.IntegerField(required=False, min_value=1),
+                "page_size": serializers.IntegerField(
+                    required=False, min_value=1, max_value=5000
+                ),
             },
         )
     ],
     responses={
-        200: core.api.v1.serializers.SampleListItemSerializer(many=True),
+        200: core.api.v1.serializers.SampleListPaginatedResponseSerializer,
         400: core.api.v1.serializers.ErrorSerializer,
         401: core.api.v1.serializers.ErrorSerializer,
         403: core.api.v1.serializers.ErrorSerializer,
@@ -134,15 +146,20 @@ TAG_SAMPLE_HISTORY = "Sample History"
     examples=[
         OpenApiExample(
             "SampleListBySchema",
-            value=[
-                {
-                    "sample_unique_id": "474e5b6670e8",
-                    "sequencing_sample_id": "LAB-0008",
-                    "created_at": "2026-02-24T09:34:57.167046",
-                    "schema_name": "Mepram Schema",
-                    "schema_version": "1.0.0dev",
-                }
-            ],
+            value={
+                "count": 21317,
+                "next": "http://localhost:8000/v1/samples?page=2&page_size=500",
+                "previous": None,
+                "results": [
+                    {
+                        "sample_unique_id": "474e5b6670e8",
+                        "sequencing_sample_id": "LAB-0008",
+                        "created_at": "2026-02-24T09:34:57.167046",
+                        "schema_name": "Mepram Schema",
+                        "schema_version": "1.0.0dev",
+                    }
+                ],
+            },
             response_only=True,
             status_codes=["200"],
         )
@@ -160,26 +177,19 @@ def samples(request):
                 status=status.HTTP_403_FORBIDDEN,
             )
 
-        # Two-step validation before ingestion
+        # validation before ingestion
         serializer = core.api.v1.serializers.SampleIngestSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
         traceability_data = {
-            "sequencing_sample_id": serializer.validated_data.get("sequencing_sample_id"),
-            "submitting_lab_sample_id": serializer.validated_data.get(
-                "submitting_lab_sample_id"
-            ),
-            "collecting_lab_sample_id": serializer.validated_data.get(
-                "collecting_lab_sample_id"
-            ),
-            "collecting_lab_isolate_id": serializer.validated_data.get(
-                "collecting_lab_isolate_id"
-            ),
-        }
-        traceability_data = {
             key: value
-            for key, value in traceability_data.items()
-            if value is not None and value != ""
+            for key, value in {
+                "sequencing_sample_id": serializer.validated_data.get("sequencing_sample_id"),
+                "submitting_lab_sample_id": serializer.validated_data.get("submitting_lab_sample_id"),
+                "collecting_lab_sample_id": serializer.validated_data.get("collecting_lab_sample_id"),
+                "collecting_lab_isolate_id": serializer.validated_data.get("collecting_lab_isolate_id"),
+            }.items()
+            if value is not None and str(value).strip() != ""
         }
 
         # Create/Ingest Sample
@@ -269,10 +279,17 @@ def samples(request):
         return Response({"error": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
     if not queryset.exists():
         return Response({"error": "No samples found"}, status=status.HTTP_404_NOT_FOUND)
+    queryset = queryset.order_by("id")
+    paginator = SamplesPagination()
+    try:
+        page = paginator.paginate_queryset(queryset, request)
+    except NotFound as exc:
+        return Response({"error": str(exc.detail)}, status=status.HTTP_404_NOT_FOUND)
+
     response_serializer = core.api.v1.serializers.SampleListItemSerializer(
-        queryset, many=True
+        page, many=True
     )
-    return Response(response_serializer.data, status=status.HTTP_200_OK)
+    return paginator.get_paginated_response(response_serializer.data)
 
 
 @extend_schema(
