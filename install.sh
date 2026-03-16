@@ -434,7 +434,7 @@ if [ $upgrade == true ]; then
         echo "Copying files to installation folder"
         rsync -rlv conf/ $INSTALL_PATH/conf/
         rsync -rlv --fuzzy --delay-updates --delete-delay \
-            --exclude "logs" --exclude "documents" --exclude "migrations" --exclude "__pycache__" \
+            --exclude "logs" --exclude "documents" --exclude "__pycache__" \
             README.md LICENSE conf $REQUIRED_MODULES $INSTALL_PATH/
             
         # update the settings.py and the main urls
@@ -445,7 +445,7 @@ if [ $upgrade == true ]; then
         echo "activate the virtualenv"
         source virtualenv/bin/activate
 
-        if python manage.py makemigrations | grep -q "No changes"; then
+        if python manage.py makemigrations --check --dry-run > /tmp/pathocore_api_migration_check.log 2>&1; then
             # check for pending migrations
             if ./manage.py showmigrations | grep '\[ \]'; then
                 echo "There are pending migrations"
@@ -462,15 +462,10 @@ if [ $upgrade == true ]; then
                 echo "No migration is required"
             fi
         else
-            read -p "Do you want to proceed with the migrate command? (Y/N) " -n 1 -r
-            echo    # (optional) move to a new line
-            if [[ ! $REPLY =~ ^[Yy]$ ]] ; then
-                echo "Exiting without running migrate command."
-                exit 1
-            fi
-            echo "Running migrate..."
-            python manage.py migrate
-            echo "Done migrate command."
+            echo -e "${RED}ERROR : Model changes detected without versioned migrations.${NC}"
+            cat /tmp/pathocore_api_migration_check.log
+            echo -e "${RED}ERROR : Create and commit the migration files in the repository before upgrading.${NC}"
+            exit 1
         fi
 
         echo "Running collect statics..."
@@ -670,6 +665,8 @@ if [ $install == true ]; then
         fi
 
         mkdir -p $INSTALL_PATH/$PROJECT_NAME
+        mkdir -p $INSTALL_PATH/core/migrations
+        find $INSTALL_PATH/core/migrations -maxdepth 1 -type f ! -name '__init__.py' -delete
         rsync -rlv README.md LICENSE conf $REQUIRED_MODULES $INSTALL_PATH/
 
         cd $INSTALL_PATH
@@ -688,7 +685,12 @@ if [ $install == true ]; then
 
         if [ $docker == false ]; then
             echo "Creating the database structure for $PROJECT_NAME"
-            python manage.py makemigrations core
+            if ! python manage.py makemigrations --check --dry-run > /tmp/pathocore_api_migration_check.log 2>&1; then
+                echo -e "${RED}ERROR : Model changes detected without versioned migrations.${NC}"
+                cat /tmp/pathocore_api_migration_check.log
+                echo -e "${RED}ERROR : Create and commit the migration files in the repository before installation.${NC}"
+                exit 1
+            fi
             python manage.py migrate
             if [ $tables == true ] ; then
                 echo "Loading in database initial data"
