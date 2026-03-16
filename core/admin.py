@@ -77,29 +77,6 @@ class FilterAdmin(admin.ModelAdmin):
     list_display = ["filter"]
 
 
-class GeneAdmin(admin.ModelAdmin):
-    list_display = ["gene_name", "gene_start", "gene_end", "chromosomeID"]
-
-
-class ChromosomeAdmin(admin.ModelAdmin):
-    list_display = ["chromosome"]
-
-
-class LineageInfoAdmin(admin.ModelAdmin):
-    list_display = ["lineage_name"]
-
-
-class LineageFieldsAdmin(admin.ModelAdmin):
-    list_display = ["property_name", "label_name"]
-
-
-class LineageValuesAdmin(admin.ModelAdmin):
-    list_display = ["value", "lineage_fieldID"]
-
-
-class OrganismAnnotationAdmin(admin.ModelAdmin):
-    list_display = ["organism_code", "gff_version", "sequence_region"]
-
 
 class PublicDatabaseTypeAdmin(admin.ModelAdmin):
     list_display = ["public_type_name", "public_type_display"]
@@ -128,23 +105,6 @@ class SampleAdmin(admin.ModelAdmin):
 class SampleStateAdmin(admin.ModelAdmin):
     list_display = ["state", "description"]
 
-
-class VariantAdmin(admin.ModelAdmin):
-    list_display = [
-        "pos",
-        "ref",
-        "alt",
-        "chromosomeID_id",
-        "filterID_id",
-    ]
-
-
-class VariantInSampleAdmin(admin.ModelAdmin):
-    list_display = ["sampleID_id", "variantID_id", "dp", "alt_dp", "ref_dp", "af"]
-
-
-class VariantAnnotationAdmin(admin.ModelAdmin):
-    list_display = ["variantID_id", "geneID_id", "hgvs_c", "hgvs_p", "hgvs_p_1_letter"]
 
 
 class SchemaAdmin(admin.ModelAdmin):
@@ -185,16 +145,8 @@ admin.site.register(User, CustomUserAdmin)
 admin.site.register(core.models.ConfigSetting, ConfigSettingAdmin)
 admin.site.register(core.models.Filter, FilterAdmin)
 admin.site.register(core.models.Effect, EffectAdmin)
-admin.site.register(core.models.Gene, GeneAdmin)
-admin.site.register(core.models.Chromosome, ChromosomeAdmin)
-# TODO: Remove the line below when we remove lineage things
-admin.site.register(core.models.LineageFields, LineageFieldsAdmin)
-admin.site.register(core.models.LineageValues, LineageValuesAdmin)
 admin.site.register(core.models.Sample, SampleAdmin)
 admin.site.register(core.models.SampleState, SampleStateAdmin)
-admin.site.register(core.models.Variant, VariantAdmin)
-admin.site.register(core.models.VariantInSample, VariantInSampleAdmin)
-admin.site.register(core.models.VariantAnnotation, VariantAnnotationAdmin)
 admin.site.register(core.models.Schema, SchemaAdmin)
 admin.site.register(core.models.SchemaProperties, SchemaPropertiesAdmin)
 admin.site.register(core.models.PropertyOptions, PropertyOptionsAdmin)
@@ -205,8 +157,5 @@ admin.site.register(core.models.MetadataVisualization, MetadataVisualizationAdmi
 admin.site.register(core.models.MetadataValues, MetadataValuesAdmin)
 admin.site.register(core.models.Classification, ClassificationAdmin)
 admin.site.register(core.models.TemporalSampleStorage, TemporalSampleStorageAdmin)
-# TODO: Remove the line below when we remove lineage things
-admin.site.register(core.models.LineageInfo, LineageInfoAdmin)
 admin.site.register(core.models.ErrorName, ErrorNameAdmin)
 admin.site.register(core.models.SampleStateHistory, SampleStateHistoryAdmin)
-admin.site.register(core.models.OrganismAnnotation, OrganismAnnotationAdmin)

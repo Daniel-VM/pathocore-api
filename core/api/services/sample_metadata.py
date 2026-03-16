@@ -1,5 +1,4 @@
-from django.db.models import Q
-from django.db.models.functions import Lower
+from django.db.models import Q, Exists, OuterRef, Subquery
 
 from core import models
 from core.api.utils import access_control
@@ -137,62 +136,80 @@ def list_samples_by_metadata_query(
         if not normalized_classification:
             raise ValueError("classification cannot be empty")
 
-    queryset = models.MetadataValues.objects.select_related("sample", "schema_property")
+    # Build sample scope first and use EXISTS subqueries to avoid large Python-side
+    # set operations on metadata tables.
+    samples_queryset = models.Sample.objects.all()
     if request_user is not None:
-        queryset = access_control.apply_metadata_values_scope(queryset, request_user)
+        samples_queryset = access_control.apply_sample_scope(samples_queryset, request_user)
+
+    metadata_base_filter = Q()
     if normalized_property:
-        queryset = queryset.filter(schema_property__property__iexact=normalized_property)
+        metadata_base_filter &= Q(schema_property__property__iexact=normalized_property)
     if normalized_classification:
-        queryset = queryset.filter(
+        metadata_base_filter &= Q(
             schema_property__classificationID__classification_name__iexact=normalized_classification
         )
+
+    values_q = Q()
     if normalized_values:
-        values_q = Q()
         for value in normalized_values:
             values_q |= Q(value__iexact=value)
-        queryset = queryset.filter(values_q)
 
-    queryset = queryset.order_by("sample__sample_unique_id")
+    if normalized_values:
+        if match == "any":
+            exists_queryset = models.MetadataValues.objects.filter(
+                sample_id=OuterRef("pk")
+            ).filter(metadata_base_filter).filter(values_q)
+            matched_samples = samples_queryset.filter(Exists(exists_queryset))
+        else:
+            matched_samples = samples_queryset
+            for value in normalized_values:
+                exists_queryset = models.MetadataValues.objects.filter(
+                    sample_id=OuterRef("pk")
+                ).filter(metadata_base_filter).filter(value__iexact=value)
+                matched_samples = matched_samples.filter(Exists(exists_queryset))
+    else:
+        exists_queryset = models.MetadataValues.objects.filter(sample_id=OuterRef("pk")).filter(
+            metadata_base_filter
+        )
+        matched_samples = samples_queryset.filter(Exists(exists_queryset))
 
-    requested_values_lower = {value.lower() for value in normalized_values}
+    if not matched_samples.exists():
+        return []
+
+    metadata_queryset = models.MetadataValues.objects.filter(
+        sample_id__in=Subquery(matched_samples.values("id"))
+    ).filter(metadata_base_filter)
+    if normalized_values:
+        metadata_queryset = metadata_queryset.filter(values_q)
+
+    metadata_rows = metadata_queryset.values(
+        "sample_id",
+        "sample__sample_unique_id",
+        "schema_property__property",
+        "value",
+    ).order_by("sample__sample_unique_id", "sample_id")
+
     sample_to_values = {}
-    sample_to_matched_value_set = {}
-
-    for item in queryset:
-        item_property = item.schema_property.property if item.schema_property else None
+    for row in metadata_rows:
+        item_property = row["schema_property__property"]
         if item_property is None:
             continue
-        sample_id = item.sample_id
+        sample_id = row["sample_id"]
         entry = sample_to_values.setdefault(
             sample_id,
-            {"sample_unique_id": item.sample.sample_unique_id, "values": {}},
+            {"sample_unique_id": row["sample__sample_unique_id"], "values": {}},
         )
         values_map = entry["values"]
+        value = row["value"]
         if item_property in values_map:
             existing = values_map[item_property]
             if isinstance(existing, list):
-                existing.append(item.value)
+                existing.append(value)
             else:
-                values_map[item_property] = [existing, item.value]
+                values_map[item_property] = [existing, value]
         else:
-            values_map[item_property] = item.value
-
-        if requested_values_lower and item.value is not None:
-            matched_set = sample_to_matched_value_set.setdefault(sample_id, set())
-            item_value_lower = item.value.lower()
-            if item_value_lower in requested_values_lower:
-                matched_set.add(item_value_lower)
-
-    if not sample_to_values:
-        return []
-
-    if requested_values_lower and match == "all":
-        filtered_results = []
-        for sample_id, entry in sample_to_values.items():
-            matched_values = sample_to_matched_value_set.get(sample_id, set())
-            if requested_values_lower.issubset(matched_values):
-                filtered_results.append(entry)
-        return filtered_results
+            values_map[item_property] = value
 
     return list(sample_to_values.values())
 
@@ -220,9 +237,8 @@ def search_samples_metadata(filters, match="all", request_user=None):
                 raise ValueError("value cannot be empty")
         normalized_filters.append({"property": prop, "value": value})
 
-    sample_sets = []
-    # Validate properties exist in any schema (not restricted to schema_in_use).
-    requested_props = {item["property"].lower() for item in normalized_filters}
+    # Validate properties exist in user-visible schemas and resolve each filter
+    # property to concrete schema_property ids (possibly several across schemas).
     properties_queryset = models.SchemaProperties.objects.all()
     if request_user is not None:
         properties_queryset = properties_queryset.filter(
@@ -230,78 +246,96 @@ def search_samples_metadata(filters, match="all", request_user=None):
                 models.Schema.objects.all(), request_user
             )
         )
-    existing_props = set(
-        properties_queryset.annotate(prop=Lower("property"))
-        .values_list("prop", flat=True)
-        .distinct()
-    )
-    missing_props = sorted(requested_props - existing_props)
-    if missing_props:
-        raise ValueError(
-            "Unknown property(ies): " + ", ".join(missing_props)
-        )
 
+    property_ids_by_lower_name = {}
+    missing_props = []
     for item in normalized_filters:
-        queryset = models.MetadataValues.objects.filter(
-            schema_property__property__iexact=item["property"]
+        prop_lower = item["property"].lower()
+        if prop_lower in property_ids_by_lower_name:
+            continue
+        prop_ids = list(
+            properties_queryset.filter(property__iexact=item["property"]).values_list(
+                "id", flat=True
+            )
         )
-        if request_user is not None:
-            queryset = access_control.apply_metadata_values_scope(queryset, request_user)
+        if not prop_ids:
+            missing_props.append(prop_lower)
+            continue
+        property_ids_by_lower_name[prop_lower] = prop_ids
+
+    if missing_props:
+        missing_props = sorted(set(missing_props))
+        raise ValueError("Unknown property(ies): " + ", ".join(missing_props))
+
+    filter_conditions = []
+    for item in normalized_filters:
+        prop_ids = property_ids_by_lower_name[item["property"].lower()]
+        condition = Q(schema_property_id__in=prop_ids)
         if item["value"] is not None:
-            queryset = queryset.filter(value__iexact=item["value"])
-        sample_sets.append(set(queryset.values_list("sample_id", flat=True)))
+            condition &= Q(value__iexact=item["value"])
+        filter_conditions.append(condition)
 
-    if match == "all":
-        matched_ids = set.intersection(*sample_sets) if sample_sets else set()
+    samples_queryset = models.Sample.objects.all()
+    if request_user is not None:
+        samples_queryset = access_control.apply_sample_scope(samples_queryset, request_user)
+
+    if match == "any":
+        any_condition = Q()
+        for condition in filter_conditions:
+            any_condition |= condition
+        exists_queryset = models.MetadataValues.objects.filter(
+            sample_id=OuterRef("pk")
+        ).filter(any_condition)
+        matched_samples = samples_queryset.filter(Exists(exists_queryset))
     else:
-        matched_ids = set.union(*sample_sets) if sample_sets else set()
+        matched_samples = samples_queryset
+        for condition in filter_conditions:
+            exists_queryset = models.MetadataValues.objects.filter(
+                sample_id=OuterRef("pk")
+            ).filter(condition)
+            matched_samples = matched_samples.filter(Exists(exists_queryset))
 
-    if not matched_ids:
+    if not matched_samples.exists():
         return []
 
-    properties = {item["property"].lower() for item in normalized_filters}
-    results = {}
-    queryset = (
-        models.MetadataValues.objects.filter(sample_id__in=matched_ids)
-        .select_related("sample", "schema_property")
-        .order_by("sample__sample_unique_id")
+    output_filter = Q()
+    for condition in filter_conditions:
+        output_filter |= condition
+
+    metadata_rows = (
+        models.MetadataValues.objects.filter(
+            sample_id__in=Subquery(matched_samples.values("id"))
+        )
+        .filter(output_filter)
+        .values(
+            "sample_id",
+            "sample__sample_unique_id",
+            "schema_property__property",
+            "value",
+        )
+        .order_by("sample__sample_unique_id", "sample_id")
     )
-    if request_user is not None:
-        queryset = access_control.apply_metadata_values_scope(queryset, request_user)
-    for item in queryset:
-        if item.schema_property is None:
+
+    results = {}
+    for row in metadata_rows:
+        item_property = row["schema_property__property"]
+        if item_property is None:
             continue
-        item_property = item.schema_property.property
-        matches_filter = False
-        for current_filter in normalized_filters:
-            if item_property.lower() != current_filter["property"].lower():
-                continue
-            if current_filter["value"] is None:
-                matches_filter = True
-            elif (
-                item.value is not None
-                and item.value.lower() == current_filter["value"].lower()
-            ):
-                matches_filter = True
-            if matches_filter:
-                break
-        if not matches_filter:
-            continue
-        if item_property.lower() not in properties:
-            continue
+        sample_id = row["sample_id"]
         entry = results.setdefault(
-            item.sample_id,
-            {"sample_unique_id": item.sample.sample_unique_id, "values": {}},
+            sample_id,
+            {"sample_unique_id": row["sample__sample_unique_id"], "values": {}},
         )
         values_map = entry["values"]
+        value = row["value"]
         if item_property in values_map:
             existing = values_map[item_property]
             if isinstance(existing, list):
-                existing.append(item.value)
+                existing.append(value)
             else:
-                values_map[item_property] = [existing, item.value]
+                values_map[item_property] = [existing, value]
         else:
-            values_map[item_property] = item.value
+            values_map[item_property] = value
 
     return list(results.values())
 

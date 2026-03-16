@@ -303,6 +303,8 @@ class SampleFilterSerializer(serializers.Serializer):
     created_at_to = serializers.DateTimeField(required=False)
     sequencing_date_from = serializers.DateTimeField(required=False)
     sequencing_date_to = serializers.DateTimeField(required=False)
+    page = serializers.IntegerField(required=False, min_value=1)
+    page_size = serializers.IntegerField(required=False, min_value=1, max_value=5000)
 
     def validate(self, attrs):
         allowed_keys = set(self.fields.keys())
@@ -360,6 +362,13 @@ class SampleListItemSerializer(serializers.ModelSerializer):
             "schema_name",
             "schema_version",
         ]
+
+
+class SampleListPaginatedResponseSerializer(serializers.Serializer):
+    count = serializers.IntegerField()
+    next = serializers.CharField(allow_null=True)
+    previous = serializers.CharField(allow_null=True)
+    results = SampleListItemSerializer(many=True)
 
 
 # TODO: Decide response fields for sample detail.
