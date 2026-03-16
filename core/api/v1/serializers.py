@@ -201,14 +201,21 @@ class SchemaIngestSerializer(serializers.Serializer):
     )
     schema_in_use = serializers.BooleanField(
         required=False,
-        help_text="Mark this schema version as in-use (default: true).",
-    )
-    schema_default = serializers.BooleanField(
-        required=False,
-        help_text="Mark this schema version as default (requires schema_in_use=true).",
+        help_text=(
+            "Mark this schema version as active. If omitted, the uploaded schema "
+            "becomes the active one for the same project and schema name."
+        ),
     )
 
     def validate(self, attrs):
+        allowed_keys = set(self.fields.keys())
+        provided_keys = set(self.initial_data.keys())
+        unknown_keys = provided_keys - allowed_keys
+        if unknown_keys:
+            raise serializers.ValidationError(
+                {"error": f"Unknown field(s): {', '.join(sorted(unknown_keys))}"}
+            )
+
         schema = attrs.get("schema")
         if not isinstance(schema, dict):
             raise serializers.ValidationError({"error": "schema must be a JSON object"})
@@ -233,7 +240,6 @@ class SchemaIngestResponseSerializer(serializers.Serializer):
     project_name = serializers.CharField()
     properties_count = serializers.IntegerField()
     schema_in_use = serializers.BooleanField()
-    schema_default = serializers.BooleanField()
     status = serializers.CharField()
 
 
@@ -241,7 +247,6 @@ class SchemaListFilterSerializer(serializers.Serializer):
     schema_name = serializers.CharField(required=False, allow_blank=False)
     schema_version = serializers.CharField(required=False, allow_blank=False)
     schema_in_use = serializers.BooleanField(required=False)
-    schema_default = serializers.BooleanField(required=False)
     project_name = serializers.CharField(required=False, allow_blank=False)
 
     def validate(self, attrs):
@@ -257,8 +262,6 @@ class SchemaListFilterSerializer(serializers.Serializer):
             attrs["schema_app_name"] = project_name
         if "schema_in_use" not in self.initial_data:
             attrs.pop("schema_in_use", None)
-        if "schema_default" not in self.initial_data:
-            attrs.pop("schema_default", None)
         return attrs
 
 
@@ -271,7 +274,6 @@ class SchemaListItemSerializer(serializers.ModelSerializer):
             "schema_name",
             "schema_version",
             "schema_in_use",
-            "schema_default",
             "project_name",
             "generated_at",
         ]
@@ -281,7 +283,6 @@ class SchemaDetailSerializer(serializers.Serializer):
     schema_name = serializers.CharField()
     schema_version = serializers.CharField()
     schema_in_use = serializers.BooleanField()
-    schema_default = serializers.BooleanField()
     project_name = serializers.CharField(allow_null=True, allow_blank=True)
     generated_at = serializers.DateTimeField(allow_null=True)
     schema = serializers.JSONField()

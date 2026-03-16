@@ -1,6 +1,7 @@
 import json
 
 from django.core.files.base import ContentFile
+from django.db import transaction
 
 import core.models
 from core.api.utils import access_control
@@ -49,15 +50,9 @@ def ingest_schema(payload, request_user):
     if not isinstance(properties, dict) or not properties:
         raise ValueError("schema properties are required")
 
-    schema_default = payload.get("schema_default")
-    if schema_default is None:
-        schema_default = False
-
     schema_in_use = payload.get("schema_in_use")
     if schema_in_use is None:
         schema_in_use = True
-    if schema_default and not schema_in_use:
-        raise ValueError("schema_default requires schema_in_use=true")
 
     schema_app_name = _normalize_str(payload.get("schema_app_name"))
     schema_app_name = access_control.validate_allowed_project_name(schema_app_name)
@@ -67,84 +62,94 @@ def ingest_schema(payload, request_user):
         json.dumps(schema_data, ensure_ascii=False, indent=2), name=file_name
     )
 
-    schema_obj = core.models.Schema.objects.create(
-        file_name=file_payload,
-        user_name=request_user,
-        schema_name=schema_name,
-        schema_version=schema_version,
-        schema_default=schema_default,
-        schema_in_use=schema_in_use,
-        schema_app_name=schema_app_name,
-    )
+    with transaction.atomic():
+        if schema_in_use:
+            # Keep only the latest active schema version for the same project/schema
+            # family unless the caller explicitly uploads an inactive schema.
+            core.models.Schema.objects.filter(
+                schema_app_name=schema_app_name,
+                schema_name=schema_name,
+                schema_in_use=True,
+            ).update(schema_in_use=False)
 
-    required_fields = schema_data.get("required") or []
-    if not isinstance(required_fields, list):
-        required_fields = []
-
-    created_properties = 0
-    for prop_name, prop_data in properties.items():
-        if not isinstance(prop_data, dict):
-            continue
-
-        classification_name = _normalize_str(prop_data.get("classification"))
-        classification_obj = None
-        if classification_name:
-            classification_obj = core.models.Classification.objects.filter(
-                classification_name__iexact=classification_name
-            ).last()
-            if classification_obj is None:
-                classification_obj = core.models.Classification.objects.create(
-                    classification_name=classification_name
-                )
-
-        prop_type = prop_data.get("type")
-        if isinstance(prop_type, list):
-            prop_type = prop_type[0] if prop_type else None
-        if prop_type is None and isinstance(prop_data.get("anyOf"), list):
-            for entry in prop_data["anyOf"]:
-                if isinstance(entry, dict) and entry.get("type"):
-                    prop_type = entry["type"]
-                    break
-        if prop_type is None:
-            prop_type = "string"
-
-        examples = _stringify_examples(prop_data.get("examples"))
-        ontology = _normalize_str(prop_data.get("ontology"))
-        description = _normalize_str(prop_data.get("description"))
-        label = _normalize_str(prop_data.get("label"))
-        fill_mode = _normalize_str(prop_data.get("fill_mode"))
-        fmt = _normalize_str(prop_data.get("format"))
-
-        has_enum = (
-            isinstance(prop_data.get("enum"), list) and len(prop_data["enum"]) > 0
+        schema_obj = core.models.Schema.objects.create(
+            file_name=file_payload,
+            user_name=request_user,
+            schema_name=schema_name,
+            schema_version=schema_version,
+            schema_default=False,
+            schema_in_use=schema_in_use,
+            schema_app_name=schema_app_name,
         )
-        is_required = prop_name in required_fields
 
-        property_obj = core.models.SchemaProperties.objects.create(
-            schemaID=schema_obj,
-            classificationID=classification_obj,
-            property=prop_name,
-            examples=examples,
-            ontology=ontology,
-            type=str(prop_type)[:20],
-            format=fmt,
-            description=description,
-            label=label,
-            required=is_required,
-            options=has_enum,
-            fill_mode=fill_mode,
-        )
-        created_properties += 1
+        required_fields = schema_data.get("required") or []
+        if not isinstance(required_fields, list):
+            required_fields = []
 
-        # Store enum values as options when present.
-        if has_enum:
-            for enum_item in prop_data.get("enum", []):
-                core.models.PropertyOptions.objects.create(
-                    propertyID=property_obj,
-                    enum=str(enum_item),
-                    ontology=ontology,
-                )
+        created_properties = 0
+        for prop_name, prop_data in properties.items():
+            if not isinstance(prop_data, dict):
+                continue
 
-        # TODO: complex fields (objects/arrays) should be expanded into grouped properties.
+            classification_name = _normalize_str(prop_data.get("classification"))
+            classification_obj = None
+            if classification_name:
+                classification_obj = core.models.Classification.objects.filter(
+                    classification_name__iexact=classification_name
+                ).last()
+                if classification_obj is None:
+                    classification_obj = core.models.Classification.objects.create(
+                        classification_name=classification_name
+                    )
+
+            prop_type = prop_data.get("type")
+            if isinstance(prop_type, list):
+                prop_type = prop_type[0] if prop_type else None
+            if prop_type is None and isinstance(prop_data.get("anyOf"), list):
+                for entry in prop_data["anyOf"]:
+                    if isinstance(entry, dict) and entry.get("type"):
+                        prop_type = entry["type"]
+                        break
+            if prop_type is None:
+                prop_type = "string"
+
+            examples = _stringify_examples(prop_data.get("examples"))
+            ontology = _normalize_str(prop_data.get("ontology"))
+            description = _normalize_str(prop_data.get("description"))
+            label = _normalize_str(prop_data.get("label"))
+            fill_mode = _normalize_str(prop_data.get("fill_mode"))
+            fmt = _normalize_str(prop_data.get("format"))
+
+            has_enum = (
+                isinstance(prop_data.get("enum"), list) and len(prop_data["enum"]) > 0
+            )
+            is_required = prop_name in required_fields
+
+            property_obj = core.models.SchemaProperties.objects.create(
+                schemaID=schema_obj,
+                classificationID=classification_obj,
+                property=prop_name,
+                examples=examples,
+                ontology=ontology,
+                type=str(prop_type)[:20],
+                format=fmt,
+                description=description,
+                label=label,
+                required=is_required,
+                options=has_enum,
+                fill_mode=fill_mode,
+            )
+            created_properties += 1
+
+            # Store enum values as options when present.
+            if has_enum:
+                for enum_item in prop_data.get("enum", []):
+                    core.models.PropertyOptions.objects.create(
+                        propertyID=property_obj,
+                        enum=str(enum_item),
+                        ontology=ontology,
+                    )
+
+            # TODO: complex fields (objects/arrays) should be expanded into grouped properties.
 
     return schema_obj, created_properties

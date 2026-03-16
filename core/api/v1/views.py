@@ -306,7 +306,6 @@ def samples(request):
                 "schema_name": serializers.CharField(required=False),
                 "schema_version": serializers.CharField(required=False),
                 "schema_in_use": serializers.BooleanField(required=False),
-                "schema_default": serializers.BooleanField(required=False),
                 "project_name": serializers.CharField(required=False),
             },
         )
@@ -327,7 +326,6 @@ def samples(request):
                     "schema_name": "Mepram Schema",
                     "schema_version": "1.0.0dev",
                     "schema_in_use": True,
-                    "schema_default": False,
                     "project_name": "mepram",
                     "generated_at": "2026-02-20T09:29:29.730943",
                 }
@@ -382,11 +380,13 @@ def schema(request):
         "Upload a schema JSON using a wrapper payload. "
         "`project_name` is required in the URL and must be one of the allowed "
         "project codes (`mepram`, `relecov`, `redlabra`). "
-        "`title` and `version` must exist inside the `schema` object."
+        "`title` and `version` must exist inside the `schema` object. "
+        "If `schema_in_use` is omitted, the uploaded schema becomes the active "
+        "schema for the same project and schema name."
     ),
     examples=[
         OpenApiExample(
-            "WrapperWithFlags",
+            "WrapperWithActiveFlag",
             request_only=True,
             value={
                 "schema": {
@@ -396,7 +396,6 @@ def schema(request):
                     "properties": {"sample_unique_id": {"type": "string"}},
                     "required": ["sample_unique_id"],
                 },
-                "schema_default": True,
                 "schema_in_use": True,
             },
         ),
@@ -410,7 +409,6 @@ def schema(request):
                 "project_name": "mepram",
                 "properties_count": 123,
                 "schema_in_use": True,
-                "schema_default": False,
                 "status": "created",
             },
         ),
@@ -453,7 +451,6 @@ def schema_create(request, project_name):
             "project_name": schema_obj.schema_app_name,
             "properties_count": properties_count,
             "schema_in_use": schema_obj.schema_in_use,
-            "schema_default": schema_obj.schema_default,
             "status": "created",
         }
     )
@@ -500,7 +497,6 @@ def schema_create(request, project_name):
                 "schema_name": "Mepram Schema",
                 "schema_version": "1.0.0dev",
                 "schema_in_use": True,
-                "schema_default": False,
                 "project_name": "mepram",
                 "generated_at": "2026-02-20T09:29:29.730943",
                 "schema": {
@@ -535,7 +531,6 @@ def schema_detail(request, schema_name, schema_version):
             "schema_name": schema_obj.schema_name,
             "schema_version": schema_obj.schema_version,
             "schema_in_use": schema_obj.schema_in_use,
-            "schema_default": schema_obj.schema_default,
             "project_name": schema_obj.schema_app_name,
             "generated_at": schema_obj.generated_at,
             "schema": schema_json,
