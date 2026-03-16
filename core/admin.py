@@ -34,10 +34,6 @@ class CustomUserAdmin(UserAdmin):
         return super(CustomUserAdmin, self).get_inline_instances(request, obj)
 
 
-class AnalysisPerformedAdmin(admin.ModelAdmin):
-    list_display = ["typeID", "sampleID"]
-
-
 class MetadataValuesAdmin(admin.ModelAdmin):
     list_display = ["value", "sample", "schema_property", "analysis_date"]
     search_fields = ("value__icontains",)
@@ -61,20 +57,8 @@ class SampleStateHistoryAdmin(admin.ModelAdmin):
     ]
 
 
-class EffectAdmin(admin.ModelAdmin):
-    list_display = ["effect"]
-
-
 class ErrorNameAdmin(admin.ModelAdmin):
     list_display = ["error_name", "error_code", "error_text"]
-
-
-class ErrorAdmin(admin.ModelAdmin):
-    list_display = ["error_name", "error_code", "erorr_text"]
-
-
-class FilterAdmin(admin.ModelAdmin):
-    list_display = ["filter"]
 
 
 
@@ -143,8 +127,6 @@ class MetadataVisualizationAdmin(admin.ModelAdmin):
 admin.site.unregister(User)
 admin.site.register(User, CustomUserAdmin)
 admin.site.register(core.models.ConfigSetting, ConfigSettingAdmin)
-admin.site.register(core.models.Filter, FilterAdmin)
-admin.site.register(core.models.Effect, EffectAdmin)
 admin.site.register(core.models.Sample, SampleAdmin)
 admin.site.register(core.models.SampleState, SampleStateAdmin)
 admin.site.register(core.models.Schema, SchemaAdmin)

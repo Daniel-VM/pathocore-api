@@ -20,8 +20,6 @@ def list_schemas(filters=None, request_user=None):
 
     if "schema_in_use" in filters:
         queryset = queryset.filter(schema_in_use=filters["schema_in_use"])
-    if "schema_default" in filters:
-        queryset = queryset.filter(schema_default=filters["schema_default"])
 
     schema_app_name = filters.get("schema_app_name")
     project_name = filters.get("project_name")
