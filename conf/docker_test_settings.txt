@@ -1,0 +1,22 @@
+### Installation path
+INSTALL_PATH='/opt/pathocore-api'
+PROJECT_NAME='pathocore_api'
+REQUIRED_MODULES='core'
+
+### Python executable inside container
+PYTHON_BIN_PATH='python3'
+
+### Database settings for docker-compose.test.yml
+DB_USER='django'
+DB_PASS='djangopass'
+DB_NAME='pathocore_api'
+DB_SERVER_IP='db'
+DB_PORT=3306
+
+### PathoCore API host settings
+LOCAL_SERVER_IP='127.0.0.1'
+DNS_URL='localhost'
+
+### Logs settings
+LOG_TYPE="regular_folder"
+LOG_PATH=""

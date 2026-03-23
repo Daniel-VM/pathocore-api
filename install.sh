@@ -150,6 +150,12 @@ upgrade_venv(){
 }
 
 restore_git_ref() {
+    if [ -z "${initial_git_ref:-}" ]; then
+        return 0
+    fi
+    if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+        return 0
+    fi
     echo "Restoring to initial git reference: $initial_git_ref"
     git checkout "$initial_git_ref" --quiet
 }
@@ -161,6 +167,8 @@ update_system_deps() {
         apt-get update && apt-get upgrade -y
         apt-get install -y \
             apt-utils wget \
+            build-essential \
+            pkg-config \
             libmysqlclient-dev \
             python3-venv  \
             libpq-dev \
@@ -175,13 +183,22 @@ update_system_deps() {
         yum install zlib-devel bzip2-devel openssl-devel \
                         wget httpd-devel mysql-libs sqlite sqlite-devel \
                         mariadb-devel libffi-devel \
+                        pkgconf-pkg-config \
                         gnuplot
     fi
 
 }
 
-# Ensure to recover current git branch/tag/SHA on script exit
-initial_git_ref=$(git rev-parse --abbrev-ref HEAD || git rev-parse HEAD)
+# Ensure to recover current git branch/tag/SHA on script exit.
+# In Docker builds the repository is usually copied without `.git`, so the
+# installer must also work with a plain source tree snapshot.
+if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+    initial_git_ref=$(git rev-parse --abbrev-ref HEAD || git rev-parse HEAD)
+    has_git_repo=true
+else
+    initial_git_ref=""
+    has_git_repo=false
+fi
 trap restore_git_ref EXIT
 
 #================================================================
@@ -314,8 +331,21 @@ fi
 
 . $conf
 
+# Runtime ownership defaults used in both classic installs and containerized runs.
+runtime_user="${SUDO_USER:-$(id -un)}"
+runtime_group="$(id -gn "${SUDO_USER:-$(id -un)}" 2>/dev/null || id -gn)"
+
+# Allow explicit "current" to mean "keep the already checked out sources".
+if [ "$git_branch" = "current" ]; then
+    if [ "$has_git_repo" = true ]; then
+        git_branch="$initial_git_ref"
+    fi
+fi
+
 # Check if git reference (branch, SHA, or tag) exists and checkout
-if git rev-parse --verify "$git_branch" >/dev/null 2>&1; then
+if [ "$has_git_repo" = false ]; then
+    printf "${YELLOW}No git metadata found. Using copied source tree as-is.${NC}\n"
+elif git rev-parse --verify "$git_branch" >/dev/null 2>&1; then
     if [[ $git_branch != $initial_git_ref ]]; then
         # Check for local changes
         local_changes=$(git status --porcelain)
@@ -491,19 +521,21 @@ if [ $upgrade == true ]; then
         # Linux distribution
         linux_distribution=$(lsb_release -i | cut -f 2-)
 
-        echo ""
-        echo "Restart apache server to update changes"
-        if [[ $linux_distribution == "Ubuntu" ]]; then
-                apache_daemon="apache2"
-        else
-                apache_daemon="httpd"
-        fi
-        
-        # systemctl restart $apache_user
+        if [ $docker == false ]; then
+            echo ""
+            echo "Restart apache server to update changes"
+            if [[ $linux_distribution == "Ubuntu" ]]; then
+                    apache_daemon="apache2"
+            else
+                    apache_daemon="httpd"
+            fi
+            
+            # systemctl restart $apache_user
 
-        if ! [ $? -eq 0 ]; then
-            echo -e "${ORANGE}Apache server restart failed. trying with sudo{NC}"
-            sudo systemctl restart $apache_daemon
+            if ! [ $? -eq 0 ]; then
+                echo -e "${ORANGE}Apache server restart failed. trying with sudo{NC}"
+                sudo systemctl restart $apache_daemon
+            fi
         fi
     fi
     printf "\n\n%s"
@@ -535,7 +567,7 @@ if [ $install == true ]; then
         printf "%s"
         printf "${YELLOW}------------------${NC}\n\n"
 
-        user=$SUDO_USER
+        user=$runtime_user
         group=$(groups | cut -d" " -f1)
 
         # Find out server Linux distribution
@@ -545,6 +577,9 @@ if [ $install == true ]; then
             apache_group="www-data"
         else
             apache_group="apache"
+        fi
+        if [ $docker == true ]; then
+            apache_group="$runtime_group"
         fi
 
         echo "Starting $PROJECT_NAME installation"
@@ -606,8 +641,14 @@ if [ $install == true ]; then
 
         # Install python packages required for pathocore-api
         echo "Installing required python packages"
-        python -m pip install wheel
-        python -m pip install -r conf/requirements.txt
+        python -m pip install wheel || {
+            echo -e "${RED}ERROR : Unable to install wheel inside virtualenv.${NC}"
+            exit 1
+        }
+        python -m pip install -r conf/requirements.txt || {
+            echo -e "${RED}ERROR : Unable to install Python requirements.${NC}"
+            exit 1
+        }
 
         cd -
 
@@ -640,6 +681,8 @@ if [ $install == true ]; then
     #================================================================
 
     if [ "$install_type" == "full" ] || [ "$install_type" == "app" ]; then
+        user="${user:-$runtime_user}"
+        apache_group="${apache_group:-$runtime_group}"
 
         if [ $LOG_TYPE == "symbolic_link" ]; then
             if [ -d $LOG_PATH ]; then
@@ -676,8 +719,19 @@ if [ $install == true ]; then
         source virtualenv/bin/activate
 
         # Starting Pathocore API
+        if ! command -v django-admin >/dev/null 2>&1; then
+            echo -e "${RED}ERROR : django-admin not found in virtualenv. Check Python dependency installation.${NC}"
+            exit 1
+        fi
         echo "Creating $PROJECT_NAME project"
-        django-admin startproject $PROJECT_NAME .
+        django-admin startproject $PROJECT_NAME . || {
+            echo -e "${RED}ERROR : Unable to create Django project skeleton.${NC}"
+            exit 1
+        }
+        if [ ! -f manage.py ]; then
+            echo -e "${RED}ERROR : manage.py was not created after startproject.${NC}"
+            exit 1
+        fi
         
         # update the settings.py and the main urls
         echo "Updating settings and urls"
@@ -712,7 +766,10 @@ if [ $install == true ]; then
 
         # copy static files 
         echo "Run collectstatic"
-        python manage.py collectstatic
+        python manage.py collectstatic --noinput || {
+            echo -e "${RED}ERROR : collectstatic failed.${NC}"
+            exit 1
+        }
 
         cd -
 

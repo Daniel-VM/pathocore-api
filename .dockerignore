@@ -1,0 +1,15 @@
+virtualenv/
+.venv/
+static/
+documents/
+dummy/
+logs/
+__pycache__/
+*.pyc
+*.pyo
+.git/
+*.sqlite3
+node_modules/
+.env
+install_*.txt
+*.log

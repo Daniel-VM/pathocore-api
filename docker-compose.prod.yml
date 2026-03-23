@@ -1,0 +1,25 @@
+services:
+  app:
+    container_name: pathocore_api_app
+    build:
+      context: .
+      args:
+        GIT_REVISION: ${GIT_REVISION:-main}
+        INSTALL_CONF: ${INSTALL_CONF:-conf/docker_production_settings.txt}
+    environment:
+      APP_PORT: 8000
+      APP_INSTALL_PATH: /opt/pathocore-api
+      APP_REPO_PATH: /srv/pathocore-api
+      APP_READY_FILE: /opt/pathocore-api/.container_install_ready
+    ports:
+      - "8000:8000"
+    restart: unless-stopped
+    volumes:
+      - pathocore_api_documents:/opt/pathocore-api/documents
+      - pathocore_api_logs:/opt/pathocore-api/logs
+      - pathocore_api_static:/opt/pathocore-api/static
+
+volumes:
+  pathocore_api_documents:
+  pathocore_api_logs:
+  pathocore_api_static:
