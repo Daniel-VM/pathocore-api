@@ -13,14 +13,20 @@ while [ ! -f "${APP_READY_FILE}" ]; do
     sleep 2
 done
 
+cd "${APP_DIR}"
 source "${APP_DIR}/virtualenv/bin/activate"
 
 if [ "${APP_MODE}" = "dev" ]; then
     exec python "${APP_DIR}/manage.py" runserver 0.0.0.0:"${APP_PORT}"
 fi
 
+# TEMPORTARy, just unfreezing the container logs since gunicorn is not capturing them properly 
 exec gunicorn pathocore_api.wsgi:application \
     --bind 0.0.0.0:"${APP_PORT}" \
     --workers 2 \
     --threads 2 \
-    --timeout 120
+    --timeout 120 \
+    --access-logfile - \
+    --error-logfile - \
+    --capture-output \
+    --log-level info
