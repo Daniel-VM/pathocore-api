@@ -9,6 +9,8 @@ BIOINFO_UPLOAD_FOLDER = ""
 ALLOWED_SCHEMA_PROJECT_NAMES = ["mepram", "relecov", "redlabra"]
 # Backward-compatible alias for older code paths.
 ALLOWED_SCHEMA_APP_NAMES = ALLOWED_SCHEMA_PROJECT_NAMES
+SAMPLE_FINGERPRINT_LENGTH = 24
+SAMPLE_ID_PREFIX = "SAM-"
 
 SCHEMA_SUCCESSFUL_LOAD = "Schema was successfully loaded"
 BIOINFO_SUCCESSFUL_LOAD = "Bioinfo file was successfully loaded"

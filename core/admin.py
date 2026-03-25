@@ -82,13 +82,17 @@ class SampleAdmin(admin.ModelAdmin):
         "submitting_lab_sample_id",
         "collecting_lab_sample_id",
     ]
-    search_fields = ["sequencing_sample_id__icontains"]
+    search_fields = ["sample_unique_id__icontains", "sequencing_sample_id__icontains"]
     list_filter = ["created_at"]
 
 
 class SampleStateAdmin(admin.ModelAdmin):
     list_display = ["state", "description"]
 
+
+
+class SampleIdSequenceAdmin(admin.ModelAdmin):
+    list_display = ["sequence_name", "last_value", "updated_at"]
 
 
 class SchemaAdmin(admin.ModelAdmin):
@@ -128,6 +132,7 @@ admin.site.unregister(User)
 admin.site.register(User, CustomUserAdmin)
 admin.site.register(core.models.ConfigSetting, ConfigSettingAdmin)
 admin.site.register(core.models.Sample, SampleAdmin)
+admin.site.register(core.models.SampleIdSequence, SampleIdSequenceAdmin)
 admin.site.register(core.models.SampleState, SampleStateAdmin)
 admin.site.register(core.models.Schema, SchemaAdmin)
 admin.site.register(core.models.SchemaProperties, SchemaPropertiesAdmin)
