@@ -1,15 +1,23 @@
 import hashlib
+from django.db.models import Q
+
+import core.config
 from core import models
 
 
-def build_sample_unique_id(seq_id, collecting_id, submit_inst, colect_inst) -> str:
-    """Return the expected sample unique id given its 4 components."""
+def build_sample_fingerprint(
+    seq_id, collecting_id, submit_inst, colect_inst, length=None
+) -> str:
+    """Return the expected sample fingerprint given its identity components."""
     combined = f"{seq_id or ''}|{collecting_id}|{submit_inst}|{colect_inst}".lower()
-    return hashlib.sha256(combined.encode()).hexdigest()
+    fingerprint = hashlib.sha256(combined.encode()).hexdigest()
+    if length is None:
+        length = getattr(core.config, "SAMPLE_FINGERPRINT_LENGTH", 24)
+    return fingerprint[:length]
 
 
-def create_sample_unique_id(sample_payload: dict) -> str:
-    # Generates a deterministic sample_unique_id from required fields.
+def create_sample_fingerprint(sample_payload: dict, length=None) -> str:
+    # Generates a deterministic fingerprint from required fields.
     # NOTE: Required-field validation is handled in the serializer.
     seq_id = sample_payload.get("sequencing_sample_id")
     colect_isolate_id = sample_payload.get("collecting_lab_isolate_id")
@@ -24,23 +32,100 @@ def create_sample_unique_id(sample_payload: dict) -> str:
             "One of collecting_lab_isolate_id or collecting_lab_sample_id is required"
         )
 
-    fingerprint = build_sample_unique_id(
-        seq_id, collecting_id, submit_inst, colect_inst
+    return build_sample_fingerprint(
+        seq_id, collecting_id, submit_inst, colect_inst, length=length
+    )
+
+
+def _get_fingerprint_candidates(sample_payload: dict):
+    candidates = []
+    preferred_length = getattr(core.config, "SAMPLE_FINGERPRINT_LENGTH", 24)
+    legacy_length = models.Sample._meta.get_field("sample_unique_id").max_length
+    for length in (preferred_length, legacy_length):
+        fingerprint = create_sample_fingerprint(sample_payload, length=length)
+        if fingerprint not in candidates:
+            candidates.append(fingerprint)
+    return candidates
+
+
+def _normalize_sample_id_prefix():
+    prefix = getattr(core.config, "SAMPLE_ID_PREFIX", "SAM-") or ""
+    if prefix and not prefix.endswith("-"):
+        prefix = f"{prefix}-"
+    return prefix
+
+
+def get_initial_sample_unique_id() -> str:
+    initial_value = f"{_normalize_sample_id_prefix()}AAA-0001"
+    max_length = models.Sample._meta.get_field("sample_unique_id").max_length
+    if len(initial_value) > max_length:
+        raise ValueError("initial sample_unique_id exceeds configured field length")
+    return initial_value
+
+
+def _encode_sample_id_letters(index: int) -> str:
+    if index < 0 or index >= 26**3:
+        raise ValueError("sample_unique_id sequence exceeded supported range")
+    letters = []
+    for _ in range(3):
+        letters.append(chr(ord("A") + (index % 26)))
+        index //= 26
+    return "".join(reversed(letters))
+
+
+def increase_sample_unique_id(previous_value: str) -> str:
+    prefix = _normalize_sample_id_prefix()
+    if not isinstance(previous_value, str):
+        raise ValueError("previous sample_unique_id must be a string")
+    if prefix and not previous_value.startswith(prefix):
+        raise ValueError("previous sample_unique_id prefix is invalid")
+
+    base_value = previous_value[len(prefix) :] if prefix else previous_value
+    letters, separator, numeric = base_value.partition("-")
+    if separator != "-" or len(letters) != 3 or len(numeric) != 4:
+        raise ValueError("previous sample_unique_id format is invalid")
+
+    letter_block = 0
+    for character in letters:
+        if character < "A" or character > "Z":
+            raise ValueError("previous sample_unique_id letter block is invalid")
+        letter_block = (letter_block * 26) + (ord(character) - ord("A"))
+
+    numeric_block = int(numeric)
+    numeric_block += 1
+    if numeric_block > 9999:
+        numeric_block = 1
+        letter_block += 1
+
+    sample_unique_id = (
+        f"{prefix}{_encode_sample_id_letters(letter_block)}-"
+        f"{numeric_block:04d}"
     )
     max_length = models.Sample._meta.get_field("sample_unique_id").max_length
-    return fingerprint[:max_length]
+    if len(sample_unique_id) > max_length:
+        raise ValueError("generated sample_unique_id exceeds configured field length")
+    return sample_unique_id
 
 
 def get_existing_sample(sample_payload: dict):
-    normalized_id = create_sample_unique_id(sample_payload)
-    return models.Sample.objects.filter(sample_unique_id=normalized_id).last()
+    candidates = _get_fingerprint_candidates(sample_payload)
+    return (
+        models.Sample.objects.filter(
+            Q(fingerprint__in=candidates) | Q(sample_unique_id__in=candidates)
+        )
+        .order_by("-id")
+        .last()
+    )
 
 
 def prepare_sample_create(sample_payload: dict):
     if "sample_unique_id" in sample_payload and sample_payload["sample_unique_id"]:
         raise ValueError("sample_unique_id is generated by the API")
-    normalized_id = create_sample_unique_id(sample_payload)
-    if models.Sample.objects.filter(sample_unique_id=normalized_id).exists():
+    if "fingerprint" in sample_payload and sample_payload["fingerprint"]:
+        raise ValueError("fingerprint is generated by the API")
+
+    fingerprint = create_sample_fingerprint(sample_payload)
+    if get_existing_sample(sample_payload) is not None:
         raise ValueError("Sample already exists")
 
     schema_name = sample_payload.get("schema_name")
@@ -65,7 +150,7 @@ def prepare_sample_create(sample_payload: dict):
         for f in models.Sample._meta.get_fields()
         if getattr(f, "is_relation", False) is False
     }
-    excluded_defaults = {"id", "sample_unique_id", "created_at"}
+    excluded_defaults = {"id", "fingerprint", "sample_unique_id", "created_at"}
     for key, value in sample_payload.items():
         if key in excluded_defaults or key not in sample_field_names:
             continue
@@ -80,7 +165,7 @@ def prepare_sample_create(sample_payload: dict):
             defaults[key] = value
 
     return {
-        "sample_unique_id": normalized_id,
+        "fingerprint": fingerprint,
         "schema_obj": schema_obj,
         "defaults": defaults,
     }

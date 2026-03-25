@@ -38,7 +38,7 @@ class SampleIngestSerializer(serializers.ModelSerializer):
         allow_blank=False,
         allow_null=True,
         help_text=(
-            "Preferred collecting identifier used for `sample_unique_id` hash. "
+            "Preferred collecting identifier used for fingerprint generation. "
             "If absent, `collecting_lab_sample_id` is used."
         ),
     )

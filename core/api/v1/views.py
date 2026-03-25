@@ -18,7 +18,7 @@ from drf_spectacular.utils import (
 )
 from rest_framework import serializers
 from django.core.exceptions import PermissionDenied
-from django.db import transaction
+from django.db import transaction, IntegrityError
 
 # Local imports
 import core.models
@@ -56,8 +56,8 @@ class SamplesPagination(PageNumberPagination):
     tags=[TAG_SAMPLES],
     summary="Ingest one sample",
     description=(
-        "Create a sample and generate `sample_unique_id` deterministically from "
-        "project-relevant identifiers. Admin privileges are required."
+        "Create a sample, generate a deterministic fingerprint for deduplication "
+        "and assign a sequential `sample_unique_id`. Admin privileges are required."
     ),
     request=core.api.v1.serializers.SampleIngestSerializer,
     responses={
@@ -87,7 +87,7 @@ class SamplesPagination(PageNumberPagination):
             response_only=True,
             status_codes=["201"],
             value={
-                "sample_unique_id": "474e5b6670e8",
+                "sample_unique_id": "SAM-AAA-0001",
                 "sequencing_sample_id": "LAB-0008",
                 "created": True,
                 "status": "created",
@@ -99,7 +99,7 @@ class SamplesPagination(PageNumberPagination):
             status_codes=["409"],
             value={
                 "error": "Sample already exists",
-                "sample_unique_id": "474e5b6670e8",
+                "sample_unique_id": "SAM-AAA-0001",
                 "sequencing_sample_id": "LAB-0008",
                 "submitting_lab_sample_id": "SUB-0008",
             },
@@ -153,7 +153,7 @@ class SamplesPagination(PageNumberPagination):
                 "previous": None,
                 "results": [
                     {
-                        "sample_unique_id": "474e5b6670e8",
+                        "sample_unique_id": "SAM-AAA-0001",
                         "sequencing_sample_id": "LAB-0008",
                         "created_at": "2026-02-24T09:34:57.167046",
                         "schema_name": "Mepram Schema",
@@ -227,13 +227,61 @@ def samples(request):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        sample_obj = core.models.Sample.objects.create(
-            sample_unique_id=sample_create_data["sample_unique_id"],
-            schema_obj=sample_create_data["schema_obj"],
-            user=request.user,
-            **sample_create_data["defaults"],
-        )
-        created = True
+        try:
+            with transaction.atomic():
+                sequence_obj = (
+                    core.models.SampleIdSequence.objects.select_for_update()
+                    .filter(sequence_name="sample_unique_id")
+                    .last()
+                )
+                if sequence_obj is None:
+                    next_sample_unique_id = sample_ingestion.get_initial_sample_unique_id()
+                    sequence_obj = core.models.SampleIdSequence.objects.create(
+                        sequence_name="sample_unique_id",
+                        last_value=next_sample_unique_id,
+                    )
+                else:
+                    if sequence_obj.last_value:
+                        next_sample_unique_id = sample_ingestion.increase_sample_unique_id(
+                            sequence_obj.last_value
+                        )
+                    else:
+                        next_sample_unique_id = sample_ingestion.get_initial_sample_unique_id()
+                    sequence_obj.last_value = next_sample_unique_id
+                    sequence_obj.save(update_fields=["last_value"])
+
+                sample_obj = core.models.Sample.objects.create(
+                    sample_unique_id=next_sample_unique_id,
+                    fingerprint=sample_create_data["fingerprint"],
+                    schema_obj=sample_create_data["schema_obj"],
+                    user=request.user,
+                    **sample_create_data["defaults"],
+                )
+                created = True
+        except IntegrityError:
+            existing_sample = sample_ingestion.get_existing_sample(
+                serializer.validated_data
+            )
+            if existing_sample:
+                core.api.utils.common_functions.record_sample_error(
+                    existing_sample,
+                    core.api.utils.common_functions.map_error_name("Sample already exists"),
+                )
+                return Response(
+                    {
+                        "error": "Sample already exists",
+                        "sample_unique_id": existing_sample.sample_unique_id,
+                        "sequencing_sample_id": existing_sample.sequencing_sample_id,
+                        "submitting_lab_sample_id": existing_sample.submitting_lab_sample_id,
+                    },
+                    status=status.HTTP_409_CONFLICT,
+                )
+            return Response(
+                {"error": "Sample already exists", **traceability_data},
+                status=status.HTTP_409_CONFLICT,
+            )
+        except ValueError as exc:
+            return Response({"error": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
 
         # If created, add initial state history
         if created:
@@ -626,7 +674,7 @@ def schema_detail(request, schema_name, schema_version):
             response_only=True,
             status_codes=["200"],
             value={
-                "sample_unique_id": "474e5b6670e8",
+                "sample_unique_id": "SAM-AAA-0001",
                 "sequencing_sample_id": "LAB-0008",
                 "microbiology_lab_sample_id": "MICRO-0008",
                 "collecting_lab_sample_id": "COLL-0008",
@@ -701,14 +749,14 @@ def sample_detail_view(request, sample_unique_id):
             status_codes=["200"],
             value=[
                 {
-                    "sample_unique_id": "474e5b6670e8",
+                    "sample_unique_id": "SAM-AAA-0001",
                     "state": "Defined",
                     "error_name": "No error",
                     "is_current": False,
                     "changed_at": "2026-02-24T09:34:57.167046",
                 },
                 {
-                    "sample_unique_id": "474e5b6670e8",
+                    "sample_unique_id": "SAM-AAA-0001",
                     "state": "Bioinfo",
                     "error_name": "No error",
                     "is_current": True,
@@ -832,7 +880,7 @@ def sample_history_detail_view(request, sample_unique_id):
             status_codes=["200"],
             value=[
                 {
-                    "sample_unique_id": "474e5b6670e8",
+                    "sample_unique_id": "SAM-AAA-0001",
                     "values": {
                         "bioinformatics_protocol_software_version": "3.3.2",
                         "all_in_one_library_kit": "Ion Xpress",
@@ -961,7 +1009,7 @@ def sample_metadata_property_view(request):
             status_codes=["200"],
             value=[
                 {
-                    "sample_unique_id": "474e5b6670e8",
+                    "sample_unique_id": "SAM-AAA-0001",
                     "values": {
                         "bioinformatics_protocol_software_version": "3.3.2",
                         "all_in_one_library_kit": "Ion Xpress",
@@ -1117,7 +1165,7 @@ def sample_metadata_search_view(request):
             response_only=True,
             status_codes=["201"],
             value={
-                "sample_unique_id": "474e5b6670e8",
+                "sample_unique_id": "SAM-AAA-0001",
                 "stored_count": 139,
                 "status": "stored",
             },

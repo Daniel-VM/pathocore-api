@@ -478,6 +478,7 @@ class Sample(models.Model):
     schema_obj = models.ForeignKey(
         Schema, on_delete=models.CASCADE, null=True, blank=True
     )
+    fingerprint = models.CharField(max_length=24, null=True, blank=True, db_index=True)
     # Frequent lookup key for /samples/{sample_unique_id}.
     sample_unique_id = models.CharField(max_length=12, db_index=True)
     microbiology_lab_sample_id = models.CharField(max_length=80, null=True, blank=True)
@@ -507,6 +508,9 @@ class Sample(models.Model):
 
     def get_sample_unique_id(self):
         return "%s" % (self.sample_unique_id)
+
+    def get_fingerprint(self):
+        return "%s" % (self.fingerprint)
     
     def get_sample_name(self):
         return "%s" % (self.sequencing_sample_id)
@@ -592,6 +596,18 @@ class Sample(models.Model):
         return self
 
     objects = SampleManager()
+
+
+class SampleIdSequence(models.Model):
+    sequence_name = models.CharField(max_length=40, unique=True)
+    last_value = models.CharField(max_length=12, blank=True, default="")
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "core_sample_id_sequence"
+
+    def __str__(self):
+        return "%s=%s" % (self.sequence_name, self.last_value)
 
 
 class PublicDatabaseType(models.Model):
