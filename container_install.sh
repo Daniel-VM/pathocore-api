@@ -224,9 +224,18 @@ wait_for_running "$APP_SERVICE"
 echo "Resetting installation marker"
 compose_exec -f "$compose_file" exec -T "$APP_SERVICE" bash -lc "rm -f '$APP_READY_FILE'"
 
-echo "Running install.sh --install app inside the container"
-compose_exec -f "$compose_file" exec -T "$APP_SERVICE" bash -lc \
-  "cd '$APP_REPO_PATH' && bash install.sh --install app --docker --git_revision '$git_revision' --conf '$install_conf_container'"
+APP_INSTALL_MODE="$(compose_exec -f "$compose_file" exec -T "$APP_SERVICE" bash -lc \
+  "if [ -f '$APP_INSTALL_PATH/manage.py' ]; then echo upgrade; else echo install; fi")"
+
+if [ "$APP_INSTALL_MODE" = "upgrade" ]; then
+    echo "Existing Django project detected in $APP_INSTALL_PATH; running install.sh --upgrade app"
+    compose_exec -f "$compose_file" exec -T "$APP_SERVICE" bash -lc \
+      "cd '$APP_REPO_PATH' && bash install.sh --upgrade app --docker --git_revision '$git_revision' --conf '$install_conf_container' </dev/null"
+else
+    echo "Running install.sh --install app inside the container"
+    compose_exec -f "$compose_file" exec -T "$APP_SERVICE" bash -lc \
+      "cd '$APP_REPO_PATH' && bash install.sh --install app --docker --git_revision '$git_revision' --conf '$install_conf_container'"
+fi
 
 echo "Running database migrations"
 compose_exec -f "$compose_file" exec -T "$APP_SERVICE" bash -lc \
