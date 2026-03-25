@@ -18,6 +18,7 @@ from drf_spectacular.utils import (
 )
 from rest_framework import serializers
 from django.core.exceptions import PermissionDenied
+from django.db import transaction
 
 # Local imports
 import core.models
@@ -194,18 +195,15 @@ def samples(request):
 
         # Create/Ingest Sample
         try:
-            sample_obj, created = sample_ingestion.ingest_sample(
-                serializer.validated_data, request_user=request.user
+            sample_create_data = sample_ingestion.prepare_sample_create(
+                serializer.validated_data
             )
         except ValueError as exc:
             error_message = str(exc)
             if error_message == "Sample already exists":
-                generated_sample_id = sample_ingestion.create_sample_unique_id(
+                existing_sample = sample_ingestion.get_existing_sample(
                     serializer.validated_data
                 )
-                existing_sample = core.models.Sample.objects.filter(
-                    sample_unique_id=generated_sample_id
-                ).last()
                 if existing_sample:
                     core.api.utils.common_functions.record_sample_error(
                         existing_sample,
@@ -228,6 +226,14 @@ def samples(request):
                 {"error": error_message, **traceability_data},
                 status=status.HTTP_400_BAD_REQUEST,
             )
+
+        sample_obj = core.models.Sample.objects.create(
+            sample_unique_id=sample_create_data["sample_unique_id"],
+            schema_obj=sample_create_data["schema_obj"],
+            user=request.user,
+            **sample_create_data["defaults"],
+        )
+        created = True
 
         # If created, add initial state history
         if created:
@@ -277,10 +283,12 @@ def samples(request):
         return Response({"error": str(exc)}, status=status.HTTP_403_FORBIDDEN)
     except ValueError as exc:
         return Response({"error": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+
     if not queryset.exists():
         return Response({"error": "No samples found"}, status=status.HTTP_404_NOT_FOUND)
     queryset = queryset.order_by("id")
     paginator = SamplesPagination()
+
     try:
         page = paginator.paginate_queryset(queryset, request)
     except NotFound as exc:
@@ -435,7 +443,7 @@ def schema_create(request, project_name):
     payload["schema_app_name"] = project_name
 
     try:
-        schema_obj, properties_count = schema_ingestion.ingest_schema(
+        schema_create_data = schema_ingestion.prepare_schema_create(
             payload, request_user=request.user
         )
     except ValueError as exc:
@@ -443,6 +451,60 @@ def schema_create(request, project_name):
         if error_message == "Schema already exists":
             return Response({"error": error_message}, status=status.HTTP_409_CONFLICT)
         return Response({"error": error_message}, status=status.HTTP_400_BAD_REQUEST)
+
+    # TODO: Re-evaluate whether large transaction-wrapped persistence blocks
+    # should remain in views or be moved to a more readable orchestration layer.
+    with transaction.atomic():
+        deactivate_filter = schema_create_data["deactivate_existing_filter"]
+        if deactivate_filter:
+            core.models.Schema.objects.filter(**deactivate_filter).update(
+                schema_in_use=False
+            )
+
+        schema_obj = core.models.Schema.objects.create(
+            **schema_create_data["schema_fields"]
+        )
+
+        classification_cache = {}
+        properties_count = 0
+        for property_spec in schema_create_data["property_specs"]:
+            classification_obj = None
+            classification_name = property_spec["classification_name"]
+            if classification_name:
+                classification_cache_key = classification_name.lower()
+                classification_obj = classification_cache.get(classification_cache_key)
+                if classification_obj is None:
+                    classification_obj = core.models.Classification.objects.filter(
+                        classification_name__iexact=classification_name
+                    ).last()
+                    if classification_obj is None:
+                        classification_obj = core.models.Classification.objects.create(
+                            classification_name=classification_name
+                        )
+                    classification_cache[classification_cache_key] = classification_obj
+
+            property_obj = core.models.SchemaProperties.objects.create(
+                schemaID=schema_obj,
+                classificationID=classification_obj,
+                property=property_spec["property"],
+                examples=property_spec["examples"],
+                ontology=property_spec["ontology"],
+                type=property_spec["type"],
+                format=property_spec["format"],
+                description=property_spec["description"],
+                label=property_spec["label"],
+                required=property_spec["required"],
+                options=property_spec["options"],
+                fill_mode=property_spec["fill_mode"],
+            )
+            properties_count += 1
+
+            for enum_item in property_spec["enum_values"]:
+                core.models.PropertyOptions.objects.create(
+                    propertyID=property_obj,
+                    enum=enum_item,
+                    ontology=property_spec["ontology"],
+                )
 
     response_serializer = core.api.v1.serializers.SchemaIngestResponseSerializer(
         data={
@@ -1107,45 +1169,25 @@ def sample_metadata_view(request, sample_unique_id):
 
     schema_name = serializer.validated_data.get("schema_name")
     schema_version = serializer.validated_data.get("schema_version")
-    if schema_name and schema_version:
-        schema_obj = core.models.Schema.objects.filter(
-            schema_name=schema_name, schema_version=schema_version
-        ).last()
-        if schema_obj is None:
-            error_message = "Schema not found for provided name/version"
-            core.api.utils.common_functions.record_sample_error(
-                sample_obj,
-                core.api.utils.common_functions.map_error_name(error_message),
-            )
-            return Response(
-                {"error": error_message},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-        if sample_obj.schema_obj_id and sample_obj.schema_obj_id != schema_obj.id:
-            error_message = "Schema does not match sample schema"
-            core.api.utils.common_functions.record_sample_error(
-                sample_obj,
-                core.api.utils.common_functions.map_error_name(error_message),
-            )
-            return Response(
-                {"error": error_message},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-    else:
-        schema_obj = sample_obj.schema_obj
-        if schema_obj is None:
-            error_message = "Sample has no schema assigned"
-            core.api.utils.common_functions.record_sample_error(
-                sample_obj,
-                core.api.utils.common_functions.map_error_name(error_message),
-            )
-            return Response(
-                {"error": error_message},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+    try:
+        schema_obj = sample_metadata_ingestion.resolve_sample_metadata_schema(
+            sample_obj,
+            schema_name=schema_name,
+            schema_version=schema_version,
+        )
+    except ValueError as exc:
+        error_message = str(exc)
+        core.api.utils.common_functions.record_sample_error(
+            sample_obj,
+            core.api.utils.common_functions.map_error_name(error_message),
+        )
+        return Response(
+            {"error": error_message},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
 
     try:
-        stored_count = sample_metadata_ingestion.ingest_sample_metadata(
+        metadata_create_specs = sample_metadata_ingestion.prepare_sample_metadata_create(
             sample_obj, schema_obj, payload
         )
     except ValueError as exc:
@@ -1161,6 +1203,11 @@ def sample_metadata_view(request, sample_unique_id):
             core.api.utils.common_functions.map_error_name(error_message),
         )
         return Response({"error": error_message}, status=status.HTTP_400_BAD_REQUEST)
+
+    with transaction.atomic():
+        for metadata_create_spec in metadata_create_specs:
+            core.models.MetadataValues.objects.create(**metadata_create_spec)
+    stored_count = len(metadata_create_specs)
 
     if stored_count:
         state_obj = core.models.SampleState.objects.filter(

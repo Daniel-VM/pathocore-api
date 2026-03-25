@@ -35,14 +35,31 @@ def _extract_analysis_date(payload):
     raise ValueError("analysis_date must be a string or date")
 
 
-def ingest_sample_metadata(sample_obj, schema_obj, payload):
+def resolve_sample_metadata_schema(sample_obj, schema_name=None, schema_version=None):
+    if schema_name and schema_version:
+        schema_obj = models.Schema.objects.filter(
+            schema_name=schema_name, schema_version=schema_version
+        ).last()
+        if schema_obj is None:
+            raise ValueError("Schema not found for provided name/version")
+        if sample_obj.schema_obj_id and sample_obj.schema_obj_id != schema_obj.id:
+            raise ValueError("Schema does not match sample schema")
+        return schema_obj
+
+    schema_obj = sample_obj.schema_obj
+    if schema_obj is None:
+        raise ValueError("Sample has no schema assigned")
+    return schema_obj
+
+
+def prepare_sample_metadata_create(sample_obj, schema_obj, payload):
     sample_payload_fields = _get_sample_payload_fields()
     if models.MetadataValues.objects.filter(sample=sample_obj).exists():
         # Prevent repeat ingestion; future PUT/PATCH can handle updates.
         raise ValueError("Metadata already stored for this sample")
     analysis_date = _extract_analysis_date(payload)
 
-    stored_count = 0
+    create_specs = []
     for field, value in payload.items():
         if field in ("schema_name", "schema_version"):
             continue
@@ -62,11 +79,12 @@ def ingest_sample_metadata(sample_obj, schema_obj, payload):
         ).last()
         if property_obj is None:
             raise ValueError(f"Field '{field}' is not defined in schema properties")
-        models.MetadataValues.objects.create(
-            value=str(value),
-            analysis_date=analysis_date,
-            sample=sample_obj,
-            schema_property=property_obj,
+        create_specs.append(
+            {
+                "value": str(value),
+                "analysis_date": analysis_date,
+                "sample": sample_obj,
+                "schema_property": property_obj,
+            }
         )
-        stored_count += 1
-    return stored_count
+    return create_specs

@@ -6,8 +6,8 @@ import core.models
 
 
 class SampleIngestSerializer(serializers.ModelSerializer):
-    # Input validation lives in serializer; persistence lives in service layer
-    # because sample creation requires generated IDs and cross-model checks.
+    # Input validation lives in serializer. Persistence is orchestrated in views,
+    # while services prepare derived values and domain checks.
     # Extra fields not in the Sample model but needed for lookups/forward-compat.
     schema_name = serializers.CharField(
         required=True, allow_blank=False, allow_null=False, write_only=True
@@ -182,7 +182,7 @@ class ErrorSerializer(serializers.Serializer):
 
 class SchemaIngestSerializer(serializers.Serializer):
     # This serializer validates/normalizes schema payload shape only.
-    # Object creation and schema-property persistence happen in schema service.
+    # Views persist the schema objects; services prepare normalized create data.
     # Input is raw JSON schema (not a FileField), so we validate title/version here
     # and later convert the JSON into a file for Schema.file_name in the service.
     schema = serializers.JSONField(
@@ -490,7 +490,7 @@ class SampleMetadataSearchResultSerializer(serializers.Serializer):
 
 class SampleMetadataIngestSerializer(serializers.Serializer):
     # This serializer validates ingest envelope fields.
-    # Metadata persistence and schema-property checks are handled in service layer.
+    # Views persist metadata values; services resolve schema and prepare create data.
     schema_name = serializers.CharField(
         required=False,
         allow_blank=False,
