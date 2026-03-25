@@ -5,6 +5,9 @@ __pycache__/
 
 #
 migrations/
+!core/migrations/
+!core/migrations/__init__.py
+!core/migrations/*.py
 /static/
 virtualenv/
 manage.py
