@@ -12,135 +12,181 @@
 ## Table of contents
 
 * [Installation](#installation)
-* [Upgrade new release](#upgrade-to-new-release)
+* [Installation outside Docker](#installation-outside-docker)
 * [Documentation](#documentation)
 
 # Installation
 
-## Pathocore API docker installation
+## Docker test installation
 
-SOME MODIFICATIONS
-SOME MORE MODIFICATIONS
-MORE MODIFICATIONS
+This is the recommended entry point for developers who want to run PathoCore API
+locally for installation testing, smoke tests, demos, or frontend integration work.
 
-## Install pathocore-api in your server (RedHat / CentOs / Ubuntu)
+The local test stack starts two services:
 
-Before starting the installation check :
+* `app`: Django API running inside a container
+* `db`: MySQL database running inside a container
 
-* You have **sudo privileges** to install the additional software packets that pathocore-api needs.
-* Database (MySQL/MariaDB) is running
-* Local server configured for sending emails
-* Apache server is running on local server
-* Dependencies:
-  * lsb_release:
-     RedHat/CentOS: ```yum install redhat-lsb-core```
+The database is stored in a Docker volume, so the stack can be stopped and started
+without losing data unless the volumes are explicitly removed.
 
-### Create pathocore-api database and grant permissions
+### Prerequisites
 
-1. Create a new database named "pathocore_api" (this is mandatory)
-2. Create a new user with permission to read and modify that database.
-3. Write down user, passwd and db server info.
+Before starting, make sure the machine has:
 
-### Clone github repository
+* `git`
+* Docker Engine
+* Docker Compose plugin (`docker compose`)
 
-Open a linux terminal and move to a directory where pathocore-api code will be downloaded
+Check the tooling in a terminal:
 
 ```bash
-cd <your personal folder>
-git clone https://github.com/BIPLAT-CIBERINFEC/pathocore-api.git pathocore-api
-cd pathocore-api
+git --version
+docker --version
+docker compose version
 ```
 
-### Configuration settings
+### 1. Clone the repository
 
-Copy the initial setting template into a file named install_settings.txt
+```bash
+git clone https://github.com/BIPLAT-CIBERINFEC/pathocore-api.git
+cd pathocore-api
+git checkout develop
+```
+
+### 2. Build and install the local test stack
+
+Run the container installer from the repository root:
+
+```bash
+bash container_install.sh --test --git_revision current
+```
+
+This command will:
+
+* build the application image
+* start `app` and `db`
+* install the Django project inside the container
+* run database migrations
+
+### 3. Check that the containers are running
+
+```bash
+docker compose -f docker-compose.test.yml ps
+```
+
+### 4. Follow the application logs
+
+In a separate terminal:
+
+```bash
+docker compose -f docker-compose.test.yml logs -f app
+```
+
+To inspect the database container logs:
+
+```bash
+docker compose -f docker-compose.test.yml logs -f db
+```
+
+### 5. Open the API documentation
+
+Once the stack is up, Swagger UI should be available at:
+
+```text
+http://localhost:8000/swagger/
+```
+
+The OpenAPI schema is available at:
+
+```text
+http://localhost:8000/openapi/
+```
+
+### 6. Create an administrative user
+
+The test stack does not create a Django superuser automatically. Create one inside
+the `app` container:
+
+```bash
+docker compose -f docker-compose.test.yml exec app bash
+cd /opt/pathocore-api
+source virtualenv/bin/activate
+python manage.py createsuperuser
+```
+
+After that, you can authenticate against the API with the credentials you have just created.
+
+### 7. Optional: load a small non-sensitive test dataset
+
+This public repository does not include production data or large internal datasets.
+If maintainers provide a small test dump separately, it can be imported into the
+local Docker database with a command like this:
+
+```bash
+gunzip -c /path/to/pathocore_api_test_dump.sql.gz | \
+docker compose -f docker-compose.test.yml exec -T db \
+  mysql -u<db_user> -p<db_password> pathocore_api
+```
+
+Replace `<db_user>` and `<db_password>` with the values defined for your local test stack.
+
+### Useful commands
+
+Open a shell in the API container:
+
+```bash
+docker compose -f docker-compose.test.yml exec app bash
+```
+
+Open a MySQL shell in the database container:
+
+```bash
+docker compose -f docker-compose.test.yml exec db mysql -u<db_user> -p<db_password> pathocore_api
+```
+
+Stop the containers but keep the database volume:
+
+```bash
+docker compose -f docker-compose.test.yml down
+```
+
+Stop the containers and remove the database volume:
+
+```bash
+docker compose -f docker-compose.test.yml down -v
+```
+
+Use `down -v` only when you want to discard the local test database completely.
+
+## Installation outside Docker
+
+PathoCore API can also be installed directly on a Linux server. This mode is intended
+for controlled server deployments where the host already provides the required system
+services such as MySQL/MariaDB and, if needed, a reverse proxy.
+
+The installer expects:
+
+* a reachable MySQL/MariaDB database
+* a writable installation path, typically `/opt/pathocore-api`
+* a configuration file based on `conf/template_install_settings.txt`
+
+Basic flow:
 
 ```bash
 cp conf/template_install_settings.txt install_settings.txt
-```
-
-Open with your favourite editor the configuration file to set your own values for
-database ,email settings and the local IP of the server where pathocore-api will run.
-
-```bash
 nano install_settings.txt
+sudo bash install.sh --install dep --conf install_settings.txt
+bash install.sh --install app --git_revision develop --conf install_settings.txt
 ```
 
-### Run installation script
-
-Pathocore-api should be installed on the "/opt" directory. In order to handle different installation responsibilities inside the organization, where you may not be the person with root privileges, our instalation script has these options in ```--install``` parameter:
-
-* dep: to install the software packages as well as python packages inside the virtual environment. Root is needed.
-* app: to install only the iSkyLIMS application software without need of being root.
-* full: if you directly have root permissions you can install both deps and app at the same time with this option.
-
-Execute one of the following commands in a linux terminal to install, according as
-above description.
+If the application is already installed and you need to deploy code changes, use upgrade mode:
 
 ```bash
-# to install only software packages dependences
-sudo bash install.sh --install dep
-
-# to install only Pathocore API application
-bash install.sh --install app --git_revision main --tables
-
-# to install both software
-sudo bash install.sh --install full --git_revision main --tables
-```
-
-## Upgrade
-
-### Running upgrade script
-
-If your organization requires that dependencies / stuff that needs root are installed by a different person that install the application the you can use the install script in several steps as follows.
-
-First you need to rename the folder app name in the installation folder (`/opt/iSkyLIMS`):
-
-#### Steps requiring root
-
-Make sure that the installation folder has the correct permissions so the person installing the app can write in that folder.
-
-```bash
-# In case you have a script for this task. You'll need to adjust this script according to the name changing: /opt/iSkyLIMS to /opt/iskylims
-/scripts/hardening.sh
-```
-
-From the previous release software dependences (Python packages) must be updated to the releases defined in the requirement.txt file.
-
-In the linux terminal execute the following command-
-
-```bash
-# to upgrade only software packages dependences. NEEDS ROOT.
-sudo bash install.sh --upgrade dep
-```
-
-#### Steps not requiring root
-
-Next you need to upgrade iskylims app. Please use one of the commands below:
-
-If you are using the library pool, you must indicate in the installation script the file
-you already backup and execute the following command.
-
-```bash
-# to upgrade iSkyLIMS application including changes required in this release. DOES NOT NEED ROOT.
-bash install.sh --upgrade app --script <your_selected_folder/backup_lib_pool.sql>  --git_revision main --tables
-```
-
-If restauration of libary preparation is not required then execute the following command
-
-```bash
-# to upgrade iSkyLIMS application including changes required in this release. DOES NOT NEED ROOT.
-bash install.sh --upgrade app ---git_revision main  -tables
-```
-
-Make sure that the installation folder has the correct permissions.
-
-```bash
-# In case you have a script for this task. Some paths have changed in this version, so you may need to adjust your hardening script.
-/scripts/hardening.sh
+bash install.sh --upgrade app --git_revision develop --conf install_settings.txt
 ```
 
 # Documentation
 
 This is an API-only project. Documentation is served via Swagger UI at `/swagger/`
-and the OpenAPI schema at `/schema/`.
+and the OpenAPI schema at `/openapi/`.
