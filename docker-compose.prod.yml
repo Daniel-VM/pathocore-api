@@ -16,10 +16,11 @@ services:
     restart: unless-stopped
     volumes:
       - pathocore_api_documents:/opt/pathocore-api/documents
-      - pathocore_api_logs:/opt/pathocore-api/logs
+      # Production logs stay on the host filesystem for easier operations,
+      # inspection and log rotation.
+      - ${PATHOCORE_HOST_LOG_DIR:-/var/log/local/apps/pathocore-api}:/opt/pathocore-api/logs
       - pathocore_api_static:/opt/pathocore-api/static
 
 volumes:
   pathocore_api_documents:
-  pathocore_api_logs:
   pathocore_api_static:
