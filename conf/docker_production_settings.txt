@@ -1,0 +1,22 @@
+### Installation path
+INSTALL_PATH='/opt/pathocore-api'
+PROJECT_NAME='pathocore_api'
+REQUIRED_MODULES='core'
+
+### Python executable inside container
+PYTHON_BIN_PATH='python3'
+
+### External database settings
+DB_USER='change_me_db_user'
+DB_PASS='change_me_db_password'
+DB_NAME='pathocore_api'
+DB_SERVER_IP='change_me_db_host'
+DB_PORT=3306
+
+### Public host settings
+LOCAL_SERVER_IP='change_me_server_ip'
+DNS_URL='pathocore-api.example.org'
+
+### Logs settings
+LOG_TYPE="regular_folder"
+LOG_PATH=""
