@@ -50,4 +50,9 @@ urlpatterns = [
         core.api.v1.views.sample_metadata_view,
         name="sample_metadata",
     ),
+    path(
+        "variants/ingest",
+        core.api.v1.views.variant_ingest_view,
+        name="variant_ingest",
+    ),
 ]

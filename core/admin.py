@@ -127,6 +127,32 @@ class MetadataVisualizationAdmin(admin.ModelAdmin):
     ]
 
 
+class VariantAdmin(admin.ModelAdmin):
+    list_display = ["chrom", "position", "reference", "alternate", "variant_type"]
+    search_fields = ["chrom", "reference", "alternate"]
+    list_filter = ["chrom", "variant_type"]
+
+
+class SampleVariantAdmin(admin.ModelAdmin):
+    list_display = ["sample", "variant", "depth", "allele_frequency", "analysis_date"]
+    search_fields = ["sample__sample_unique_id", "variant__chrom"]
+    list_filter = ["analysis_date"]
+
+
+class VariantAnnotationAdmin(admin.ModelAdmin):
+    list_display = [
+        "variant",
+        "gene_region",
+        "effect",
+        "functional_class",
+        "locus_name",
+        "locus_id",
+        "aminoacid_change",
+    ]
+    search_fields = ["gene_region", "effect", "locus_name", "locus_id", "aminoacid_change"]
+    list_filter = ["effect", "functional_class"]
+
+
 # Register models
 admin.site.unregister(User)
 admin.site.register(User, CustomUserAdmin)
@@ -146,3 +172,6 @@ admin.site.register(core.models.Classification, ClassificationAdmin)
 admin.site.register(core.models.TemporalSampleStorage, TemporalSampleStorageAdmin)
 admin.site.register(core.models.ErrorName, ErrorNameAdmin)
 admin.site.register(core.models.SampleStateHistory, SampleStateHistoryAdmin)
+admin.site.register(core.models.Variant, VariantAdmin)
+admin.site.register(core.models.SampleVariant, SampleVariantAdmin)
+admin.site.register(core.models.VariantAnnotation, VariantAnnotationAdmin)

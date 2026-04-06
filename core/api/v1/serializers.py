@@ -517,3 +517,26 @@ class SampleMetadataIngestResponseSerializer(serializers.Serializer):
     sample_unique_id = serializers.CharField()
     stored_count = serializers.IntegerField()
     status = serializers.CharField()
+
+
+class VariantIngestSerializer(serializers.Serializer):
+    payload = serializers.JSONField(required=True)
+
+    def to_internal_value(self, data):
+        # Accept the variant payload directly, without requiring a wrapper field.
+        # This avoids a second large list allocation for high-volume ingests.
+        return {"payload": data}
+
+    def validate(self, attrs):
+        payload = attrs["payload"]
+        if not isinstance(payload, (dict, list)):
+            raise serializers.ValidationError(
+                {"error": "Payload must be a JSON object or a list of JSON objects"}
+            )
+        return attrs
+
+
+class VariantIngestResponseSerializer(serializers.Serializer):
+    data = serializers.DictField()
+    success = serializers.BooleanField()
+    errors = serializers.ListField(child=serializers.CharField())
