@@ -36,12 +36,14 @@ from core.api.services import sample_metadata_ingestion
 from core.api.services import sample_history
 from core.api.services import schema_ingestion
 from core.api.services import schema_listing
+from core.api.services import variant_ingestion
 
 # Documentation TAGs for drf-spectacular
 TAG_SCHEMAS = "Schemas"
 TAG_SAMPLES = "Samples"
 TAG_SAMPLE_METADATA = "Sample Metadata"
 TAG_SAMPLE_HISTORY = "Sample History"
+TAG_VARIANTS = "Variants"
 
 # API-side agination for /samples list endpoint.
 class SamplesPagination(PageNumberPagination):
@@ -1284,6 +1286,131 @@ def sample_metadata_view(request, sample_unique_id):
                 "status": "stored" if stored_count else "no_changes",
             }
         )
+    )
+    response_serializer.is_valid(raise_exception=True)
+    return Response(response_serializer.data, status=status.HTTP_201_CREATED)
+
+
+@extend_schema(
+    tags=[TAG_VARIANTS],
+    summary="Ingest genomic variants",
+    description=(
+        "Store normalized per-sample genomic variants. The endpoint accepts the "
+        "single-sample JSON envelope (`sample_id`, `analysis_date`, `variants`) "
+        "and long-table JSON records (`sample_name`, "
+        "`bioinformatics_analysis_date`, `variants`). Writes are processed in "
+        "chunks and are idempotent per sample and analysis date."
+    ),
+    parameters=[
+        OpenApiParameter(
+            name="chunk_size",
+            type=int,
+            required=False,
+            location=OpenApiParameter.QUERY,
+            description=(
+                "Bulk ingest batch size, not pagination. Default 1000, max 5000. "
+                "It limits how many input variants are processed per database batch "
+                "to balance memory usage and SQL statement size."
+            ),
+        )
+    ],
+    request=core.api.v1.serializers.VariantIngestSerializer,
+    responses={
+        201: core.api.v1.serializers.VariantIngestResponseSerializer,
+        400: core.api.v1.serializers.VariantIngestResponseSerializer,
+        401: core.api.v1.serializers.ErrorSerializer,
+        403: core.api.v1.serializers.ErrorSerializer,
+        404: core.api.v1.serializers.VariantIngestResponseSerializer,
+    },
+    examples=[
+        OpenApiExample(
+            "VariantIngestRequest",
+            request_only=True,
+            value={
+                "sample_id": "SAM-AAA-0010",
+                "analysis_date": "2026-04-06",
+                "variants": [
+                    {
+                        "chrom": "NC_045512.2",
+                        "pos": 112534,
+                        "ref": "G",
+                        "alt": "C",
+                        "depth": 45,
+                        "allele_frequency": 0.82,
+                        "gene_region": "coding",
+                        "effect": "missense_variant",
+                        "locus_name": "blaKPC",
+                        "locus_id": "KPC-2",
+                        "aminoacid_change": "K234R",
+                    }
+                ],
+            },
+        ),
+        OpenApiExample(
+            "VariantIngestResponse",
+            response_only=True,
+            status_codes=["201"],
+            value={
+                "data": {
+                    "samples_processed": 1,
+                    "variants_received": 1,
+                    "sample_variants_stored": 1,
+                    "sample_variants_replaced": 0,
+                    "distinct_variants_seen": 1,
+                    "annotations_seen": 1,
+                },
+                "success": True,
+                "errors": [],
+            },
+        ),
+    ],
+)
+@authentication_classes([SessionAuthentication, BasicAuthentication])
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def variant_ingest_view(request):
+    if not request.user.is_staff:
+        return Response(
+            {"error": "Admin privileges required"},
+            status=status.HTTP_403_FORBIDDEN,
+        )
+
+    serializer = core.api.v1.serializers.VariantIngestSerializer(data=request.data)
+    serializer.is_valid(raise_exception=True)
+
+    try:
+        chunk_size = int(request.query_params.get("chunk_size", "1000"))
+    except ValueError:
+        return Response(
+            {"data": {}, "success": False, "errors": ["chunk_size must be an integer"]},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+    if chunk_size < 1 or chunk_size > 5000:
+        return Response(
+            {
+                "data": {},
+                "success": False,
+                "errors": ["chunk_size must be between 1 and 5000"],
+            },
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    try:
+        ingest_result = variant_ingestion.ingest_variants(
+            serializer.validated_data["payload"],
+            request_user=request.user,
+            chunk_size=chunk_size,
+        )
+    except ValueError as exc:
+        response_data = {"data": {}, "success": False, "errors": [str(exc)]}
+        if str(exc).startswith("Sample not found:"):
+            return Response(response_data, status=status.HTTP_404_NOT_FOUND)
+        return Response(response_data, status=status.HTTP_400_BAD_REQUEST)
+    except PermissionDenied as exc:
+        return Response({"error": str(exc)}, status=status.HTTP_403_FORBIDDEN)
+
+    response_serializer = core.api.v1.serializers.VariantIngestResponseSerializer(
+        data={"data": ingest_result, "success": True, "errors": []}
     )
     response_serializer.is_valid(raise_exception=True)
     return Response(response_serializer.data, status=status.HTTP_201_CREATED)

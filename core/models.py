@@ -35,6 +35,7 @@ def create_or_update_user_profile(sender, instance, created, **kwargs):
         Profile.objects.create(user=instance)
 
 
+# TODO: remove
 class BioinfoMetadataFile(models.Model):
     title = models.CharField(max_length=200)
     file_path = models.CharField(max_length=200)
@@ -273,7 +274,7 @@ class MetadataVisualizationManager(models.Manager):
         )
         return new_met_visual
 
-
+# TODO: remove
 class MetadataVisualization(models.Model):
     schemaID = models.ForeignKey(Schema, on_delete=models.CASCADE)
     property_name = models.CharField(max_length=60)
@@ -719,6 +720,111 @@ class SampleStateHistory(models.Model):
         self.state = SampleState.objects.filter(state__exact=self.state).last()
         self.save()
         return self
+
+
+class Variant(models.Model):
+    chrom = models.CharField(max_length=80, db_index=True)
+    position = models.PositiveIntegerField(db_index=True)
+    reference = models.CharField(max_length=255)
+    alternate = models.CharField(max_length=255)
+    variant_type = models.CharField(max_length=40, blank=True, default="", db_index=True)
+    generated_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "core_variant"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["chrom", "position", "reference", "alternate"],
+                name="uniq_variant_locus_ref_alt",
+            )
+        ]
+        indexes = [
+            models.Index(
+                fields=["position", "reference", "alternate"],
+                name="idx_variant_pos_ref_alt",
+            ),
+            models.Index(
+                fields=["chrom", "position"],
+                name="idx_variant_chrom_pos",
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.chrom}:g.{self.position}{self.reference}>{self.alternate}"
+
+
+class SampleVariant(models.Model):
+    sample = models.ForeignKey(
+        Sample, on_delete=models.CASCADE, related_name="variant_observations"
+    )
+    variant = models.ForeignKey(
+        Variant, on_delete=models.CASCADE, related_name="sample_observations"
+    )
+    depth = models.PositiveIntegerField(null=True, blank=True)
+    allele_frequency = models.FloatField(null=True, blank=True)
+    analysis_date = models.DateField()
+    generated_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "core_sample_variant"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["sample", "variant", "analysis_date"],
+                name="uniq_sample_variant_analysis",
+            )
+        ]
+        indexes = [
+            models.Index(
+                fields=["sample", "analysis_date"],
+                name="idx_sv_sample_analysis",
+            ),
+            models.Index(
+                fields=["variant", "analysis_date"],
+                name="idx_sv_variant_analysis",
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.sample.sample_unique_id}:{self.variant}"
+
+
+class VariantAnnotation(models.Model):
+    variant = models.ForeignKey(
+        Variant, on_delete=models.CASCADE, related_name="annotations"
+    )
+    gene_region = models.CharField(max_length=120, blank=True, default="", db_index=True)
+    effect = models.CharField(max_length=150, blank=True, default="", db_index=True)
+    functional_class = models.CharField(
+        max_length=100, blank=True, default="", db_index=True
+    )
+    locus_name = models.CharField(max_length=120, blank=True, default="", db_index=True)
+    locus_id = models.CharField(max_length=120, blank=True, default="", db_index=True)
+    aminoacid_change = models.CharField(
+        max_length=120, blank=True, default="", db_index=True
+    )
+    generated_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "core_variant_annotation"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["variant", "gene_region", "effect", "aminoacid_change"],
+                name="uniq_variant_annotation_core",
+            )
+        ]
+        indexes = [
+            models.Index(
+                fields=["locus_name", "locus_id"],
+                name="idx_va_locus_name_id",
+            ),
+            models.Index(
+                fields=["gene_region", "effect"],
+                name="idx_va_region_effect",
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.variant}:{self.effect}:{self.aminoacid_change}"
 
 
 class TemporalSampleStorageManager(models.Manager):
