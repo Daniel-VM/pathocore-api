@@ -51,6 +51,46 @@ urlpatterns = [
         name="sample_metadata",
     ),
     path(
+        "databrowser/overview-summary",
+        core.api.v1.views.databrowser_overview_summary_view,
+        name="databrowser_overview_summary",
+    ),
+    path(
+        "databrowser/metadata-summary",
+        core.api.v1.views.databrowser_metadata_summary_view,
+        name="databrowser_metadata_summary",
+    ),
+    path(
+        "databrowser/metadata/property-distribution",
+        core.api.v1.views.databrowser_metadata_property_distribution_view,
+        name="databrowser_metadata_property_distribution",
+    ),
+    path(
+        "databrowser/schema-summary",
+        core.api.v1.views.databrowser_schema_summary_view,
+        name="databrowser_schema_summary",
+    ),
+    path(
+        "variants/search",
+        core.api.v1.views.variant_search_view,
+        name="variant_search",
+    ),
+    path(
+        "variants/summary",
+        core.api.v1.views.variant_summary_view,
+        name="variant_summary",
+    ),
+    path(
+        "variants/reference-genomes",
+        core.api.v1.views.variant_reference_genomes_view,
+        name="variant_reference_genomes",
+    ),
+    path(
+        "variants/filter-options",
+        core.api.v1.views.variant_filter_options_view,
+        name="variant_filter_options",
+    ),
+    path(
         "variants/ingest",
         core.api.v1.views.variant_ingest_view,
         name="variant_ingest",

@@ -83,6 +83,12 @@ class Schema(models.Model):
 
     class Meta:
         db_table = "core_metadata_schema"
+        indexes = [
+            models.Index(
+                fields=["schema_app_name", "schema_name", "schema_version"],
+                name="idx_schema_project_name_ver",
+            ),
+        ]
 
     def __str__(self):
         return "%s_%s" % (self.schema_name, self.schema_version)
@@ -189,6 +195,12 @@ class SchemaProperties(models.Model):
 
     class Meta:
         db_table = "core_metadata_schema_properties"
+        indexes = [
+            models.Index(
+                fields=["schemaID", "property"],
+                name="idx_schema_prop_schema_prop",
+            ),
+        ]
 
     def __str__(self):
         return "%s" % (self.property)
@@ -503,6 +515,10 @@ class Sample(models.Model):
 
     class Meta:
         db_table = "core_sample"
+        indexes = [
+            models.Index(fields=["schema_obj", "created_at"], name="idx_sample_schema_created"),
+            models.Index(fields=["created_at"], name="idx_sample_created_at"),
+        ]
 
     def __str__(self):
         return "%s" % (self.sequencing_sample_id)

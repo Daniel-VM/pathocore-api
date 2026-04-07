@@ -1,0 +1,952 @@
+from collections import defaultdict
+from datetime import date
+
+from django.db.models import Count, Exists, F, OuterRef, Subquery
+from django.db.models.functions import TruncDate
+
+from core import models
+from core.api.utils import access_control
+
+
+PRIORITY_PROPERTIES = [
+    {
+        "group": "sample-metadata",
+        "expected_property": "geo_loc_state",
+        "display_name": "geo_loc_state",
+        "chart_title": "Samples by region",
+        "aliases": [
+            "geo_loc_state",
+            "collecting_institution_geo_loc_state",
+            "submitting_geo_loc_state",
+        ],
+        "strategy": "categorical",
+    },
+    {
+        "group": "sample-metadata",
+        "expected_property": "sample_collection_date",
+        "display_name": "sample_collection_date",
+        "chart_title": "Samples by collection period",
+        "aliases": ["sample_collection_date"],
+        "strategy": "date",
+    },
+    {
+        "group": "sample-metadata",
+        "expected_property": "sample_received_date",
+        "display_name": "sample_received_date",
+        "chart_title": "Samples by reception period",
+        "aliases": ["sample_received_date"],
+        "strategy": "date",
+    },
+    {
+        "group": "sample-metadata",
+        "expected_property": "anatomical_material",
+        "display_name": "anatomical_material",
+        "chart_title": "Samples by anatomical material",
+        "aliases": ["anatomical_material"],
+        "strategy": "categorical",
+    },
+    {
+        "group": "sample-metadata",
+        "expected_property": "anatomical_part",
+        "display_name": "anatomical_part",
+        "chart_title": "Samples by anatomical part",
+        "aliases": ["anatomical_part"],
+        "strategy": "categorical",
+    },
+    {
+        "group": "sample-metadata",
+        "expected_property": "specimen_source",
+        "display_name": "specimen_source",
+        "chart_title": "Samples by specimen source",
+        "aliases": ["specimen_source"],
+        "strategy": "categorical",
+    },
+    {
+        "group": "sample-metadata",
+        "expected_property": "isolate_delivery_type",
+        "display_name": "isolate_delivery_type",
+        "chart_title": "Samples by isolate delivery type",
+        "aliases": ["isolate_delivery_type"],
+        "strategy": "categorical",
+    },
+    {
+        "group": "sample-bioinfo",
+        "expected_property": "bioinformatics_protocol_software_name",
+        "display_name": "bioinformatics_protocol_software_name",
+        "chart_title": "Samples by analysis software",
+        "aliases": ["bioinformatics_protocol_software_name"],
+        "strategy": "categorical",
+    },
+    {
+        "group": "sample-bioinfo",
+        "expected_property": "preprocessing_software_name",
+        "display_name": "preprocessing_software_name",
+        "chart_title": "Samples by preprocessing software",
+        "aliases": ["preprocessing_software_name"],
+        "strategy": "categorical",
+    },
+    {
+        "group": "sample-bioinfo",
+        "expected_property": "read_length",
+        "display_name": "read_length",
+        "chart_title": "Samples by read length bucket",
+        "aliases": ["read_length"],
+        "strategy": "read-length",
+    },
+    {
+        "group": "sample-bioinfo",
+        "expected_property": "number_of_reads_sequenced",
+        "display_name": "number_of_reads_sequenced",
+        "chart_title": "Samples by read count bucket",
+        "aliases": ["number_of_reads_sequenced"],
+        "strategy": "read-count",
+    },
+    {
+        "group": "sample-bioinfo",
+        "expected_property": "assembly_method",
+        "display_name": "assembly_method",
+        "chart_title": "Samples by assembly method",
+        "aliases": ["assembly_method"],
+        "strategy": "categorical",
+    },
+    {
+        "group": "sample-bioinfo",
+        "expected_property": "annotation_software_name",
+        "display_name": "annotation_software_name",
+        "chart_title": "Samples by annotation software",
+        "aliases": ["annotation_software_name"],
+        "strategy": "categorical",
+    },
+    {
+        "group": "sample-bioinfo",
+        "expected_property": "reads_genome_coverage_value",
+        "display_name": "reads_genome_coverage_value",
+        "chart_title": "Samples by coverage bucket",
+        "aliases": ["reads_genome_coverage_value"],
+        "strategy": "coverage",
+    },
+    {
+        "group": "host-information",
+        "expected_property": "host_age_years",
+        "display_name": "host_age_years",
+        "chart_title": "Samples by host age group",
+        "aliases": ["host_age_years"],
+        "strategy": "age",
+    },
+    {
+        "group": "host-information",
+        "expected_property": "host_gender",
+        "display_name": "host_gender",
+        "chart_title": "Samples by host gender",
+        "aliases": ["host_gender"],
+        "strategy": "categorical",
+    },
+    {
+        "group": "host-information",
+        "expected_property": "host_common_name",
+        "display_name": "host_common_name",
+        "chart_title": "Samples by host common name",
+        "aliases": ["host_common_name"],
+        "strategy": "categorical",
+    },
+    {
+        "group": "host-information",
+        "expected_property": "infection_type",
+        "display_name": "infection_type",
+        "chart_title": "Samples by infection type",
+        "aliases": ["infection_type"],
+        "strategy": "categorical",
+    },
+    {
+        "group": "host-information",
+        "expected_property": "exposure_setting",
+        "display_name": "exposure_setting",
+        "chart_title": "Samples by exposure setting",
+        "aliases": ["exposure_setting"],
+        "strategy": "categorical",
+    },
+    {
+        "group": "host-information",
+        "expected_property": "Associated with outbreak",
+        "display_name": "Associated with outbreak",
+        "chart_title": "Samples associated with outbreak",
+        "aliases": ["Associated with outbreak"],
+        "strategy": "categorical",
+    },
+]
+
+SECTION_META = {
+    "sample-metadata": {
+        "title": "Sample metadata",
+        "description": (
+            "Cobertura agregada de recoleccion y procesado de muestras basada "
+            "en consultas agregadas de backend."
+        ),
+        "notes": [
+            "La distribucion geografica utiliza fallbacks sobre geo_loc_state cuando el dataset real emplea campos equivalentes por institucion.",
+            "Los graficos temporales se representan como linea para mantener legibilidad al crecer el numero de muestras.",
+        ],
+    },
+    "sample-bioinfo": {
+        "title": "Sample bioinfo",
+        "description": (
+            "Panel superior con agregados bioinformaticos y propiedades "
+            "priorizadas para tecnologia, software y volumen de datos."
+        ),
+        "notes": [],
+    },
+    "host-information": {
+        "title": "Host information",
+        "description": (
+            "Perfil cientifico del host con foco en identidad del hospedador, "
+            "infeccion y exposicion visible en la metadata retornada."
+        ),
+        "notes": [],
+    },
+}
+
+SECTION_ORDER = ["sample-metadata", "sample-bioinfo", "host-information"]
+
+
+def overview_summary(filters=None, request_user=None):
+    filters = filters or {}
+    samples = _visible_samples(filters, request_user)
+    sample_ids = Subquery(samples.values("id"))
+    schemas = _visible_schemas(filters, request_user)
+    sample_count = samples.count()
+    project_count = _project_count(samples)
+    active_schema_count = schemas.filter(schema_in_use=True).count()
+    visible_metadata_properties = _metadata_queryset(sample_ids).values(
+        "schema_property__property"
+    ).distinct().count()
+    schema_mix = _schema_mix(samples)
+    geography = _distribution_for_aliases(
+        sample_ids,
+        ["geo_loc_state", "collecting_institution_geo_loc_state", "submitting_geo_loc_state"],
+        "categorical",
+    )[:8]
+    pathogens = _distribution_for_aliases(sample_ids, ["organism"], "categorical")[:6]
+    sample_growth = _distribution_for_aliases(
+        sample_ids, ["sample_collection_date"], "date"
+    )
+    if not sample_growth:
+        sample_growth = _sample_created_at_distribution(samples)
+
+    return {
+        "kpis": [
+            {
+                "label": "Samples",
+                "note": "Muestras visibles para el usuario autenticado",
+                "value": _format_integer(sample_count),
+            },
+            {
+                "label": "Projects",
+                "note": "Proyectos representados en los schemas activos",
+                "value": _format_integer(project_count),
+            },
+            {
+                "label": "Schemas",
+                "note": "Schemas activos visibles",
+                "value": _format_integer(active_schema_count),
+            },
+            {
+                "label": "Metadata properties",
+                "note": "Propiedades distintas con valores observados",
+                "value": _format_integer(visible_metadata_properties),
+            },
+        ],
+        "sample_growth": sample_growth,
+        "pathogens": pathogens,
+        "geography": geography,
+        "schema_mix": schema_mix,
+        "projects": _projects_distribution(samples),
+        "notes": [
+            "El crecimiento temporal prioriza sample_collection_date y cae a created_at cuando esa metadata no existe.",
+            "La distribucion de patogenos depende de la parte de metadata plana expuesta por la API.",
+        ],
+        "coverage_notes": [
+            "Los agregados se calculan en backend para evitar una llamada de metadata por muestra."
+        ],
+        "metrics": {
+            "sample_count": sample_count,
+            "project_count": project_count,
+            "active_schema_count": active_schema_count,
+            "visible_metadata_properties": visible_metadata_properties,
+        },
+    }
+
+
+def schema_summary(filters=None, request_user=None):
+    filters = filters or {}
+    samples = _visible_samples(filters, request_user)
+    schemas = _visible_schemas(filters, request_user)
+    sample_count_by_schema = _sample_count_by_schema_id(samples)
+    property_rows = list(
+        models.SchemaProperties.objects.filter(schemaID__in=Subquery(schemas.values("id")))
+        .select_related("classificationID", "schemaID")
+        .values(
+            "id",
+            "schemaID_id",
+            "property",
+            "label",
+            "description",
+            "type",
+            "examples",
+            "classificationID__classification_name",
+        )
+        .order_by("schemaID_id", "property")
+    )
+    options_by_property = _options_by_property([row["id"] for row in property_rows])
+    properties_by_schema = defaultdict(list)
+    classification_counts = defaultdict(int)
+    for row in property_rows:
+        classification = row["classificationID__classification_name"] or "Unclassified"
+        classification_counts[classification] += 1
+        properties_by_schema[row["schemaID_id"]].append(
+            {
+                "classification": classification,
+                "description": row["description"] or "No description provided by schema.",
+                "enum_values": options_by_property.get(row["id"], []),
+                "examples": _split_examples(row["examples"]),
+                "label": row["label"] or _humanize(row["property"]),
+                "path": row["property"],
+                "property_name": row["property"],
+                "type": row["type"] or "unknown",
+            }
+        )
+
+    schema_cards = []
+    for schema_obj in schemas.order_by("schema_app_name", "schema_name", "schema_version"):
+        schema_properties = properties_by_schema.get(schema_obj.id, [])
+        by_classification = defaultdict(list)
+        for prop in schema_properties:
+            by_classification[prop["classification"]].append(prop)
+        classifications = [
+            {
+                "name": name,
+                "property_count": len(props),
+                "properties": sorted(props, key=lambda item: item["label"]),
+            }
+            for name, props in by_classification.items()
+        ]
+        classifications.sort(key=lambda item: (-item["property_count"], item["name"]))
+        schema_cards.append(
+            {
+                "classification_count": len(classifications),
+                "classifications": classifications,
+                "generated_at": schema_obj.generated_at,
+                "name": schema_obj.schema_name,
+                "project_name": schema_obj.schema_app_name or "Unknown project",
+                "property_count": len(schema_properties),
+                "sample_count": sample_count_by_schema.get(schema_obj.id, 0),
+                "version": schema_obj.schema_version,
+            }
+        )
+
+    classification_distribution = _chart_items(classification_counts)
+    schema_distribution = [
+        {"label": item["name"], "value": item["sample_count"]} for item in schema_cards
+    ]
+    project_count = _project_count(samples)
+    active_schema_count = schemas.filter(schema_in_use=True).count()
+    return {
+        "stats": [
+            {
+                "label": "Active schemas",
+                "note": "Schemas marcados en uso en el backend",
+                "value": _format_integer(active_schema_count),
+            },
+            {
+                "label": "Projects",
+                "note": "Projects visibles en /schema",
+                "value": _format_integer(project_count),
+            },
+            {
+                "label": "Samples",
+                "note": "Muestras agregadas para la vista estructural",
+                "value": _format_integer(samples.count()),
+            },
+            {
+                "label": "Classification types",
+                "note": "Clasificaciones distintas presentes en schemas activos",
+                "value": _format_integer(len(classification_counts)),
+            },
+        ],
+        "schema_distribution": schema_distribution,
+        "classification_distribution": classification_distribution,
+        "schema_cards": schema_cards,
+        "schema_options": _schema_options(schemas, sample_count_by_schema),
+        "notes": [
+            "La distribucion por classification usa las definiciones registradas en core_metadata_schema_properties.",
+            "La exploracion de bloques Schema ya no requiere descargar cada JSON schema completo en el navegador.",
+        ],
+    }
+
+
+def metadata_summary(filters=None, request_user=None):
+    filters = filters or {}
+    samples = _visible_samples(filters, request_user)
+    schemas = _visible_schemas(filters, request_user)
+    sample_count_by_schema = _sample_count_by_schema_id(samples)
+    sample_ids = Subquery(samples.values("id"))
+    definitions = _property_definitions(schemas)
+    sections = _metadata_sections(sample_ids, definitions, samples.count())
+    schema_options = _schema_options(schemas, sample_count_by_schema)
+    schema_scopes = [
+        {
+            "key": option["key"],
+            "sample_count": option["sample_count"],
+            "sections": _metadata_sections(
+                Subquery(samples.filter(schema_obj_id=option["schema_id"]).values("id")),
+                _property_definitions(schemas.filter(id=option["schema_id"])),
+                option["sample_count"],
+                include_empty=False,
+            ),
+        }
+        for option in schema_options
+    ]
+    populated_priority_properties = sum(
+        1
+        for section in sections
+        for item in section["properties"]
+        if item["participant_count"] > 0
+    )
+    metadata_samples = _metadata_queryset(sample_ids).values("sample_id").distinct().count()
+    visible_metadata_properties = _metadata_queryset(sample_ids).values(
+        "schema_property__property"
+    ).distinct().count()
+    return {
+        "schema_options": [
+            {key: value for key, value in option.items() if key != "schema_id"}
+            for option in schema_options
+        ],
+        "schema_scopes": schema_scopes,
+        "sections": sections,
+        "notes": [
+            "La vista agrega resultados desde endpoints backend agregados; ya no descarga metadata muestra a muestra.",
+            "La metadata compleja agrupada dentro de arrays/objetos se resume por propiedad plana registrada.",
+        ],
+        "stats": [
+            {"label": "Sections", "note": "Bloques principales del entregable", "value": "3"},
+            {
+                "label": "Priority properties with data",
+                "note": "Propiedades priorizadas con al menos una muestra",
+                "value": _format_integer(populated_priority_properties),
+            },
+            {
+                "label": "Samples with metadata",
+                "note": "Muestras visibles con al menos una entrada",
+                "value": _format_integer(metadata_samples),
+            },
+            {
+                "label": "Visible metadata properties",
+                "note": "Propiedades distintas pobladas en el dataset actual",
+                "value": _format_integer(visible_metadata_properties),
+            },
+        ],
+    }
+
+
+def property_distribution(filters=None, request_user=None):
+    filters = filters or {}
+    property_name = filters.get("property")
+    if not property_name:
+        raise ValueError("property is required")
+    samples = _visible_samples(filters, request_user)
+    sample_ids = Subquery(samples.values("id"))
+    values = _distribution_for_aliases(sample_ids, [property_name], "categorical")
+    matched_samples = _metadata_queryset(sample_ids).filter(
+        schema_property__property__iexact=property_name
+    ).values("sample_id").distinct().count()
+    return {
+        "property": property_name,
+        "total_samples": samples.count(),
+        "matched_samples": matched_samples,
+        "values": values,
+    }
+
+
+def _visible_schemas(filters, request_user):
+    queryset = models.Schema.objects.all()
+    if request_user is not None:
+        queryset = access_control.apply_schema_scope(queryset, request_user)
+    project_name = filters.get("project_name")
+    if project_name:
+        queryset = queryset.filter(schema_app_name__iexact=project_name)
+    schema_name = filters.get("schema_name")
+    if schema_name:
+        queryset = queryset.filter(schema_name=schema_name)
+    schema_version = filters.get("schema_version")
+    if schema_version:
+        queryset = queryset.filter(schema_version=schema_version)
+    return queryset
+
+
+def _visible_samples(filters, request_user):
+    queryset = models.Sample.objects.select_related("schema_obj").all()
+    if request_user is not None:
+        queryset = access_control.apply_sample_scope(queryset, request_user)
+    project_name = filters.get("project_name")
+    if project_name:
+        queryset = queryset.filter(schema_obj__schema_app_name__iexact=project_name)
+    schema_name = filters.get("schema_name")
+    if schema_name:
+        queryset = queryset.filter(schema_obj__schema_name=schema_name)
+    schema_version = filters.get("schema_version")
+    if schema_version:
+        queryset = queryset.filter(schema_obj__schema_version=schema_version)
+    return _apply_metadata_filters(queryset, filters)
+
+
+def _apply_metadata_filters(queryset, filters):
+    if filters.get("date_from"):
+        queryset = _filter_by_metadata(
+            queryset,
+            "sample_collection_date",
+            value_lookup={"value__gte": filters["date_from"].isoformat()},
+        )
+    if filters.get("date_to"):
+        queryset = _filter_by_metadata(
+            queryset,
+            "sample_collection_date",
+            value_lookup={"value__lte": filters["date_to"].isoformat()},
+        )
+    if filters.get("sequencing_platform"):
+        queryset = _filter_by_metadata(
+            queryset,
+            "sequencing_instrument_platform",
+            value_lookup={"value__iexact": filters["sequencing_platform"]},
+        )
+    return queryset
+
+
+def _filter_by_metadata(sample_queryset, property_name, value_lookup):
+    metadata_queryset = models.MetadataValues.objects.filter(
+        sample_id=OuterRef("pk"),
+        schema_property__property__iexact=property_name,
+        **value_lookup,
+    )
+    return sample_queryset.filter(Exists(metadata_queryset))
+
+
+def _metadata_queryset(sample_ids):
+    return models.MetadataValues.objects.filter(sample_id__in=sample_ids)
+
+
+def _distribution_for_aliases(sample_ids, aliases, strategy):
+    rows = (
+        _metadata_queryset(sample_ids)
+        .filter(schema_property__property__in=aliases)
+        .exclude(value__isnull=True)
+        .exclude(value="")
+        .values("value")
+        .annotate(count=Count("sample_id", distinct=True))
+    )
+    return _build_distribution(
+        [(row["value"], row["count"]) for row in rows], strategy
+    )
+
+
+def _metadata_sections(sample_ids, definitions, total_samples, include_empty=True):
+    priority_index = _priority_metadata_index(sample_ids)
+    sections = []
+    for section_id in SECTION_ORDER:
+        properties = []
+        for spec in [item for item in PRIORITY_PROPERTIES if item["group"] == section_id]:
+            card = _property_card(spec, definitions, total_samples, priority_index)
+            if include_empty or card["participant_count"] > 0 or card.get("description"):
+                properties.append(card)
+        sections.append(
+            {
+                "description": SECTION_META[section_id]["description"],
+                "id": section_id,
+                "notes": SECTION_META[section_id]["notes"],
+                "properties": properties,
+                "summary_charts": _summary_charts(section_id, priority_index),
+                "title": SECTION_META[section_id]["title"],
+            }
+        )
+    return sections
+
+
+def _property_card(spec, definitions, total_samples, priority_index):
+    aliases = spec["aliases"]
+    alias_definitions = [definitions.get(alias.lower()) for alias in aliases]
+    definition = next((item for item in alias_definitions if item), None)
+    participant_sample_ids = set()
+    for alias in aliases:
+        participant_sample_ids.update(priority_index["participants"].get(alias, set()))
+    participant_count = len(participant_sample_ids)
+    raw_counts = []
+    for alias in aliases:
+        raw_counts.extend(priority_index["values"].get(alias, []))
+    values = _build_distribution(raw_counts, spec["strategy"])
+    aliases_used = sorted(
+        alias for alias in aliases if alias in priority_index["aliases_used"]
+    )
+    card = {
+        "chart_kind": "line" if spec["strategy"] == "date" else "bar",
+        "chart_title": spec["chart_title"],
+        "description": (
+            definition["description"]
+            if definition
+            else "La API no expone todavía una descripción formal para esta propiedad."
+        ),
+        "display_name": spec["display_name"],
+        "is_fallback": (
+            bool(aliases_used)
+            and (len(aliases_used) > 1 or aliases_used[0] != spec["expected_property"])
+        ),
+        "participant_count": participant_count,
+        "participant_share": (
+            participant_count / total_samples if total_samples > 0 else 0
+        ),
+        "property_name": spec["expected_property"],
+        "values": values,
+    }
+    if aliases_used:
+        card["actual_property_name"] = (
+            aliases_used[0]
+            if len(aliases_used) == 1
+            else f"{aliases_used[0]} (+{len(aliases_used) - 1})"
+        )
+    return card
+
+
+def _summary_charts(section_id, priority_index):
+    if section_id == "sample-metadata":
+        return [
+            {
+                "title": "Geographic coverage",
+                "description": "Muestras por region visible",
+                "kind": "bar",
+                "values": _distribution_from_index(
+                    priority_index,
+                    [
+                        "geo_loc_state",
+                        "collecting_institution_geo_loc_state",
+                        "submitting_geo_loc_state",
+                    ],
+                    "categorical",
+                )[:8],
+            },
+            {
+                "title": "Collection timeline",
+                "description": "Muestras por periodo de recogida",
+                "kind": "line",
+                "values": _distribution_from_index(
+                    priority_index, ["sample_collection_date"], "date"
+                ),
+            },
+        ]
+    if section_id == "sample-bioinfo":
+        return [
+            {
+                "title": "Sequencing technology",
+                "description": "Muestras por plataforma de secuenciacion",
+                "kind": "pie",
+                "values": _distribution_from_index(
+                    priority_index, ["sequencing_instrument_platform"], "categorical"
+                ),
+            },
+            {
+                "title": "Analysis software",
+                "description": "Muestras por software principal de analisis",
+                "kind": "bar",
+                "values": _distribution_from_index(
+                    priority_index,
+                    ["bioinformatics_protocol_software_name"],
+                    "categorical",
+                ),
+            },
+        ]
+    return [
+        {
+            "title": "Host distribution",
+            "description": "Muestras por host common name",
+            "kind": "pie",
+            "values": _distribution_from_index(
+                priority_index, ["host_common_name"], "categorical"
+            ),
+        },
+        {
+            "title": "Infection profile",
+            "description": "Muestras por tipo de infeccion",
+            "kind": "bar",
+            "values": _distribution_from_index(
+                priority_index, ["infection_type"], "categorical"
+            ),
+        },
+    ]
+
+
+def _priority_metadata_index(sample_ids):
+    aliases = sorted(
+        {alias for spec in PRIORITY_PROPERTIES for alias in spec["aliases"]}
+        | {"sequencing_instrument_platform"}
+    )
+    value_rows = (
+        _metadata_queryset(sample_ids)
+        .filter(schema_property__property__in=aliases)
+        .exclude(value__isnull=True)
+        .exclude(value="")
+        .values("schema_property__property", "value")
+        .annotate(count=Count("sample_id", distinct=True))
+    )
+    participant_rows = (
+        _metadata_queryset(sample_ids)
+        .filter(schema_property__property__in=aliases)
+        .values("schema_property__property", "sample_id")
+        .distinct()
+    )
+    values = defaultdict(list)
+    aliases_used = set()
+    for row in value_rows:
+        property_name = row["schema_property__property"]
+        aliases_used.add(property_name)
+        values[property_name].append((row["value"], row["count"]))
+    participants = defaultdict(set)
+    for row in participant_rows:
+        participants[row["schema_property__property"]].add(row["sample_id"])
+    return {"aliases_used": aliases_used, "participants": participants, "values": values}
+
+
+def _distribution_from_index(priority_index, aliases, strategy):
+    raw_counts = []
+    for alias in aliases:
+        raw_counts.extend(priority_index["values"].get(alias, []))
+    return _build_distribution(raw_counts, strategy)
+
+
+def _property_definitions(schemas):
+    rows = (
+        models.SchemaProperties.objects.filter(schemaID__in=Subquery(schemas.values("id")))
+        .select_related("classificationID")
+        .values(
+            "property",
+            "description",
+            "label",
+            "classificationID__classification_name",
+        )
+    )
+    definitions = {}
+    for row in rows:
+        key = row["property"].lower()
+        if key not in definitions:
+            definitions[key] = {
+                "classification": row["classificationID__classification_name"]
+                or "Unclassified",
+                "description": row["description"]
+                or "La API no expone todavía una descripción formal para esta propiedad.",
+                "label": row["label"] or _humanize(row["property"]),
+            }
+    return definitions
+
+
+def _schema_options(schemas, sample_count_by_schema):
+    options = []
+    for schema_obj in schemas.order_by("schema_app_name", "schema_name", "schema_version"):
+        options.append(
+            {
+                "key": _schema_key(schema_obj.schema_name, schema_obj.schema_version),
+                "label": f"{schema_obj.schema_name} v{schema_obj.schema_version}",
+                "project_name": schema_obj.schema_app_name or "Unknown project",
+                "sample_count": sample_count_by_schema.get(schema_obj.id, 0),
+                "schema_id": schema_obj.id,
+                "schema_name": schema_obj.schema_name,
+                "schema_version": schema_obj.schema_version,
+            }
+        )
+    return options
+
+
+def _sample_count_by_schema_id(samples):
+    return {
+        row["schema_obj_id"]: row["count"]
+        for row in samples.values("schema_obj_id").annotate(count=Count("id"))
+    }
+
+
+def _schema_mix(samples):
+    rows = (
+        samples.values(label=F("schema_obj__schema_name"))
+        .annotate(value=Count("id"))
+        .order_by("-value", "label")
+    )
+    return _label_value_list(rows)
+
+
+def _projects_distribution(samples):
+    rows = (
+        samples.values(label=F("schema_obj__schema_app_name"))
+        .annotate(value=Count("id"))
+        .order_by("-value", "label")
+    )
+    return _label_value_list(rows)
+
+
+def _project_count(samples):
+    return (
+        samples.exclude(schema_obj__schema_app_name__isnull=True)
+        .exclude(schema_obj__schema_app_name="")
+        .values("schema_obj__schema_app_name")
+        .distinct()
+        .count()
+    )
+
+
+def _options_by_property(property_ids):
+    options = defaultdict(list)
+    if not property_ids:
+        return options
+    rows = (
+        models.PropertyOptions.objects.filter(propertyID_id__in=property_ids)
+        .exclude(enum__isnull=True)
+        .exclude(enum="")
+        .values("propertyID_id", "enum")
+        .order_by("propertyID_id", "enum")
+    )
+    for row in rows:
+        options[row["propertyID_id"]].append(row["enum"])
+    return options
+
+
+def _sample_created_at_distribution(samples):
+    rows = (
+        samples.annotate(day=TruncDate("created_at"))
+        .values("day")
+        .annotate(count=Count("id"))
+        .order_by("day")
+    )
+    return [
+        {"label": row["day"].isoformat(), "value": row["count"]}
+        for row in rows
+        if row["day"] is not None
+    ]
+
+
+def _build_distribution(value_counts, strategy):
+    if strategy in {"age", "coverage", "read-count", "read-length"}:
+        return _bucket_distribution(value_counts, strategy)
+    if strategy == "date":
+        return _date_distribution(value_counts)
+    counts = defaultdict(int)
+    for value, count in value_counts:
+        label = _truncate(_strip_ontology(str(value)))
+        if label:
+            counts[label] += count
+    return _chart_items(counts)[:50]
+
+
+def _bucket_distribution(value_counts, strategy):
+    bucket_specs = {
+        "age": [
+            ("0-17", lambda value: value < 18),
+            ("18-39", lambda value: 18 <= value < 40),
+            ("40-64", lambda value: 40 <= value < 65),
+            ("65-79", lambda value: 65 <= value < 80),
+            ("80+", lambda value: value >= 80),
+        ],
+        "coverage": [
+            ("<30x", lambda value: value < 30),
+            ("30-60x", lambda value: 30 <= value < 60),
+            ("60-100x", lambda value: 60 <= value < 100),
+            (">100x", lambda value: value >= 100),
+        ],
+        "read-count": [
+            ("<1M", lambda value: value < 1_000_000),
+            ("1M-3M", lambda value: 1_000_000 <= value < 3_000_000),
+            ("3M-5M", lambda value: 3_000_000 <= value < 5_000_000),
+            (">5M", lambda value: value >= 5_000_000),
+        ],
+        "read-length": [
+            ("<=150", lambda value: value <= 150),
+            ("151-300", lambda value: 150 < value <= 300),
+            ("301-1000", lambda value: 300 < value <= 1000),
+            (">1000", lambda value: value > 1000),
+        ],
+    }[strategy]
+    counts = defaultdict(int)
+    for raw_value, count in value_counts:
+        numeric = _numeric_value(raw_value)
+        if numeric is None:
+            continue
+        for label, predicate in bucket_specs:
+            if predicate(numeric):
+                counts[label] += count
+                break
+    return [{"label": label, "value": counts[label]} for label, _ in bucket_specs if counts[label]]
+
+
+def _date_distribution(value_counts):
+    counts = defaultdict(int)
+    for raw_value, count in value_counts:
+        parsed = _parse_date_label(raw_value)
+        if parsed:
+            counts[parsed] += count
+    return [
+        {"label": label, "value": counts[label]}
+        for label in sorted(counts.keys())
+    ]
+
+
+def _parse_date_label(value):
+    if isinstance(value, date):
+        return value.isoformat()
+    text = str(value).strip()
+    if len(text) >= 10 and text[4:5] == "-" and text[7:8] == "-":
+        return text[:10]
+    return None
+
+
+def _chart_items(counts):
+    return [
+        {"label": label, "value": value}
+        for label, value in sorted(counts.items(), key=lambda item: (-item[1], item[0]))
+    ]
+
+
+def _label_value_list(rows):
+    return [
+        {"label": row["label"] or "Unknown", "value": row["value"]}
+        for row in rows
+    ]
+
+
+def _split_examples(raw_examples):
+    if not raw_examples:
+        return []
+    return [item.strip() for item in str(raw_examples).split(",") if item.strip()]
+
+
+def _numeric_value(raw_value):
+    try:
+        return float("".join(char for char in str(raw_value) if char in "0123456789.-"))
+    except ValueError:
+        return None
+
+
+def _strip_ontology(value):
+    while "[" in value and "]" in value:
+        start = value.find("[")
+        end = value.find("]", start)
+        if end == -1:
+            break
+        value = value[:start] + value[end + 1 :]
+    return value.strip()
+
+
+def _truncate(value, max_length=28):
+    return value if len(value) <= max_length else f"{value[: max_length - 1]}…"
+
+
+def _format_integer(value):
+    return f"{value:,}".replace(",", ".")
+
+
+def _humanize(value):
+    return str(value).replace("_", " ").title()
+
+
+def _schema_key(schema_name, schema_version):
+    return f"{schema_name}::{schema_version}"

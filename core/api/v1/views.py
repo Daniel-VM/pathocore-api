@@ -36,18 +36,27 @@ from core.api.services import sample_metadata_ingestion
 from core.api.services import sample_history
 from core.api.services import schema_ingestion
 from core.api.services import schema_listing
+from core.api.services import databrowser
 from core.api.services import variant_ingestion
+from core.api.services import variant_search
 
 # Documentation TAGs for drf-spectacular
 TAG_SCHEMAS = "Schemas"
 TAG_SAMPLES = "Samples"
 TAG_SAMPLE_METADATA = "Sample Metadata"
 TAG_SAMPLE_HISTORY = "Sample History"
+TAG_DATABROWSER = "Databrowser"
 TAG_VARIANTS = "Variants"
 
 # API-side agination for /samples list endpoint.
 class SamplesPagination(PageNumberPagination):
     page_size = 500
+    page_size_query_param = "page_size"
+    max_page_size = 5000
+
+
+class VariantsPagination(PageNumberPagination):
+    page_size = 100
     page_size_query_param = "page_size"
     max_page_size = 5000
 
@@ -1289,6 +1298,357 @@ def sample_metadata_view(request, sample_unique_id):
     )
     response_serializer.is_valid(raise_exception=True)
     return Response(response_serializer.data, status=status.HTTP_201_CREATED)
+
+
+@extend_schema(
+    tags=[TAG_DATABROWSER],
+    summary="Databrowser overview summary",
+    description=(
+        "Return backend-computed overview aggregates for the web databrowser. "
+        "This endpoint replaces loading all samples and then fetching metadata "
+        "sample-by-sample."
+    ),
+    parameters=[core.api.v1.serializers.DatabrowserSummaryQuerySerializer],
+    responses={
+        200: core.api.v1.serializers.DatabrowserOverviewSummarySerializer,
+        401: core.api.v1.serializers.ErrorSerializer,
+        403: core.api.v1.serializers.ErrorSerializer,
+    },
+)
+@authentication_classes([SessionAuthentication, BasicAuthentication])
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def databrowser_overview_summary_view(request):
+    serializer = core.api.v1.serializers.DatabrowserSummaryQuerySerializer(
+        data=request.query_params
+    )
+    serializer.is_valid(raise_exception=True)
+    try:
+        response_data = databrowser.overview_summary(
+            serializer.validated_data, request_user=request.user
+        )
+    except PermissionDenied as exc:
+        return Response({"error": str(exc)}, status=status.HTTP_403_FORBIDDEN)
+    response_serializer = (
+        core.api.v1.serializers.DatabrowserOverviewSummarySerializer(data=response_data)
+    )
+    response_serializer.is_valid(raise_exception=True)
+    return Response(response_serializer.data, status=status.HTTP_200_OK)
+
+
+@extend_schema(
+    tags=[TAG_DATABROWSER],
+    summary="Databrowser metadata summary",
+    description=(
+        "Return priority metadata sections already aggregated in the backend. "
+        "This avoids the previous N-samples/N-metadata-requests frontend pattern."
+    ),
+    parameters=[core.api.v1.serializers.DatabrowserSummaryQuerySerializer],
+    responses={
+        200: core.api.v1.serializers.DatabrowserMetadataSummarySerializer,
+        401: core.api.v1.serializers.ErrorSerializer,
+        403: core.api.v1.serializers.ErrorSerializer,
+    },
+)
+@authentication_classes([SessionAuthentication, BasicAuthentication])
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def databrowser_metadata_summary_view(request):
+    serializer = core.api.v1.serializers.DatabrowserSummaryQuerySerializer(
+        data=request.query_params
+    )
+    serializer.is_valid(raise_exception=True)
+    try:
+        response_data = databrowser.metadata_summary(
+            serializer.validated_data, request_user=request.user
+        )
+    except PermissionDenied as exc:
+        return Response({"error": str(exc)}, status=status.HTTP_403_FORBIDDEN)
+    response_serializer = (
+        core.api.v1.serializers.DatabrowserMetadataSummarySerializer(data=response_data)
+    )
+    response_serializer.is_valid(raise_exception=True)
+    return Response(response_serializer.data, status=status.HTTP_200_OK)
+
+
+@extend_schema(
+    tags=[TAG_DATABROWSER],
+    summary="Databrowser metadata property distribution",
+    description=(
+        "Return the distribution for one metadata property using backend "
+        "aggregation and optional scope/filter query parameters."
+    ),
+    parameters=[core.api.v1.serializers.DatabrowserPropertyDistributionQuerySerializer],
+    responses={
+        200: core.api.v1.serializers.DatabrowserPropertyDistributionSerializer,
+        400: core.api.v1.serializers.ErrorSerializer,
+        401: core.api.v1.serializers.ErrorSerializer,
+        403: core.api.v1.serializers.ErrorSerializer,
+    },
+)
+@authentication_classes([SessionAuthentication, BasicAuthentication])
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def databrowser_metadata_property_distribution_view(request):
+    serializer = (
+        core.api.v1.serializers.DatabrowserPropertyDistributionQuerySerializer(
+            data=request.query_params
+        )
+    )
+    serializer.is_valid(raise_exception=True)
+    try:
+        response_data = databrowser.property_distribution(
+            serializer.validated_data, request_user=request.user
+        )
+    except ValueError as exc:
+        return Response({"error": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+    except PermissionDenied as exc:
+        return Response({"error": str(exc)}, status=status.HTTP_403_FORBIDDEN)
+    response_serializer = (
+        core.api.v1.serializers.DatabrowserPropertyDistributionSerializer(
+            data=response_data
+        )
+    )
+    response_serializer.is_valid(raise_exception=True)
+    return Response(response_serializer.data, status=status.HTTP_200_OK)
+
+
+@extend_schema(
+    tags=[TAG_DATABROWSER],
+    summary="Databrowser schema summary",
+    description=(
+        "Return schema cards, classification distribution and sample counts per "
+        "schema without downloading every schema JSON detail in the frontend."
+    ),
+    parameters=[core.api.v1.serializers.DatabrowserSummaryQuerySerializer],
+    responses={
+        200: core.api.v1.serializers.DatabrowserSchemaSummarySerializer,
+        401: core.api.v1.serializers.ErrorSerializer,
+        403: core.api.v1.serializers.ErrorSerializer,
+    },
+)
+@authentication_classes([SessionAuthentication, BasicAuthentication])
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def databrowser_schema_summary_view(request):
+    serializer = core.api.v1.serializers.DatabrowserSummaryQuerySerializer(
+        data=request.query_params
+    )
+    serializer.is_valid(raise_exception=True)
+    try:
+        response_data = databrowser.schema_summary(
+            serializer.validated_data, request_user=request.user
+        )
+    except PermissionDenied as exc:
+        return Response({"error": str(exc)}, status=status.HTTP_403_FORBIDDEN)
+    response_serializer = (
+        core.api.v1.serializers.DatabrowserSchemaSummarySerializer(data=response_data)
+    )
+    response_serializer.is_valid(raise_exception=True)
+    return Response(response_serializer.data, status=status.HTTP_200_OK)
+
+
+@extend_schema(
+    tags=[TAG_VARIANTS],
+    summary="Search genomic variants",
+    description=(
+        "Search visible per-sample genomic variants by HGVS genomic notation "
+        "(`g.<position><ref>><alt>`) or by position/ref/alt query parameters. "
+        "The same project scope rules used by sample endpoints are applied."
+    ),
+    parameters=[core.api.v1.serializers.VariantSearchQuerySerializer],
+    responses={
+        200: core.api.v1.serializers.VariantSearchResponseSerializer,
+        400: core.api.v1.serializers.ErrorSerializer,
+        401: core.api.v1.serializers.ErrorSerializer,
+        403: core.api.v1.serializers.ErrorSerializer,
+        404: core.api.v1.serializers.ErrorSerializer,
+    },
+    examples=[
+        OpenApiExample(
+            "VariantSearchByHGVS",
+            value={
+                "query": {
+                    "variant": "g.112534G>C",
+                    "position": 112534,
+                    "reference_allele": "G",
+                    "alternate_allele": "C",
+                    "reference_genome": "NC_045512.2",
+                },
+                "summary": {
+                    "sample_count": 3,
+                    "visible_sample_count": 9,
+                    "global_allele_frequency": 0.3333,
+                },
+                "count": 3,
+                "next": None,
+                "previous": None,
+                "results": [
+                    {
+                        "sample_id": "SAM-AAA-0010",
+                        "variant": "g.112534G>C",
+                        "position": 112534,
+                        "reference_allele": "G",
+                        "alternate_allele": "C",
+                        "allele_frequency": 0.82,
+                        "effect": "missense_variant",
+                        "depth": 45,
+                        "type": "SNV",
+                        "gene_region": "coding_sequence",
+                        "functional_class": "missense",
+                        "locus_name": "S",
+                        "locus_id": "YP_009724390.1",
+                        "aminoacid_change": "p.D614G",
+                        "collection_date": "2025-10-21",
+                        "sequencing_platform": "Illumina [OBI:0000759]",
+                        "reference_genome": "NC_045512.2",
+                        "analysis_date": "2026-04-06",
+                        "project_name": "relecov",
+                    }
+                ],
+            },
+            response_only=True,
+            status_codes=["200"],
+        )
+    ],
+)
+@authentication_classes([SessionAuthentication, BasicAuthentication])
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def variant_search_view(request):
+    serializer = core.api.v1.serializers.VariantSearchQuerySerializer(
+        data=request.query_params
+    )
+    serializer.is_valid(raise_exception=True)
+    try:
+        search_result = variant_search.search_variants(
+            serializer.validated_data, request_user=request.user
+        )
+    except PermissionDenied as exc:
+        return Response({"error": str(exc)}, status=status.HTTP_403_FORBIDDEN)
+    except ValueError as exc:
+        return Response({"error": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+
+    queryset = search_result["queryset"]
+    if not queryset.exists():
+        return Response({"error": "No variants found"}, status=status.HTTP_404_NOT_FOUND)
+
+    paginator = VariantsPagination()
+    try:
+        page = paginator.paginate_queryset(queryset, request)
+    except NotFound as exc:
+        return Response({"error": str(exc.detail)}, status=status.HTTP_404_NOT_FOUND)
+
+    results = variant_search.serialize_search_results(page)
+    response_data = {
+        "query": search_result["query"],
+        "summary": search_result["summary"],
+        "count": paginator.page.paginator.count,
+        "next": paginator.get_next_link(),
+        "previous": paginator.get_previous_link(),
+        "results": results,
+    }
+    response_serializer = core.api.v1.serializers.VariantSearchResponseSerializer(
+        data=response_data
+    )
+    response_serializer.is_valid(raise_exception=True)
+    return Response(response_serializer.data, status=status.HTTP_200_OK)
+
+
+@extend_schema(
+    tags=[TAG_VARIANTS],
+    summary="Summarize visible genomic variants",
+    parameters=[core.api.v1.serializers.VariantFilterQuerySerializer],
+    responses={
+        200: core.api.v1.serializers.VariantSummaryResponseSerializer,
+        400: core.api.v1.serializers.ErrorSerializer,
+        401: core.api.v1.serializers.ErrorSerializer,
+        403: core.api.v1.serializers.ErrorSerializer,
+    },
+)
+@authentication_classes([SessionAuthentication, BasicAuthentication])
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def variant_summary_view(request):
+    serializer = core.api.v1.serializers.VariantFilterQuerySerializer(
+        data=request.query_params
+    )
+    serializer.is_valid(raise_exception=True)
+    try:
+        response_data = variant_search.variant_summary(
+            serializer.validated_data, request_user=request.user
+        )
+    except PermissionDenied as exc:
+        return Response({"error": str(exc)}, status=status.HTTP_403_FORBIDDEN)
+    response_serializer = core.api.v1.serializers.VariantSummaryResponseSerializer(
+        data=response_data
+    )
+    response_serializer.is_valid(raise_exception=True)
+    return Response(response_serializer.data, status=status.HTTP_200_OK)
+
+
+@extend_schema(
+    tags=[TAG_VARIANTS],
+    summary="List reference genomes observed in variant data",
+    parameters=[core.api.v1.serializers.VariantFilterQuerySerializer],
+    responses={
+        200: core.api.v1.serializers.VariantReferenceGenomeSerializer(many=True),
+        400: core.api.v1.serializers.ErrorSerializer,
+        401: core.api.v1.serializers.ErrorSerializer,
+        403: core.api.v1.serializers.ErrorSerializer,
+    },
+)
+@authentication_classes([SessionAuthentication, BasicAuthentication])
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def variant_reference_genomes_view(request):
+    serializer = core.api.v1.serializers.VariantFilterQuerySerializer(
+        data=request.query_params
+    )
+    serializer.is_valid(raise_exception=True)
+    try:
+        response_data = variant_search.reference_genomes(
+            serializer.validated_data, request_user=request.user
+        )
+    except PermissionDenied as exc:
+        return Response({"error": str(exc)}, status=status.HTTP_403_FORBIDDEN)
+    response_serializer = core.api.v1.serializers.VariantReferenceGenomeSerializer(
+        data=response_data, many=True
+    )
+    response_serializer.is_valid(raise_exception=True)
+    return Response(response_serializer.data, status=status.HTTP_200_OK)
+
+
+@extend_schema(
+    tags=[TAG_VARIANTS],
+    summary="List filter options for visible variant data",
+    parameters=[core.api.v1.serializers.VariantFilterQuerySerializer],
+    responses={
+        200: core.api.v1.serializers.VariantFilterOptionsSerializer,
+        400: core.api.v1.serializers.ErrorSerializer,
+        401: core.api.v1.serializers.ErrorSerializer,
+        403: core.api.v1.serializers.ErrorSerializer,
+    },
+)
+@authentication_classes([SessionAuthentication, BasicAuthentication])
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def variant_filter_options_view(request):
+    serializer = core.api.v1.serializers.VariantFilterQuerySerializer(
+        data=request.query_params
+    )
+    serializer.is_valid(raise_exception=True)
+    try:
+        response_data = variant_search.filter_options(
+            serializer.validated_data, request_user=request.user
+        )
+    except PermissionDenied as exc:
+        return Response({"error": str(exc)}, status=status.HTTP_403_FORBIDDEN)
+    response_serializer = core.api.v1.serializers.VariantFilterOptionsSerializer(
+        data=response_data
+    )
+    response_serializer.is_valid(raise_exception=True)
+    return Response(response_serializer.data, status=status.HTTP_200_OK)
 
 
 @extend_schema(
