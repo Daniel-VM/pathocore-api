@@ -540,3 +540,220 @@ class VariantIngestResponseSerializer(serializers.Serializer):
     data = serializers.DictField()
     success = serializers.BooleanField()
     errors = serializers.ListField(child=serializers.CharField())
+
+
+class VariantSearchQuerySerializer(serializers.Serializer):
+    variant = serializers.CharField(required=False, allow_blank=False)
+    position = serializers.IntegerField(required=False, min_value=1)
+    ref = serializers.CharField(required=False, allow_blank=False)
+    alt = serializers.CharField(required=False, allow_blank=False)
+    reference_genome = serializers.CharField(required=False, allow_blank=False)
+    collection_date_from = serializers.DateField(required=False)
+    collection_date_to = serializers.DateField(required=False)
+    sequencing_platform = serializers.CharField(required=False, allow_blank=False)
+    sample_id = serializers.CharField(required=False, allow_blank=False)
+    locus_name = serializers.CharField(required=False, allow_blank=False)
+    locus_id = serializers.CharField(required=False, allow_blank=False)
+    effect = serializers.CharField(required=False, allow_blank=False)
+    aminoacid_change = serializers.CharField(required=False, allow_blank=False)
+    project_name = serializers.CharField(required=False, allow_blank=False)
+    schema_name = serializers.CharField(required=False, allow_blank=False)
+    schema_version = serializers.CharField(required=False, allow_blank=False)
+    page = serializers.IntegerField(required=False, min_value=1)
+    page_size = serializers.IntegerField(required=False, min_value=1, max_value=5000)
+
+    def validate(self, attrs):
+        allowed_keys = set(self.fields.keys())
+        provided_keys = set(self.initial_data.keys())
+        unknown_keys = provided_keys - allowed_keys
+        if unknown_keys:
+            raise serializers.ValidationError(
+                {"error": f"Unknown filter(s): {', '.join(sorted(unknown_keys))}"}
+            )
+        if not attrs.get("variant"):
+            missing = [
+                field_name
+                for field_name in ("position", "ref", "alt")
+                if not attrs.get(field_name)
+            ]
+            if missing:
+                raise serializers.ValidationError(
+                    {"error": "Provide variant or position/ref/alt"}
+                )
+        start = attrs.get("collection_date_from")
+        end = attrs.get("collection_date_to")
+        if start and end and start > end:
+            raise serializers.ValidationError(
+                {"error": "collection_date_from cannot be after collection_date_to"}
+            )
+        if attrs.get("ref"):
+            attrs["ref"] = attrs["ref"].upper()
+        if attrs.get("alt"):
+            attrs["alt"] = attrs["alt"].upper()
+        return attrs
+
+
+class VariantFilterQuerySerializer(serializers.Serializer):
+    reference_genome = serializers.CharField(required=False, allow_blank=False)
+    collection_date_from = serializers.DateField(required=False)
+    collection_date_to = serializers.DateField(required=False)
+    sequencing_platform = serializers.CharField(required=False, allow_blank=False)
+    sample_id = serializers.CharField(required=False, allow_blank=False)
+    locus_name = serializers.CharField(required=False, allow_blank=False)
+    locus_id = serializers.CharField(required=False, allow_blank=False)
+    effect = serializers.CharField(required=False, allow_blank=False)
+    aminoacid_change = serializers.CharField(required=False, allow_blank=False)
+    project_name = serializers.CharField(required=False, allow_blank=False)
+    schema_name = serializers.CharField(required=False, allow_blank=False)
+    schema_version = serializers.CharField(required=False, allow_blank=False)
+    created_at_from = serializers.DateTimeField(required=False)
+    created_at_to = serializers.DateTimeField(required=False)
+
+    def validate(self, attrs):
+        allowed_keys = set(self.fields.keys())
+        provided_keys = set(self.initial_data.keys())
+        unknown_keys = provided_keys - allowed_keys
+        if unknown_keys:
+            raise serializers.ValidationError(
+                {"error": f"Unknown filter(s): {', '.join(sorted(unknown_keys))}"}
+            )
+        collection_start = attrs.get("collection_date_from")
+        collection_end = attrs.get("collection_date_to")
+        if collection_start and collection_end and collection_start > collection_end:
+            raise serializers.ValidationError(
+                {"error": "collection_date_from cannot be after collection_date_to"}
+            )
+        created_start = attrs.get("created_at_from")
+        created_end = attrs.get("created_at_to")
+        if created_start and created_end and created_start > created_end:
+            raise serializers.ValidationError(
+                {"error": "created_at_from cannot be after created_at_to"}
+            )
+        return attrs
+
+
+class VariantSearchResultSerializer(serializers.Serializer):
+    sample_id = serializers.CharField()
+    variant = serializers.CharField()
+    position = serializers.IntegerField()
+    reference_allele = serializers.CharField()
+    alternate_allele = serializers.CharField()
+    allele_frequency = serializers.FloatField(allow_null=True)
+    effect = serializers.CharField(allow_blank=True)
+    depth = serializers.IntegerField(allow_null=True)
+    type = serializers.CharField(allow_blank=True)
+    gene_region = serializers.CharField(allow_blank=True)
+    functional_class = serializers.CharField(allow_blank=True)
+    locus_name = serializers.CharField(allow_blank=True)
+    locus_id = serializers.CharField(allow_blank=True)
+    aminoacid_change = serializers.CharField(allow_blank=True)
+    collection_date = serializers.CharField(allow_null=True, allow_blank=True)
+    sequencing_platform = serializers.CharField(allow_null=True, allow_blank=True)
+    reference_genome = serializers.CharField()
+    analysis_date = serializers.DateField()
+    project_name = serializers.CharField(allow_null=True, allow_blank=True)
+
+
+class VariantSearchSummarySerializer(serializers.Serializer):
+    sample_count = serializers.IntegerField()
+    visible_sample_count = serializers.IntegerField()
+    global_allele_frequency = serializers.FloatField()
+
+
+class VariantSearchResponseSerializer(serializers.Serializer):
+    query = serializers.DictField()
+    summary = VariantSearchSummarySerializer()
+    count = serializers.IntegerField()
+    next = serializers.CharField(allow_null=True)
+    previous = serializers.CharField(allow_null=True)
+    results = VariantSearchResultSerializer(many=True)
+
+
+class LabelValueSerializer(serializers.Serializer):
+    label = serializers.CharField()
+    value = serializers.IntegerField()
+
+
+class VariantSummaryTotalsSerializer(serializers.Serializer):
+    visible_sample_count = serializers.IntegerField()
+    samples_with_variants = serializers.IntegerField()
+    variant_observations = serializers.IntegerField()
+    distinct_variants = serializers.IntegerField()
+
+
+class VariantSummaryResponseSerializer(serializers.Serializer):
+    totals = VariantSummaryTotalsSerializer()
+    reference_genomes = LabelValueSerializer(many=True)
+    variant_counts = LabelValueSerializer(many=True)
+    impact_classes = LabelValueSerializer(many=True)
+    projects = LabelValueSerializer(many=True)
+
+
+class VariantReferenceGenomeSerializer(serializers.Serializer):
+    reference_genome = serializers.CharField()
+    sample_count = serializers.IntegerField()
+    variant_observation_count = serializers.IntegerField()
+    distinct_variant_count = serializers.IntegerField()
+
+
+class VariantFilterOptionsSerializer(serializers.Serializer):
+    collection_date = serializers.DictField()
+    sequencing_platforms = serializers.ListField(child=serializers.DictField())
+
+
+class DatabrowserSummaryQuerySerializer(serializers.Serializer):
+    project_name = serializers.CharField(required=False, allow_blank=False)
+    schema_name = serializers.CharField(required=False, allow_blank=False)
+    schema_version = serializers.CharField(required=False, allow_blank=False)
+    date_from = serializers.DateField(required=False)
+    date_to = serializers.DateField(required=False)
+    sequencing_platform = serializers.CharField(required=False, allow_blank=False)
+
+    def validate(self, attrs):
+        date_from = attrs.get("date_from")
+        date_to = attrs.get("date_to")
+        if date_from and date_to and date_from > date_to:
+            raise serializers.ValidationError(
+                {"error": "date_from cannot be after date_to"}
+            )
+        return attrs
+
+
+class DatabrowserPropertyDistributionQuerySerializer(DatabrowserSummaryQuerySerializer):
+    property = serializers.CharField(required=True, allow_blank=False)
+
+
+class DatabrowserOverviewSummarySerializer(serializers.Serializer):
+    kpis = serializers.ListField(child=serializers.DictField())
+    sample_growth = serializers.ListField(child=serializers.DictField())
+    pathogens = serializers.ListField(child=serializers.DictField())
+    geography = serializers.ListField(child=serializers.DictField())
+    schema_mix = serializers.ListField(child=serializers.DictField())
+    projects = serializers.ListField(child=serializers.DictField())
+    notes = serializers.ListField(child=serializers.CharField())
+    coverage_notes = serializers.ListField(child=serializers.CharField())
+    metrics = serializers.DictField()
+
+
+class DatabrowserMetadataSummarySerializer(serializers.Serializer):
+    schema_options = serializers.ListField(child=serializers.DictField())
+    schema_scopes = serializers.ListField(child=serializers.DictField())
+    sections = serializers.ListField(child=serializers.DictField())
+    notes = serializers.ListField(child=serializers.CharField())
+    stats = serializers.ListField(child=serializers.DictField())
+
+
+class DatabrowserSchemaSummarySerializer(serializers.Serializer):
+    stats = serializers.ListField(child=serializers.DictField())
+    schema_distribution = serializers.ListField(child=serializers.DictField())
+    classification_distribution = serializers.ListField(child=serializers.DictField())
+    schema_cards = serializers.ListField(child=serializers.DictField())
+    schema_options = serializers.ListField(child=serializers.DictField())
+    notes = serializers.ListField(child=serializers.CharField())
+
+
+class DatabrowserPropertyDistributionSerializer(serializers.Serializer):
+    property = serializers.CharField()
+    total_samples = serializers.IntegerField()
+    matched_samples = serializers.IntegerField()
+    values = serializers.ListField(child=serializers.DictField())
