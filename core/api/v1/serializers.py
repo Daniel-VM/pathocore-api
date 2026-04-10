@@ -139,9 +139,7 @@ class SampleIngestSerializer(serializers.ModelSerializer):
                 }
             )
         # Priority for hash generation: isolate_id first, then sample_id fallback.
-        attrs["collecting_id_for_hash"] = (
-            collecting_isolate_id or collecting_sample_id
-        )
+        attrs["collecting_id_for_hash"] = collecting_isolate_id or collecting_sample_id
         return attrs
 
 
@@ -417,7 +415,9 @@ class SampleMetadataPropertyQuerySerializer(serializers.Serializer):
     classification = serializers.CharField(required=False, allow_blank=False)
     property = serializers.CharField(required=False, allow_blank=False)
     value = serializers.ListField(
-        child=serializers.CharField(allow_blank=False), required=False, allow_empty=False
+        child=serializers.CharField(allow_blank=False),
+        required=False,
+        allow_empty=False,
     )
     match = serializers.ChoiceField(
         choices=["all", "any"], required=False, default="any"

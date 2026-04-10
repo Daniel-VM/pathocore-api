@@ -5,9 +5,11 @@ from django.db import migrations, models
 
 def backfill_sample_fingerprint(apps, schema_editor):
     Sample = apps.get_model("core", "Sample")
-    for sample in Sample.objects.filter(fingerprint__isnull=True).exclude(
-        sample_unique_id=""
-    ).iterator():
+    for sample in (
+        Sample.objects.filter(fingerprint__isnull=True)
+        .exclude(sample_unique_id="")
+        .iterator()
+    ):
         sample.fingerprint = sample.sample_unique_id
         sample.save(update_fields=["fingerprint"])
 

@@ -103,9 +103,7 @@ def _normalize_sample_payload(payload):
 def _sample_candidates(primary_sample_id, variants):
     candidates = []
     for candidate in [primary_sample_id] + [
-        row.get("sample")
-        for row in variants
-        if isinstance(row, dict)
+        row.get("sample") for row in variants if isinstance(row, dict)
     ]:
         candidate = _clean_string(candidate)
         if candidate and candidate not in candidates:
@@ -271,10 +269,7 @@ def _store_variant_chunk(
     seen_variant_ids,
     chunk_size,
 ):
-    variant_keys = {
-        _variant_key(row)
-        for row in normalized_rows
-    }
+    variant_keys = {_variant_key(row) for row in normalized_rows}
     variant_map = _get_or_create_variants(variant_keys, normalized_rows, chunk_size)
 
     sample_variant_by_variant_id = {}
@@ -379,9 +374,7 @@ def _bulk_create_missing_annotations(annotation_specs, chunk_size):
         )
     )
     missing_specs = [
-        spec
-        for key, spec in annotation_specs.items()
-        if key not in existing_keys
+        spec for key, spec in annotation_specs.items() if key not in existing_keys
     ]
     if not missing_specs:
         return

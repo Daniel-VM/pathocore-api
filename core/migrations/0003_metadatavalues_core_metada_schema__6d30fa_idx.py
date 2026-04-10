@@ -6,12 +6,15 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('core', '0002_alter_metadatavalues_value_and_more'),
+        ("core", "0002_alter_metadatavalues_value_and_more"),
     ]
 
     operations = [
         migrations.AddIndex(
-            model_name='metadatavalues',
-            index=models.Index(fields=['schema_property', 'value', 'sample'], name='core_metada_schema__6d30fa_idx'),
+            model_name="metadatavalues",
+            index=models.Index(
+                fields=["schema_property", "value", "sample"],
+                name="core_metada_schema__6d30fa_idx",
+            ),
         ),
     ]

@@ -29,7 +29,9 @@ class Migration(migrations.Migration):
                 ("alternate", models.CharField(max_length=255)),
                 (
                     "variant_type",
-                    models.CharField(blank=True, db_index=True, default="", max_length=40),
+                    models.CharField(
+                        blank=True, db_index=True, default="", max_length=40
+                    ),
                 ),
                 ("generated_at", models.DateTimeField(auto_now_add=True)),
             ],
@@ -51,27 +53,39 @@ class Migration(migrations.Migration):
                 ),
                 (
                     "gene_region",
-                    models.CharField(blank=True, db_index=True, default="", max_length=120),
+                    models.CharField(
+                        blank=True, db_index=True, default="", max_length=120
+                    ),
                 ),
                 (
                     "effect",
-                    models.CharField(blank=True, db_index=True, default="", max_length=150),
+                    models.CharField(
+                        blank=True, db_index=True, default="", max_length=150
+                    ),
                 ),
                 (
                     "functional_class",
-                    models.CharField(blank=True, db_index=True, default="", max_length=100),
+                    models.CharField(
+                        blank=True, db_index=True, default="", max_length=100
+                    ),
                 ),
                 (
                     "locus_name",
-                    models.CharField(blank=True, db_index=True, default="", max_length=120),
+                    models.CharField(
+                        blank=True, db_index=True, default="", max_length=120
+                    ),
                 ),
                 (
                     "locus_id",
-                    models.CharField(blank=True, db_index=True, default="", max_length=120),
+                    models.CharField(
+                        blank=True, db_index=True, default="", max_length=120
+                    ),
                 ),
                 (
                     "aminoacid_change",
-                    models.CharField(blank=True, db_index=True, default="", max_length=120),
+                    models.CharField(
+                        blank=True, db_index=True, default="", max_length=120
+                    ),
                 ),
                 ("generated_at", models.DateTimeField(auto_now_add=True)),
                 (
@@ -140,7 +154,9 @@ class Migration(migrations.Migration):
         ),
         migrations.AddIndex(
             model_name="variant",
-            index=models.Index(fields=["chrom", "position"], name="idx_variant_chrom_pos"),
+            index=models.Index(
+                fields=["chrom", "position"], name="idx_variant_chrom_pos"
+            ),
         ),
         migrations.AddConstraint(
             model_name="variantannotation",

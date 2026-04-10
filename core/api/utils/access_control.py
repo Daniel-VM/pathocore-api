@@ -35,7 +35,9 @@ def validate_allowed_project_name(project_name):
     allowed = {
         _normalize_project_code(item)
         for item in getattr(
-            core.config, "ALLOWED_SCHEMA_PROJECT_NAMES", core.config.ALLOWED_SCHEMA_APP_NAMES
+            core.config,
+            "ALLOWED_SCHEMA_PROJECT_NAMES",
+            core.config.ALLOWED_SCHEMA_APP_NAMES,
         )
     }
     allowed.discard(None)

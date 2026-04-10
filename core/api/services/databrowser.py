@@ -256,13 +256,20 @@ def _overview_summary_live(filters=None, request_user=None):
     sample_count = samples.count()
     project_count = _project_count(samples)
     active_schema_count = schemas.filter(schema_in_use=True).count()
-    visible_metadata_properties = _metadata_queryset(sample_ids).values(
-        "schema_property__property"
-    ).distinct().count()
+    visible_metadata_properties = (
+        _metadata_queryset(sample_ids)
+        .values("schema_property__property")
+        .distinct()
+        .count()
+    )
     schema_mix = _schema_mix(samples)
     geography = _distribution_for_aliases(
         sample_ids,
-        ["geo_loc_state", "collecting_institution_geo_loc_state", "submitting_geo_loc_state"],
+        [
+            "geo_loc_state",
+            "collecting_institution_geo_loc_state",
+            "submitting_geo_loc_state",
+        ],
         "categorical",
     )[:8]
     pathogens = _distribution_for_aliases(sample_ids, ["organism"], "categorical")[:6]
@@ -322,7 +329,9 @@ def _schema_summary_live(filters=None, request_user=None):
     schemas = _visible_schemas(filters, request_user)
     sample_count_by_schema = _sample_count_by_schema_id(samples)
     property_rows = list(
-        models.SchemaProperties.objects.filter(schemaID__in=Subquery(schemas.values("id")))
+        models.SchemaProperties.objects.filter(
+            schemaID__in=Subquery(schemas.values("id"))
+        )
         .select_related("classificationID", "schemaID")
         .values(
             "id",
@@ -345,7 +354,8 @@ def _schema_summary_live(filters=None, request_user=None):
         properties_by_schema[row["schemaID_id"]].append(
             {
                 "classification": classification,
-                "description": row["description"] or "No description provided by schema.",
+                "description": row["description"]
+                or "No description provided by schema.",
                 "enum_values": options_by_property.get(row["id"], []),
                 "examples": _split_examples(row["examples"]),
                 "label": row["label"] or _humanize(row["property"]),
@@ -356,7 +366,9 @@ def _schema_summary_live(filters=None, request_user=None):
         )
 
     schema_cards = []
-    for schema_obj in schemas.order_by("schema_app_name", "schema_name", "schema_version"):
+    for schema_obj in schemas.order_by(
+        "schema_app_name", "schema_name", "schema_version"
+    ):
         schema_properties = properties_by_schema.get(schema_obj.id, [])
         by_classification = defaultdict(list)
         for prop in schema_properties:
@@ -437,7 +449,9 @@ def _metadata_summary_live(filters=None, request_user=None):
             "key": option["key"],
             "sample_count": option["sample_count"],
             "sections": _metadata_sections(
-                Subquery(samples.filter(schema_obj_id=option["schema_id"]).values("id")),
+                Subquery(
+                    samples.filter(schema_obj_id=option["schema_id"]).values("id")
+                ),
                 _property_definitions(schemas.filter(id=option["schema_id"])),
                 option["sample_count"],
                 include_empty=False,
@@ -451,10 +465,15 @@ def _metadata_summary_live(filters=None, request_user=None):
         for item in section["properties"]
         if item["participant_count"] > 0
     )
-    metadata_samples = _metadata_queryset(sample_ids).values("sample_id").distinct().count()
-    visible_metadata_properties = _metadata_queryset(sample_ids).values(
-        "schema_property__property"
-    ).distinct().count()
+    metadata_samples = (
+        _metadata_queryset(sample_ids).values("sample_id").distinct().count()
+    )
+    visible_metadata_properties = (
+        _metadata_queryset(sample_ids)
+        .values("schema_property__property")
+        .distinct()
+        .count()
+    )
     return {
         "schema_options": [
             {key: value for key, value in option.items() if key != "schema_id"}
@@ -467,7 +486,11 @@ def _metadata_summary_live(filters=None, request_user=None):
             "La metadata compleja agrupada dentro de arrays/objetos se resume por propiedad plana registrada.",
         ],
         "stats": [
-            {"label": "Sections", "note": "Bloques principales del entregable", "value": "3"},
+            {
+                "label": "Sections",
+                "note": "Bloques principales del entregable",
+                "value": "3",
+            },
             {
                 "label": "Priority properties with data",
                 "note": "Propiedades priorizadas con al menos una muestra",
@@ -495,9 +518,13 @@ def property_distribution(filters=None, request_user=None):
     samples = _visible_samples(filters, None)
     sample_ids = Subquery(samples.values("id"))
     values = _distribution_for_aliases(sample_ids, [property_name], "categorical")
-    matched_samples = _metadata_queryset(sample_ids).filter(
-        schema_property__property__iexact=property_name
-    ).values("sample_id").distinct().count()
+    matched_samples = (
+        _metadata_queryset(sample_ids)
+        .filter(schema_property__property__iexact=property_name)
+        .values("sample_id")
+        .distinct()
+        .count()
+    )
     return {
         "property": property_name,
         "total_samples": samples.count(),
@@ -661,9 +688,7 @@ def _distribution_for_aliases(sample_ids, aliases, strategy):
         .values("value")
         .annotate(count=Count("sample_id", distinct=True))
     )
-    return _build_distribution(
-        [(row["value"], row["count"]) for row in rows], strategy
-    )
+    return _build_distribution([(row["value"], row["count"]) for row in rows], strategy)
 
 
 def _metadata_sections(sample_ids, definitions, total_samples, include_empty=True):
@@ -671,9 +696,15 @@ def _metadata_sections(sample_ids, definitions, total_samples, include_empty=Tru
     sections = []
     for section_id in SECTION_ORDER:
         properties = []
-        for spec in [item for item in PRIORITY_PROPERTIES if item["group"] == section_id]:
+        for spec in [
+            item for item in PRIORITY_PROPERTIES if item["group"] == section_id
+        ]:
             card = _property_card(spec, definitions, total_samples, priority_index)
-            if include_empty or card["participant_count"] > 0 or card.get("description"):
+            if (
+                include_empty
+                or card["participant_count"] > 0
+                or card.get("description")
+            ):
                 properties.append(card)
         sections.append(
             {
@@ -827,7 +858,11 @@ def _priority_metadata_index(sample_ids):
     participants = defaultdict(set)
     for row in participant_rows:
         participants[row["schema_property__property"]].add(row["sample_id"])
-    return {"aliases_used": aliases_used, "participants": participants, "values": values}
+    return {
+        "aliases_used": aliases_used,
+        "participants": participants,
+        "values": values,
+    }
 
 
 def _distribution_from_index(priority_index, aliases, strategy):
@@ -839,7 +874,9 @@ def _distribution_from_index(priority_index, aliases, strategy):
 
 def _property_definitions(schemas):
     rows = (
-        models.SchemaProperties.objects.filter(schemaID__in=Subquery(schemas.values("id")))
+        models.SchemaProperties.objects.filter(
+            schemaID__in=Subquery(schemas.values("id"))
+        )
         .select_related("classificationID")
         .values(
             "property",
@@ -864,7 +901,9 @@ def _property_definitions(schemas):
 
 def _schema_options(schemas, sample_count_by_schema):
     options = []
-    for schema_obj in schemas.order_by("schema_app_name", "schema_name", "schema_version"):
+    for schema_obj in schemas.order_by(
+        "schema_app_name", "schema_name", "schema_version"
+    ):
         options.append(
             {
                 "key": _schema_key(schema_obj.schema_name, schema_obj.schema_version),
@@ -994,7 +1033,11 @@ def _bucket_distribution(value_counts, strategy):
             if predicate(numeric):
                 counts[label] += count
                 break
-    return [{"label": label, "value": counts[label]} for label, _ in bucket_specs if counts[label]]
+    return [
+        {"label": label, "value": counts[label]}
+        for label, _ in bucket_specs
+        if counts[label]
+    ]
 
 
 def _date_distribution(value_counts):
@@ -1003,10 +1046,7 @@ def _date_distribution(value_counts):
         parsed = _parse_date_label(raw_value)
         if parsed:
             counts[parsed] += count
-    return [
-        {"label": label, "value": counts[label]}
-        for label in sorted(counts.keys())
-    ]
+    return [{"label": label, "value": counts[label]} for label in sorted(counts.keys())]
 
 
 def _parse_date_label(value):
@@ -1026,10 +1066,7 @@ def _chart_items(counts):
 
 
 def _label_value_list(rows):
-    return [
-        {"label": row["label"] or "Unknown", "value": row["value"]}
-        for row in rows
-    ]
+    return [{"label": row["label"] or "Unknown", "value": row["value"]} for row in rows]
 
 
 def _split_examples(raw_examples):

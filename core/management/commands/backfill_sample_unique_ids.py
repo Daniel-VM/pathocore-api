@@ -115,7 +115,11 @@ class Command(BaseCommand):
                 or ""
             )
             current_last = max(
-                [value for value in [sequence_obj.last_value, highest_existing] if value],
+                [
+                    value
+                    for value in [sequence_obj.last_value, highest_existing]
+                    if value
+                ],
                 default="",
             )
 
@@ -158,8 +162,7 @@ class Command(BaseCommand):
                     batch_size=batch_size,
                 )
                 self.stdout.write(
-                    "Updated %s/%s legacy sample IDs"
-                    % (updated_count, legacy_count)
+                    "Updated %s/%s legacy sample IDs" % (updated_count, legacy_count)
                 )
 
             sequence_obj.last_value = current_last

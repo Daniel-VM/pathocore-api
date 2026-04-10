@@ -78,7 +78,9 @@ class Schema(models.Model):
     schema_version = models.CharField(max_length=10)
     schema_in_use = models.BooleanField(default=True)
     schema_default = models.BooleanField(default=False)
-    schema_app_name = models.CharField(max_length=40, null=True, blank=True, db_index=True)
+    schema_app_name = models.CharField(
+        max_length=40, null=True, blank=True, db_index=True
+    )
     generated_at = models.DateTimeField(auto_now_add=True, null=True, blank=True)
 
     class Meta:
@@ -285,6 +287,7 @@ class MetadataVisualizationManager(models.Manager):
             fill_mode=data["fill_mode"],
         )
         return new_met_visual
+
 
 # TODO: remove
 class MetadataVisualization(models.Model):
@@ -516,7 +519,9 @@ class Sample(models.Model):
     class Meta:
         db_table = "core_sample"
         indexes = [
-            models.Index(fields=["schema_obj", "created_at"], name="idx_sample_schema_created"),
+            models.Index(
+                fields=["schema_obj", "created_at"], name="idx_sample_schema_created"
+            ),
             models.Index(fields=["created_at"], name="idx_sample_created_at"),
         ]
 
@@ -528,7 +533,7 @@ class Sample(models.Model):
 
     def get_fingerprint(self):
         return "%s" % (self.fingerprint)
-    
+
     def get_sample_name(self):
         return "%s" % (self.sequencing_sample_id)
 
@@ -776,7 +781,9 @@ class Variant(models.Model):
     position = models.PositiveIntegerField(db_index=True)
     reference = models.CharField(max_length=255)
     alternate = models.CharField(max_length=255)
-    variant_type = models.CharField(max_length=40, blank=True, default="", db_index=True)
+    variant_type = models.CharField(
+        max_length=40, blank=True, default="", db_index=True
+    )
     generated_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -841,7 +848,9 @@ class VariantAnnotation(models.Model):
     variant = models.ForeignKey(
         Variant, on_delete=models.CASCADE, related_name="annotations"
     )
-    gene_region = models.CharField(max_length=120, blank=True, default="", db_index=True)
+    gene_region = models.CharField(
+        max_length=120, blank=True, default="", db_index=True
+    )
     effect = models.CharField(max_length=150, blank=True, default="", db_index=True)
     functional_class = models.CharField(
         max_length=100, blank=True, default="", db_index=True
