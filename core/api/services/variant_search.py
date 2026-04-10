@@ -6,7 +6,6 @@ from django.utils.dateparse import parse_date
 from core import models
 from core.api.utils import access_control
 
-
 HGVS_GENOMIC_RE = re.compile(r"^g\.(\d+)([A-Za-z]+)>([A-Za-z]+)$")
 COLLECTION_DATE_PROPERTY = "sample_collection_date"
 SEQUENCING_PLATFORM_PROPERTY = "sequencing_instrument_platform"

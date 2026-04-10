@@ -6,7 +6,6 @@ from django.db import transaction
 from core import models
 from core.api.services import sample_ingestion
 
-
 TAIL_PATTERN = r"[A-Z]{3}-[0-9]{4}"
 
 
