@@ -130,6 +130,8 @@ docker compose -f docker-compose.test.yml exec -T db \
 ```
 
 Replace `<db_user>` and `<db_password>` with the values defined for your local test stack.
+For the Docker test installation, these testing credentials are defined in
+`conf/docker_test_settings.txt`.
 
 ### Useful commands
 
