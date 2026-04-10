@@ -95,6 +95,12 @@ class SampleIdSequenceAdmin(admin.ModelAdmin):
     list_display = ["sequence_name", "last_value", "updated_at"]
 
 
+class DatabrowserSummaryCacheAdmin(admin.ModelAdmin):
+    list_display = ["summary_name", "scope_key", "filters_hash", "generated_at"]
+    search_fields = ["summary_name", "scope_key", "filters_hash"]
+    list_filter = ["summary_name", "scope_key", "generated_at"]
+
+
 class SchemaAdmin(admin.ModelAdmin):
     list_display = [
         "schema_name",
@@ -159,6 +165,7 @@ admin.site.register(User, CustomUserAdmin)
 admin.site.register(core.models.ConfigSetting, ConfigSettingAdmin)
 admin.site.register(core.models.Sample, SampleAdmin)
 admin.site.register(core.models.SampleIdSequence, SampleIdSequenceAdmin)
+admin.site.register(core.models.DatabrowserSummaryCache, DatabrowserSummaryCacheAdmin)
 admin.site.register(core.models.SampleState, SampleStateAdmin)
 admin.site.register(core.models.Schema, SchemaAdmin)
 admin.site.register(core.models.SchemaProperties, SchemaPropertiesAdmin)

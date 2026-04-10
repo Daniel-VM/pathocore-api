@@ -159,6 +159,33 @@ docker compose -f docker-compose.test.yml down -v
 
 Use `down -v` only when you want to discard the local test database completely.
 
+### Databrowser summary cache
+
+The databrowser summary endpoints use precomputed global summaries for the
+default unfiltered view:
+
+* `/v1/databrowser/overview-summary`
+* `/v1/databrowser/metadata-summary`
+* `/v1/databrowser/schema-summary`
+
+Refresh the cache manually after large sample or metadata ingests:
+
+```bash
+docker compose -f docker-compose.test.yml exec app bash
+cd /opt/pathocore-api
+source virtualenv/bin/activate
+python manage.py refresh_databrowser_cache
+```
+
+In Docker, a lightweight scheduler runs inside the `app` container and refreshes
+the cache every Friday at 12:00 by default. The schedule can be overridden with:
+
+```text
+DATABROWSER_CACHE_REFRESH_WEEKDAY=4
+DATABROWSER_CACHE_REFRESH_TIME=12:00
+DATABROWSER_CACHE_REFRESH_ON_START=false
+```
+
 ## Installation outside Docker
 
 PathoCore API can also be installed directly on a Linux server. This mode is intended

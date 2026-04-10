@@ -35,6 +35,11 @@ services:
       APP_INSTALL_PATH: /opt/pathocore-api
       APP_REPO_PATH: /srv/pathocore-api
       APP_READY_FILE: /opt/pathocore-api/.container_install_ready
+      DATABROWSER_CACHE_SCHEDULER_ENABLED: ${DATABROWSER_CACHE_SCHEDULER_ENABLED:-true}
+      # Python weekday: Monday=0, Friday=4.
+      DATABROWSER_CACHE_REFRESH_WEEKDAY: ${DATABROWSER_CACHE_REFRESH_WEEKDAY:-4}
+      DATABROWSER_CACHE_REFRESH_TIME: ${DATABROWSER_CACHE_REFRESH_TIME:-12:00}
+      DATABROWSER_CACHE_REFRESH_ON_START: ${DATABROWSER_CACHE_REFRESH_ON_START:-false}
     ports:
       - "8000:8000"
     restart: unless-stopped

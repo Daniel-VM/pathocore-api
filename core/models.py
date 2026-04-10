@@ -627,6 +627,39 @@ class SampleIdSequence(models.Model):
         return "%s=%s" % (self.sequence_name, self.last_value)
 
 
+class DatabrowserSummaryCache(models.Model):
+    summary_name = models.CharField(max_length=80)
+    scope_key = models.CharField(max_length=80, default="global")
+    filters_hash = models.CharField(max_length=64, default="no-filters")
+    filters = models.JSONField(default=dict, blank=True)
+    payload = models.JSONField(default=dict)
+    created_at = models.DateTimeField(auto_now_add=True)
+    generated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "core_databrowser_summary_cache"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["summary_name", "scope_key", "filters_hash"],
+                name="uniq_databrowser_summary_cache",
+            )
+        ]
+        indexes = [
+            models.Index(
+                fields=["summary_name", "scope_key"],
+                name="idx_dbs_cache_summary_scope",
+            ),
+            models.Index(fields=["generated_at"], name="idx_dbs_cache_generated"),
+        ]
+
+    def __str__(self):
+        return "%s:%s:%s" % (
+            self.scope_key,
+            self.summary_name,
+            self.filters_hash,
+        )
+
+
 class PublicDatabaseType(models.Model):
     public_type_name = models.CharField(max_length=30)
     public_type_display = models.CharField(max_length=50)

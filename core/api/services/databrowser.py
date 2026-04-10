@@ -1,6 +1,9 @@
 from collections import defaultdict
 from datetime import date
+import json
 
+from django.core.serializers.json import DjangoJSONEncoder
+from django.db import DatabaseError, IntegrityError
 from django.db.models import Count, Exists, F, OuterRef, Subquery
 from django.db.models.functions import TruncDate
 
@@ -206,9 +209,46 @@ SECTION_META = {
 }
 
 SECTION_ORDER = ["sample-metadata", "sample-bioinfo", "host-information"]
+GLOBAL_CACHE_SCOPE = "global"
+NO_FILTERS_HASH = "no-filters"
+OVERVIEW_SUMMARY = "overview-summary"
+METADATA_SUMMARY = "metadata-summary"
+SCHEMA_SUMMARY = "schema-summary"
+CACHEABLE_SUMMARIES = (OVERVIEW_SUMMARY, METADATA_SUMMARY, SCHEMA_SUMMARY)
 
 
 def overview_summary(filters=None, request_user=None):
+    return _cached_or_live_global_summary(
+        OVERVIEW_SUMMARY, filters, _overview_summary_live
+    )
+
+
+def schema_summary(filters=None, request_user=None):
+    return _cached_or_live_global_summary(SCHEMA_SUMMARY, filters, _schema_summary_live)
+
+
+def metadata_summary(filters=None, request_user=None):
+    return _cached_or_live_global_summary(
+        METADATA_SUMMARY, filters, _metadata_summary_live
+    )
+
+
+def refresh_databrowser_summary_cache(summary_names=None):
+    builders = _summary_builders()
+    names = list(summary_names or CACHEABLE_SUMMARIES)
+    unknown = sorted(set(names) - set(builders.keys()))
+    if unknown:
+        raise ValueError("Unknown databrowser summary: %s" % ", ".join(unknown))
+
+    refreshed = {}
+    for summary_name in names:
+        refreshed[summary_name] = _refresh_global_summary(
+            summary_name, builders[summary_name]
+        )
+    return refreshed
+
+
+def _overview_summary_live(filters=None, request_user=None):
     filters = filters or {}
     samples = _visible_samples(filters, request_user)
     sample_ids = Subquery(samples.values("id"))
@@ -236,7 +276,7 @@ def overview_summary(filters=None, request_user=None):
         "kpis": [
             {
                 "label": "Samples",
-                "note": "Muestras visibles para el usuario autenticado",
+                "note": "Muestras incluidas en el snapshot global",
                 "value": _format_integer(sample_count),
             },
             {
@@ -246,7 +286,7 @@ def overview_summary(filters=None, request_user=None):
             },
             {
                 "label": "Schemas",
-                "note": "Schemas activos visibles",
+                "note": "Schemas activos incluidos en el snapshot global",
                 "value": _format_integer(active_schema_count),
             },
             {
@@ -276,7 +316,7 @@ def overview_summary(filters=None, request_user=None):
     }
 
 
-def schema_summary(filters=None, request_user=None):
+def _schema_summary_live(filters=None, request_user=None):
     filters = filters or {}
     samples = _visible_samples(filters, request_user)
     schemas = _visible_schemas(filters, request_user)
@@ -358,7 +398,7 @@ def schema_summary(filters=None, request_user=None):
             },
             {
                 "label": "Projects",
-                "note": "Projects visibles en /schema",
+                "note": "Projects incluidos en /schema",
                 "value": _format_integer(project_count),
             },
             {
@@ -383,7 +423,7 @@ def schema_summary(filters=None, request_user=None):
     }
 
 
-def metadata_summary(filters=None, request_user=None):
+def _metadata_summary_live(filters=None, request_user=None):
     filters = filters or {}
     samples = _visible_samples(filters, request_user)
     schemas = _visible_schemas(filters, request_user)
@@ -435,7 +475,7 @@ def metadata_summary(filters=None, request_user=None):
             },
             {
                 "label": "Samples with metadata",
-                "note": "Muestras visibles con al menos una entrada",
+                "note": "Muestras del snapshot con al menos una entrada",
                 "value": _format_integer(metadata_samples),
             },
             {
@@ -452,7 +492,7 @@ def property_distribution(filters=None, request_user=None):
     property_name = filters.get("property")
     if not property_name:
         raise ValueError("property is required")
-    samples = _visible_samples(filters, request_user)
+    samples = _visible_samples(filters, None)
     sample_ids = Subquery(samples.values("id"))
     values = _distribution_for_aliases(sample_ids, [property_name], "categorical")
     matched_samples = _metadata_queryset(sample_ids).filter(
@@ -464,6 +504,85 @@ def property_distribution(filters=None, request_user=None):
         "matched_samples": matched_samples,
         "values": values,
     }
+
+
+def _summary_builders():
+    return {
+        OVERVIEW_SUMMARY: _overview_summary_live,
+        METADATA_SUMMARY: _metadata_summary_live,
+        SCHEMA_SUMMARY: _schema_summary_live,
+    }
+
+
+def _cached_or_live_global_summary(summary_name, filters, live_builder):
+    normalized_filters = _normalize_filters(filters)
+    if normalized_filters:
+        # Databrowser is a global database snapshot. Filtered views are still
+        # computed globally, without user project scoping.
+        return live_builder(normalized_filters, request_user=None)
+
+    try:
+        cached = models.DatabrowserSummaryCache.objects.filter(
+            summary_name=summary_name,
+            scope_key=GLOBAL_CACHE_SCOPE,
+            filters_hash=NO_FILTERS_HASH,
+        ).first()
+    except DatabaseError:
+        cached = None
+
+    if cached is not None:
+        return cached.payload
+
+    try:
+        return _refresh_global_summary(summary_name, live_builder)["payload"]
+    except DatabaseError:
+        return live_builder({}, request_user=None)
+
+
+def _refresh_global_summary(summary_name, live_builder):
+    filters = {}
+    payload = _json_safe(live_builder(filters, request_user=None))
+    try:
+        cache_obj, _ = models.DatabrowserSummaryCache.objects.update_or_create(
+            summary_name=summary_name,
+            scope_key=GLOBAL_CACHE_SCOPE,
+            filters_hash=NO_FILTERS_HASH,
+            defaults={
+                "filters": filters,
+                "payload": payload,
+            },
+        )
+    except IntegrityError:
+        cache_obj = models.DatabrowserSummaryCache.objects.get(
+            summary_name=summary_name,
+            scope_key=GLOBAL_CACHE_SCOPE,
+            filters_hash=NO_FILTERS_HASH,
+        )
+        cache_obj.filters = filters
+        cache_obj.payload = payload
+        cache_obj.save(update_fields=["filters", "payload", "generated_at"])
+    return {
+        "summary_name": cache_obj.summary_name,
+        "scope_key": cache_obj.scope_key,
+        "filters_hash": cache_obj.filters_hash,
+        "generated_at": cache_obj.generated_at,
+        "payload": payload,
+    }
+
+
+def _normalize_filters(filters):
+    normalized = {}
+    for key, value in sorted((filters or {}).items()):
+        if value in (None, ""):
+            continue
+        if hasattr(value, "isoformat"):
+            value = value.isoformat()
+        normalized[key] = value
+    return normalized
+
+
+def _json_safe(payload):
+    return json.loads(json.dumps(payload, cls=DjangoJSONEncoder))
 
 
 def _visible_schemas(filters, request_user):

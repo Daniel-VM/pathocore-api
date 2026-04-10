@@ -19,7 +19,9 @@ def ingest_variants(payload, request_user=None, chunk_size=DEFAULT_CHUNK_SIZE):
     # Merge repeated sample/date entries before replacing existing observations.
     groups = {}
     for item in grouped_payloads:
-        sample_obj = _resolve_sample(item["sample_id"], request_user=request_user)
+        sample_obj = _resolve_sample_from_candidates(
+            item["sample_candidates"], request_user=request_user
+        )
         analysis_date = _parse_required_date(item["analysis_date"])
         key = (sample_obj.pk, analysis_date)
         entry = groups.setdefault(
@@ -92,9 +94,31 @@ def _normalize_sample_payload(payload):
         raise ValueError("analysis_date is required")
     return {
         "sample_id": sample_id.strip(),
+        "sample_candidates": _sample_candidates(sample_id, variants),
         "analysis_date": analysis_date,
         "variants": variants,
     }
+
+
+def _sample_candidates(primary_sample_id, variants):
+    candidates = []
+    for candidate in [primary_sample_id] + [
+        row.get("sample")
+        for row in variants
+        if isinstance(row, dict)
+    ]:
+        candidate = _clean_string(candidate)
+        if candidate and candidate not in candidates:
+            candidates.append(candidate)
+    return candidates
+
+
+def _resolve_sample_from_candidates(sample_candidates, request_user=None):
+    for sample_identifier in sample_candidates:
+        sample_obj = _resolve_sample(sample_identifier, request_user=request_user)
+        if sample_obj is not None:
+            return sample_obj
+    raise ValueError(f"Sample not found: {sample_candidates[0]}")
 
 
 def _resolve_sample(sample_identifier, request_user=None):
@@ -128,8 +152,7 @@ def _resolve_sample(sample_identifier, request_user=None):
     metadata_row = metadata_queryset.last()
     if metadata_row is not None:
         return metadata_row.sample
-
-    raise ValueError(f"Sample not found: {sample_identifier}")
+    return None
 
 
 def _parse_required_date(value):
@@ -139,7 +162,10 @@ def _parse_required_date(value):
         return value
     if not isinstance(value, str):
         raise ValueError("analysis_date must use YYYY-MM-DD format")
-    parsed = parse_date(value.strip())
+    cleaned = value.strip()
+    if len(cleaned) == 8 and cleaned.isdigit():
+        cleaned = f"{cleaned[:4]}-{cleaned[4:6]}-{cleaned[6:8]}"
+    parsed = parse_date(cleaned)
     if parsed is None:
         raise ValueError("analysis_date must use YYYY-MM-DD format")
     return parsed
