@@ -22,12 +22,8 @@ from django.db import transaction, IntegrityError
 
 # Local imports
 import core.models
-import core.api.utils.samples
 import core.api.v1.serializers
-import core.api.utils.metadata_values
-import core.api.utils.public_db
 import core.api.utils.common_functions
-import core.config
 from core.api.services import sample_ingestion
 from core.api.services import sample_listing
 from core.api.services import sample_detail
