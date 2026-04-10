@@ -1,152 +1,224 @@
-ALLOWED_EMPTY_FIELDS_IN_METADATA_SAMPLE_FORM = [
-    "Public Health sample id (SIVIES)",
-    "GISAID id",
-    "GISAID Virus Name",
-    "Sequence file R2 fastq",
-]
 SCHEMAS_UPLOAD_FOLDER = "schemas"
-BIOINFO_UPLOAD_FOLDER = ""
+
+# Allowed project scopes exposed by the public API.
 ALLOWED_SCHEMA_PROJECT_NAMES = ["mepram", "relecov", "redlabra"]
 # Backward-compatible alias for older code paths.
 ALLOWED_SCHEMA_APP_NAMES = ALLOWED_SCHEMA_PROJECT_NAMES
+
+# Sample identity strategy.
 SAMPLE_FINGERPRINT_LENGTH = 24
 SAMPLE_ID_PREFIX = "SAM-"
 
-SCHEMA_SUCCESSFUL_LOAD = "Schema was successfully loaded"
-BIOINFO_SUCCESSFUL_LOAD = "Bioinfo file was successfully loaded"
-BIOINFO_METADATA_SUCCESSFUL_LOAD = "Bioinfo metadata file was successfully loaded"
-METADATA_JSON_SUCCESSFUL_LOAD = "Metadata was successfully loaded"
-ERROR_SCHEMA_ID_NOT_DEFINED = "schema ID is not defined"
-ERROR_SCHEMA_NOT_DEFINED = "No schemas have been defined yet"
-ERROR_SAMPLE_NAME_NOT_INCLUDED = "Sample name field is not included in the request"
-ERROR_SAMPLE_NOT_DEFINED = "Sample id is not defined"
-ERROR_SAMPLES_NOT_DEFINED_IN_FORM = (
-    "Samples were not defined when loading data for batch "
+# Databrowser snapshot configuration.
+DATABROWSER_PRIORITY_PROPERTIES = [
+    {
+        "group": "sample-metadata",
+        "expected_property": "geo_loc_state",
+        "display_name": "geo_loc_state",
+        "chart_title": "Samples by region",
+        "aliases": [
+            "geo_loc_state",
+            "collecting_institution_geo_loc_state",
+            "submitting_geo_loc_state",
+        ],
+        "strategy": "categorical",
+    },
+    {
+        "group": "sample-metadata",
+        "expected_property": "sample_collection_date",
+        "display_name": "sample_collection_date",
+        "chart_title": "Samples by collection period",
+        "aliases": ["sample_collection_date"],
+        "strategy": "date",
+    },
+    {
+        "group": "sample-metadata",
+        "expected_property": "sample_received_date",
+        "display_name": "sample_received_date",
+        "chart_title": "Samples by reception period",
+        "aliases": ["sample_received_date"],
+        "strategy": "date",
+    },
+    {
+        "group": "sample-metadata",
+        "expected_property": "anatomical_material",
+        "display_name": "anatomical_material",
+        "chart_title": "Samples by anatomical material",
+        "aliases": ["anatomical_material"],
+        "strategy": "categorical",
+    },
+    {
+        "group": "sample-metadata",
+        "expected_property": "anatomical_part",
+        "display_name": "anatomical_part",
+        "chart_title": "Samples by anatomical part",
+        "aliases": ["anatomical_part"],
+        "strategy": "categorical",
+    },
+    {
+        "group": "sample-metadata",
+        "expected_property": "specimen_source",
+        "display_name": "specimen_source",
+        "chart_title": "Samples by specimen source",
+        "aliases": ["specimen_source"],
+        "strategy": "categorical",
+    },
+    {
+        "group": "sample-metadata",
+        "expected_property": "isolate_delivery_type",
+        "display_name": "isolate_delivery_type",
+        "chart_title": "Samples by isolate delivery type",
+        "aliases": ["isolate_delivery_type"],
+        "strategy": "categorical",
+    },
+    {
+        "group": "sample-bioinfo",
+        "expected_property": "bioinformatics_protocol_software_name",
+        "display_name": "bioinformatics_protocol_software_name",
+        "chart_title": "Samples by analysis software",
+        "aliases": ["bioinformatics_protocol_software_name"],
+        "strategy": "categorical",
+    },
+    {
+        "group": "sample-bioinfo",
+        "expected_property": "preprocessing_software_name",
+        "display_name": "preprocessing_software_name",
+        "chart_title": "Samples by preprocessing software",
+        "aliases": ["preprocessing_software_name"],
+        "strategy": "categorical",
+    },
+    {
+        "group": "sample-bioinfo",
+        "expected_property": "read_length",
+        "display_name": "read_length",
+        "chart_title": "Samples by read length bucket",
+        "aliases": ["read_length"],
+        "strategy": "read-length",
+    },
+    {
+        "group": "sample-bioinfo",
+        "expected_property": "number_of_reads_sequenced",
+        "display_name": "number_of_reads_sequenced",
+        "chart_title": "Samples by read count bucket",
+        "aliases": ["number_of_reads_sequenced"],
+        "strategy": "read-count",
+    },
+    {
+        "group": "sample-bioinfo",
+        "expected_property": "assembly_method",
+        "display_name": "assembly_method",
+        "chart_title": "Samples by assembly method",
+        "aliases": ["assembly_method"],
+        "strategy": "categorical",
+    },
+    {
+        "group": "sample-bioinfo",
+        "expected_property": "annotation_software_name",
+        "display_name": "annotation_software_name",
+        "chart_title": "Samples by annotation software",
+        "aliases": ["annotation_software_name"],
+        "strategy": "categorical",
+    },
+    {
+        "group": "sample-bioinfo",
+        "expected_property": "reads_genome_coverage_value",
+        "display_name": "reads_genome_coverage_value",
+        "chart_title": "Samples by coverage bucket",
+        "aliases": ["reads_genome_coverage_value"],
+        "strategy": "coverage",
+    },
+    {
+        "group": "host-information",
+        "expected_property": "host_age_years",
+        "display_name": "host_age_years",
+        "chart_title": "Samples by host age group",
+        "aliases": ["host_age_years"],
+        "strategy": "age",
+    },
+    {
+        "group": "host-information",
+        "expected_property": "host_gender",
+        "display_name": "host_gender",
+        "chart_title": "Samples by host gender",
+        "aliases": ["host_gender"],
+        "strategy": "categorical",
+    },
+    {
+        "group": "host-information",
+        "expected_property": "host_common_name",
+        "display_name": "host_common_name",
+        "chart_title": "Samples by host common name",
+        "aliases": ["host_common_name"],
+        "strategy": "categorical",
+    },
+    {
+        "group": "host-information",
+        "expected_property": "infection_type",
+        "display_name": "infection_type",
+        "chart_title": "Samples by infection type",
+        "aliases": ["infection_type"],
+        "strategy": "categorical",
+    },
+    {
+        "group": "host-information",
+        "expected_property": "exposure_setting",
+        "display_name": "exposure_setting",
+        "chart_title": "Samples by exposure setting",
+        "aliases": ["exposure_setting"],
+        "strategy": "categorical",
+    },
+    {
+        "group": "host-information",
+        "expected_property": "Associated with outbreak",
+        "display_name": "Associated with outbreak",
+        "chart_title": "Samples associated with outbreak",
+        "aliases": ["Associated with outbreak"],
+        "strategy": "categorical",
+    },
+]
+
+DATABROWSER_SECTION_META = {
+    "sample-metadata": {
+        "title": "Sample metadata",
+        "description": (
+            "Cobertura agregada de recoleccion y procesado de muestras basada "
+            "en consultas agregadas de backend."
+        ),
+        "notes": [
+            "La distribucion geografica utiliza fallbacks sobre geo_loc_state cuando el dataset real emplea campos equivalentes por institucion.",
+            "Los graficos temporales se representan como linea para mantener legibilidad al crecer el numero de muestras.",
+        ],
+    },
+    "sample-bioinfo": {
+        "title": "Sample bioinfo",
+        "description": (
+            "Panel superior con agregados bioinformaticos y propiedades "
+            "priorizadas para tecnologia, software y volumen de datos."
+        ),
+        "notes": [],
+    },
+    "host-information": {
+        "title": "Host information",
+        "description": (
+            "Perfil cientifico del host con foco en identidad del hospedador, "
+            "infeccion y exposicion visible en la metadata retornada."
+        ),
+        "notes": [],
+    },
+}
+
+DATABROWSER_SECTION_ORDER = [
+    "sample-metadata",
+    "sample-bioinfo",
+    "host-information",
+]
+DATABROWSER_GLOBAL_CACHE_SCOPE = "global"
+DATABROWSER_NO_FILTERS_HASH = "no-filters"
+DATABROWSER_OVERVIEW_SUMMARY = "overview-summary"
+DATABROWSER_METADATA_SUMMARY = "metadata-summary"
+DATABROWSER_SCHEMA_SUMMARY = "schema-summary"
+DATABROWSER_CACHEABLE_SUMMARIES = (
+    DATABROWSER_OVERVIEW_SUMMARY,
+    DATABROWSER_METADATA_SUMMARY,
+    DATABROWSER_SCHEMA_SUMMARY,
 )
-ERROR_ANALYSIS_ALREADY_DEFINED = "Analysis is already defined."
-ERROR_NO_SAMPLES_ARE_ASSIGNED_TO_LAB = "There is no sample recorded for laboratory"
-ERROR_NOT_SAMPLES_HAVE_BEEN_DEFINED = "So far there are no samples defined"
-ERROR_NOT_SAMPLES_STATE_HAVE_BEEN_DEFINED = "Missing configuration for sample states"
-ERROR_GENE_NOT_DEFINED_IN_DATABASE = "Error Gene not defined in database"
-ERROR_CHROMOSOME_NOT_DEFINED_IN_DATABASE = "Error Chromosome not defined in database"
-ERROR_USER_IS_NOT_ASSIGNED_TO_LAB = "Your account is not assigned to any laboratory"
-ERROR_INVALID_DEFINED_SAMPLE_FORMAT = "The format for the defined Date is incorrect"
-ERROR_NOT_MATCHED_ITEMS_IN_SEARCH = "Your query does not return any match"
-
-ERROR_SAMPLE_DOES_NOT_EXIST = "The Sample you request does not exist"
-ERROR_CHROMOSOME_DOES_NOT_EXIST = "The Chromosome you request does not exist"
-ERROR_NOT_ALLOWED_TO_SEE_THE_SAMPLE = "You are not allowed to see the sample"
-
-ERROR_INVALID_JSON = "Invalid json file"
-ERROR_INVALID_SCHEMA = "Invalid Schema"
-ERROR_SCHEMA_ALREADY_LOADED = "Schema is already loaded"
-
-ERROR_INTIAL_SETTINGS_NOT_DEFINED = "Pathocore API is not fully completed"
-ERROR_FIELDS_FOR_METADATA_ARE_NOT_DEFINED = (
-    "Fields to display in Metadata form are not defined yet"
-)
-ERROR_ISKYLIMS_NOT_REACHEABLE = "iSkyLIMS server is not accessible"
-ERROR_FIELD_NOT_DEFINED = "Field is not defined in database"
-
-ERROR_UNABLE_TO_STORE_IN_DATABASE = "Unable to store data in database "
-ERROR_UNABLE_FETCH_SAMPLE_PROJECT_FIELDS = (
-    "Unable to fetch project fields from iSkyLIMS "
-)
-
-ERROR_MISSING_SAMPLE_DATA = "Missing data information for Sample"
-
-ERROR_ANNOTATION_ORGANISM_ALREADY_EXISTS = (
-    "Annotation file for the organism already loaded"
-)
-ERROR_VARIANT_INFORMATION_NOT_DEFINED = "Variant field is not included in the request"
-ERROR_VARIANT_IN_SAMPLE_NOT_DEFINED = "So far there is no variants defined on database "
-
-HEADING_FOR_BASIC_SAMPLE_DATA = [
-    "Sample ID given for sequencing",
-    "Sample ID given in the microbiology lab",
-    "Sample ID given by the submitting laboratory",
-    "Sample State",
-    "Recorded Date",
-]
-HEADING_FOR_FASTQ_SAMPLE_DATA = [
-    "Sequence file R1 fastq",
-    "Sequence file R2 fastq",
-    "Filepath R1 fastq",
-    "Filepath R2 fastq",
-    "Fastq md5 r1",
-    "Fastq md5 r2",
-]
-HEADING_SCHEMA_DISPLAY = [
-    "Property",
-    "Label",
-    "Required",
-    "Classification",
-    "Description",
-]
-
-HEADING_FOR_ANNOTATION_GENE = ["Gene name", "Position start", "Position end"]
-
-HEADING_FOR_SAMPLE_LIST = [
-    "Sequencing Sample ID",
-    "State",
-    "Sequenced date",
-    "Recorded date",
-]
-HEADING_FOR_VARIANT_TABLE_DISPLAY = [
-    "Pos",
-    "Ref",
-    "Alt",
-    "dp",
-    "ref_dp",
-    "alt_dp",
-    "af",
-    "hgvs_c",
-    "hgvs_p",
-    "hgvs_p_1_letter",
-]
-FIELD_FOR_GETTING_SAMPLE_ID = "Sample ID given for sequencing"
-
-MAIN_SCHEMA_STRUCTURE = ["$schema", "required", "type", "properties"]
-NO_SELECTED_LABEL_WAS_DONE = (
-    "No selected label order was done to define Metadata visualization"
-)
-
-ISKLIMS_REST_API = "/wetlab/api/"
-# REST API TO iSkyLIMS
-ISKLIMS_GET_LABORATORY_PARAMETERS = ["lab-data", "laboratory"]
-ISKLIMS_PUT_LABORATORY_PARAMETER = "update-lab"
-ISKLIMS_GET_SAMPLE_FIELDS = "sample-fields"
-ISKLIMS_GET_SAMPLE_INFORMATION = ["sample-info", "sample"]
-ISKLIMS_GET_SAMPLE_PARAMETER_INFORMATION = ["sample-info", "parameter"]
-ISKLIMS_GET_SAMPLE_PROJECT_PARAMETER_INFORMATION = ["sample-info"]
-ISKLIMS_GET_SAMPLE_PROJECT_FIELDS = ["projects-fields", "project"]
-ISKLIMS_GET_SUMMARIZE_DATA = "summarized-info"
-ISKLIMS_GET_STATS_DATA = "stats-info"
-ISKLIMS_FETCH_SAMPLES_ON_CONDITION = ["sample-info", "parameter"]
-ISKLIMS_POST_SAMPLE_DATA = "create-sample"
-
-# API requested information
-FIELDS_ON_SAMPLE_TABLE = [
-    "user",
-    "collecting_lab_sample_id",
-    "microbiology_lab_sample_id",
-    "sequencing_sample_id",
-    "submitting_lab_sample_id",
-    "sequence_file_R1_fastq",
-    "sequence_file_R2_fastq",
-    "fastq_r1_md5",
-    "fastq_r2_md5",
-    "r1_fastq_filepath",
-    "r2_fastq_filepath",
-]
-FIELDS_ON_ENA_TABLE = [
-    "bioproject_accession_ENA",
-    "bioproject_umbrella_accession_ENA",
-    "biosample_accession_ENA",
-    "GenBank_ENA_DDBJ_accession",
-    "study_alias",
-    "study_id",
-    "experiment_title",
-]
-FIELDS_ON_GISAID_TABLE = ["gisaid_id", "GISAID_accession", "virus_name"]
-FIELDS_ON_AUTHOR_TABLE = ["analysis_authors", "author_submitter", "authors"]

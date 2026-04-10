@@ -16,6 +16,7 @@ initial_*.txt
 pathocore-api/
 documents/
 dummy/
+conf/relecov_schema_[0-9]*.json
 
 # VS code
 .vscode/
