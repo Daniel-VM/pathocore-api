@@ -6,7 +6,6 @@ from django.utils.dateparse import parse_date
 from core import models
 from core.api.utils import access_control
 
-
 DEFAULT_CHUNK_SIZE = 1000
 MAX_ALLELE_LENGTH = 255
 
