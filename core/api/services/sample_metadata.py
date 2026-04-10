@@ -140,7 +140,9 @@ def list_samples_by_metadata_query(
     # set operations on metadata tables.
     samples_queryset = models.Sample.objects.all()
     if request_user is not None:
-        samples_queryset = access_control.apply_sample_scope(samples_queryset, request_user)
+        samples_queryset = access_control.apply_sample_scope(
+            samples_queryset, request_user
+        )
 
     metadata_base_filter = Q()
     if normalized_property:
@@ -157,21 +159,25 @@ def list_samples_by_metadata_query(
 
     if normalized_values:
         if match == "any":
-            exists_queryset = models.MetadataValues.objects.filter(
-                sample_id=OuterRef("pk")
-            ).filter(metadata_base_filter).filter(values_q)
+            exists_queryset = (
+                models.MetadataValues.objects.filter(sample_id=OuterRef("pk"))
+                .filter(metadata_base_filter)
+                .filter(values_q)
+            )
             matched_samples = samples_queryset.filter(Exists(exists_queryset))
         else:
             matched_samples = samples_queryset
             for value in normalized_values:
-                exists_queryset = models.MetadataValues.objects.filter(
-                    sample_id=OuterRef("pk")
-                ).filter(metadata_base_filter).filter(value__iexact=value)
+                exists_queryset = (
+                    models.MetadataValues.objects.filter(sample_id=OuterRef("pk"))
+                    .filter(metadata_base_filter)
+                    .filter(value__iexact=value)
+                )
                 matched_samples = matched_samples.filter(Exists(exists_queryset))
     else:
-        exists_queryset = models.MetadataValues.objects.filter(sample_id=OuterRef("pk")).filter(
-            metadata_base_filter
-        )
+        exists_queryset = models.MetadataValues.objects.filter(
+            sample_id=OuterRef("pk")
+        ).filter(metadata_base_filter)
         matched_samples = samples_queryset.filter(Exists(exists_queryset))
 
     if not matched_samples.exists():
@@ -277,7 +283,9 @@ def search_samples_metadata(filters, match="all", request_user=None):
 
     samples_queryset = models.Sample.objects.all()
     if request_user is not None:
-        samples_queryset = access_control.apply_sample_scope(samples_queryset, request_user)
+        samples_queryset = access_control.apply_sample_scope(
+            samples_queryset, request_user
+        )
 
     if match == "any":
         any_condition = Q()
@@ -354,9 +362,7 @@ def list_properties_by_classification(classification_name, request_user=None):
             )
         )
     properties = (
-        queryset.filter(
-            classificationID__classification_name__iexact=normalized
-        )
+        queryset.filter(classificationID__classification_name__iexact=normalized)
         .values_list("property", flat=True)
         .distinct()
         .order_by("property")

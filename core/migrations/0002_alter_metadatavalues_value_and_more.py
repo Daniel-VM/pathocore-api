@@ -6,36 +6,43 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('core', '0001_initial'),
+        ("core", "0001_initial"),
     ]
 
     operations = [
         migrations.AlterField(
-            model_name='metadatavalues',
-            name='value',
-            field=models.CharField(blank=True, db_index=True, max_length=240, null=True),
+            model_name="metadatavalues",
+            name="value",
+            field=models.CharField(
+                blank=True, db_index=True, max_length=240, null=True
+            ),
         ),
         migrations.AlterField(
-            model_name='sample',
-            name='sample_unique_id',
+            model_name="sample",
+            name="sample_unique_id",
             field=models.CharField(db_index=True, max_length=12),
         ),
         migrations.AlterField(
-            model_name='schema',
-            name='schema_app_name',
+            model_name="schema",
+            name="schema_app_name",
             field=models.CharField(blank=True, db_index=True, max_length=40, null=True),
         ),
         migrations.AlterField(
-            model_name='schemaproperties',
-            name='property',
+            model_name="schemaproperties",
+            name="property",
             field=models.CharField(db_index=True, max_length=50),
         ),
         migrations.AddIndex(
-            model_name='metadatavalues',
-            index=models.Index(fields=['schema_property', 'value'], name='core_metada_schema__65c2ab_idx'),
+            model_name="metadatavalues",
+            index=models.Index(
+                fields=["schema_property", "value"],
+                name="core_metada_schema__65c2ab_idx",
+            ),
         ),
         migrations.AddIndex(
-            model_name='metadatavalues',
-            index=models.Index(fields=['value', 'sample'], name='core_metada_value_8ad8c6_idx'),
+            model_name="metadatavalues",
+            index=models.Index(
+                fields=["value", "sample"], name="core_metada_value_8ad8c6_idx"
+            ),
         ),
     ]

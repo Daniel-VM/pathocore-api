@@ -56,7 +56,9 @@ def cleanup_legacy_core_objects(apps, schema_editor):
         apps.get_model("core", "OrganismAnnotation")._meta.db_table,
         apps.get_model("core", "Gene")._meta.db_table,
         apps.get_model("core", "LineageValues")._meta.db_table,
-        lineagefields_model._meta.get_field("schemaID").remote_field.through._meta.db_table,
+        lineagefields_model._meta.get_field(
+            "schemaID"
+        ).remote_field.through._meta.db_table,
         apps.get_model("core", "LineageInfo")._meta.db_table,
         lineagefields_model._meta.db_table,
         apps.get_model("core", "Effect")._meta.db_table,
@@ -71,7 +73,7 @@ def cleanup_legacy_core_objects(apps, schema_editor):
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('core', '0003_metadatavalues_core_metada_schema__6d30fa_idx'),
+        ("core", "0003_metadatavalues_core_metada_schema__6d30fa_idx"),
     ]
 
     operations = [
@@ -84,108 +86,108 @@ class Migration(migrations.Migration):
             ],
             state_operations=[
                 migrations.RemoveField(
-                    model_name='gene',
-                    name='chromosomeID',
+                    model_name="gene",
+                    name="chromosomeID",
                 ),
                 migrations.RemoveField(
-                    model_name='gene',
-                    name='user',
+                    model_name="gene",
+                    name="user",
                 ),
                 migrations.RemoveField(
-                    model_name='lineagefields',
-                    name='schemaID',
+                    model_name="lineagefields",
+                    name="schemaID",
                 ),
                 migrations.DeleteModel(
-                    name='LineageInfo',
+                    name="LineageInfo",
                 ),
                 migrations.RemoveField(
-                    model_name='lineagevalues',
-                    name='lineage_fieldID',
+                    model_name="lineagevalues",
+                    name="lineage_fieldID",
                 ),
                 migrations.RemoveField(
-                    model_name='organismannotation',
-                    name='chromosomeID',
+                    model_name="organismannotation",
+                    name="chromosomeID",
                 ),
                 migrations.RemoveField(
-                    model_name='organismannotation',
-                    name='user',
+                    model_name="organismannotation",
+                    name="user",
                 ),
                 migrations.RemoveField(
-                    model_name='variant',
-                    name='chromosomeID_id',
+                    model_name="variant",
+                    name="chromosomeID_id",
                 ),
                 migrations.RemoveField(
-                    model_name='variant',
-                    name='filterID_id',
+                    model_name="variant",
+                    name="filterID_id",
                 ),
                 migrations.RemoveField(
-                    model_name='variantannotation',
-                    name='effectID_id',
+                    model_name="variantannotation",
+                    name="effectID_id",
                 ),
                 migrations.RemoveField(
-                    model_name='variantannotation',
-                    name='geneID_id',
+                    model_name="variantannotation",
+                    name="geneID_id",
                 ),
                 migrations.RemoveField(
-                    model_name='variantannotation',
-                    name='variantID_id',
+                    model_name="variantannotation",
+                    name="variantID_id",
                 ),
                 migrations.RemoveField(
-                    model_name='variantinsample',
-                    name='sampleID_id',
+                    model_name="variantinsample",
+                    name="sampleID_id",
                 ),
                 migrations.RemoveField(
-                    model_name='variantinsample',
-                    name='variantID_id',
+                    model_name="variantinsample",
+                    name="variantID_id",
                 ),
                 migrations.RemoveIndex(
-                    model_name='metadatavalues',
-                    name='core_metada_group_i_bc41e7_idx',
+                    model_name="metadatavalues",
+                    name="core_metada_group_i_bc41e7_idx",
                 ),
                 migrations.RemoveIndex(
-                    model_name='metadatavalues',
-                    name='core_metada_schema__65c2ab_idx',
+                    model_name="metadatavalues",
+                    name="core_metada_schema__65c2ab_idx",
                 ),
                 migrations.AlterField(
-                    model_name='metadatavalues',
-                    name='value',
+                    model_name="metadatavalues",
+                    name="value",
                     field=models.CharField(blank=True, max_length=240, null=True),
                 ),
                 migrations.DeleteModel(
-                    name='Chromosome',
+                    name="Chromosome",
                 ),
                 migrations.DeleteModel(
-                    name='Effect',
+                    name="Effect",
                 ),
                 migrations.DeleteModel(
-                    name='Filter',
+                    name="Filter",
                 ),
                 migrations.DeleteModel(
-                    name='Gene',
+                    name="Gene",
                 ),
                 migrations.DeleteModel(
-                    name='LineageFields',
+                    name="LineageFields",
                 ),
                 migrations.DeleteModel(
-                    name='LineageValues',
+                    name="LineageValues",
                 ),
                 migrations.DeleteModel(
-                    name='OrganismAnnotation',
+                    name="OrganismAnnotation",
                 ),
                 migrations.DeleteModel(
-                    name='Variant',
+                    name="Variant",
                 ),
                 migrations.DeleteModel(
-                    name='VariantAnnotation',
+                    name="VariantAnnotation",
                 ),
                 migrations.DeleteModel(
-                    name='VariantInSample',
+                    name="VariantInSample",
                 ),
             ],
         ),
         migrations.AlterField(
-            model_name='schema',
-            name='schema_default',
+            model_name="schema",
+            name="schema_default",
             field=models.BooleanField(default=False),
         ),
     ]

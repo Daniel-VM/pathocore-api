@@ -98,9 +98,11 @@ def prepare_schema_create(payload, request_user):
                 "required": prop_name in required_fields,
                 "options": has_enum,
                 "fill_mode": _normalize_str(prop_data.get("fill_mode")),
-                "enum_values": [str(item) for item in prop_data.get("enum", [])]
-                if has_enum
-                else [],
+                "enum_values": (
+                    [str(item) for item in prop_data.get("enum", [])]
+                    if has_enum
+                    else []
+                ),
             }
         )
 
@@ -114,12 +116,14 @@ def prepare_schema_create(payload, request_user):
             "schema_in_use": schema_in_use,
             "schema_app_name": schema_app_name,
         },
-        "deactivate_existing_filter": {
-            "schema_app_name": schema_app_name,
-            "schema_name": schema_name,
-            "schema_in_use": True,
-        }
-        if schema_in_use
-        else None,
+        "deactivate_existing_filter": (
+            {
+                "schema_app_name": schema_app_name,
+                "schema_name": schema_name,
+                "schema_in_use": True,
+            }
+            if schema_in_use
+            else None
+        ),
         "property_specs": property_specs,
     }

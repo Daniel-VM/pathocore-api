@@ -14,14 +14,20 @@ SEQUENCING_PLATFORM_PROPERTY = "sequencing_instrument_platform"
 
 def parse_hgvs_genomic(value):
     if not isinstance(value, str):
-        raise ValueError("Invalid HGVS genomic variant. Expected format: g.<position><ref>><alt>")
+        raise ValueError(
+            "Invalid HGVS genomic variant. Expected format: g.<position><ref>><alt>"
+        )
     normalized = "".join(value.strip().split())
     match = HGVS_GENOMIC_RE.match(normalized)
     if not match:
-        raise ValueError("Invalid HGVS genomic variant. Expected format: g.<position><ref>><alt>")
+        raise ValueError(
+            "Invalid HGVS genomic variant. Expected format: g.<position><ref>><alt>"
+        )
     position = int(match.group(1))
     if position <= 0:
-        raise ValueError("Invalid HGVS genomic variant. Expected format: g.<position><ref>><alt>")
+        raise ValueError(
+            "Invalid HGVS genomic variant. Expected format: g.<position><ref>><alt>"
+        )
     return {
         "variant": f"g.{position}{match.group(2).upper()}>{match.group(3).upper()}",
         "position": position,
@@ -50,7 +56,8 @@ def search_variants(filters, request_user=None):
         "position": query["position"],
         "reference_allele": query["reference_allele"],
         "alternate_allele": query["alternate_allele"],
-        "reference_genome": filters.get("reference_genome") or query.get("reference_genome"),
+        "reference_genome": filters.get("reference_genome")
+        or query.get("reference_genome"),
     }
     summary = {
         "sample_count": sample_count,
@@ -91,7 +98,11 @@ def serialize_search_results(sample_variant_rows):
                 "sequencing_platform": metadata.get(SEQUENCING_PLATFORM_PROPERTY),
                 "reference_genome": row.variant.chrom,
                 "analysis_date": row.analysis_date,
-                "project_name": row.sample.schema_obj.schema_app_name if row.sample.schema_obj else None,
+                "project_name": (
+                    row.sample.schema_obj.schema_app_name
+                    if row.sample.schema_obj
+                    else None
+                ),
             }
         )
     return results
@@ -165,10 +176,14 @@ def filter_options(filters, request_user=None):
         variant_observations__isnull=False
     )
     sample_ids = Subquery(sample_queryset.values("id").distinct())
-    date_queryset = models.MetadataValues.objects.filter(
-        sample_id__in=sample_ids,
-        schema_property__property__iexact=COLLECTION_DATE_PROPERTY,
-    ).exclude(value__isnull=True).exclude(value="")
+    date_queryset = (
+        models.MetadataValues.objects.filter(
+            sample_id__in=sample_ids,
+            schema_property__property__iexact=COLLECTION_DATE_PROPERTY,
+        )
+        .exclude(value__isnull=True)
+        .exclude(value="")
+    )
     platform_rows = (
         models.MetadataValues.objects.filter(
             sample_id__in=sample_ids,
@@ -187,8 +202,7 @@ def filter_options(filters, request_user=None):
             "max": date_range["max"],
         },
         "sequencing_platforms": [
-            {"label": value, "value": value}
-            for value in platform_rows
+            {"label": value, "value": value} for value in platform_rows
         ],
     }
 

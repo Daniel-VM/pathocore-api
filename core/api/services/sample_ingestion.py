@@ -98,8 +98,7 @@ def increase_sample_unique_id(previous_value: str) -> str:
         letter_block += 1
 
     sample_unique_id = (
-        f"{prefix}{_encode_sample_id_letters(letter_block)}-"
-        f"{numeric_block:04d}"
+        f"{prefix}{_encode_sample_id_letters(letter_block)}-" f"{numeric_block:04d}"
     )
     max_length = models.Sample._meta.get_field("sample_unique_id").max_length
     if len(sample_unique_id) > max_length:

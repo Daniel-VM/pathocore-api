@@ -61,7 +61,6 @@ class ErrorNameAdmin(admin.ModelAdmin):
     list_display = ["error_name", "error_code", "error_text"]
 
 
-
 class PublicDatabaseTypeAdmin(admin.ModelAdmin):
     list_display = ["public_type_name", "public_type_display"]
 
@@ -88,7 +87,6 @@ class SampleAdmin(admin.ModelAdmin):
 
 class SampleStateAdmin(admin.ModelAdmin):
     list_display = ["state", "description"]
-
 
 
 class SampleIdSequenceAdmin(admin.ModelAdmin):
@@ -155,7 +153,13 @@ class VariantAnnotationAdmin(admin.ModelAdmin):
         "locus_id",
         "aminoacid_change",
     ]
-    search_fields = ["gene_region", "effect", "locus_name", "locus_id", "aminoacid_change"]
+    search_fields = [
+        "gene_region",
+        "effect",
+        "locus_name",
+        "locus_id",
+        "aminoacid_change",
+    ]
     list_filter = ["effect", "functional_class"]
 
 

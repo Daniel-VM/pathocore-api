@@ -48,6 +48,7 @@ TAG_SAMPLE_HISTORY = "Sample History"
 TAG_DATABROWSER = "Databrowser"
 TAG_VARIANTS = "Variants"
 
+
 # API-side agination for /samples list endpoint.
 class SamplesPagination(PageNumberPagination):
     page_size = 500
@@ -196,10 +197,18 @@ def samples(request):
         traceability_data = {
             key: value
             for key, value in {
-                "sequencing_sample_id": serializer.validated_data.get("sequencing_sample_id"),
-                "submitting_lab_sample_id": serializer.validated_data.get("submitting_lab_sample_id"),
-                "collecting_lab_sample_id": serializer.validated_data.get("collecting_lab_sample_id"),
-                "collecting_lab_isolate_id": serializer.validated_data.get("collecting_lab_isolate_id"),
+                "sequencing_sample_id": serializer.validated_data.get(
+                    "sequencing_sample_id"
+                ),
+                "submitting_lab_sample_id": serializer.validated_data.get(
+                    "submitting_lab_sample_id"
+                ),
+                "collecting_lab_sample_id": serializer.validated_data.get(
+                    "collecting_lab_sample_id"
+                ),
+                "collecting_lab_isolate_id": serializer.validated_data.get(
+                    "collecting_lab_isolate_id"
+                ),
             }.items()
             if value is not None and str(value).strip() != ""
         }
@@ -246,18 +255,24 @@ def samples(request):
                     .last()
                 )
                 if sequence_obj is None:
-                    next_sample_unique_id = sample_ingestion.get_initial_sample_unique_id()
+                    next_sample_unique_id = (
+                        sample_ingestion.get_initial_sample_unique_id()
+                    )
                     sequence_obj = core.models.SampleIdSequence.objects.create(
                         sequence_name="sample_unique_id",
                         last_value=next_sample_unique_id,
                     )
                 else:
                     if sequence_obj.last_value:
-                        next_sample_unique_id = sample_ingestion.increase_sample_unique_id(
-                            sequence_obj.last_value
+                        next_sample_unique_id = (
+                            sample_ingestion.increase_sample_unique_id(
+                                sequence_obj.last_value
+                            )
                         )
                     else:
-                        next_sample_unique_id = sample_ingestion.get_initial_sample_unique_id()
+                        next_sample_unique_id = (
+                            sample_ingestion.get_initial_sample_unique_id()
+                        )
                     sequence_obj.last_value = next_sample_unique_id
                     sequence_obj.save(update_fields=["last_value"])
 
@@ -276,7 +291,9 @@ def samples(request):
             if existing_sample:
                 core.api.utils.common_functions.record_sample_error(
                     existing_sample,
-                    core.api.utils.common_functions.map_error_name("Sample already exists"),
+                    core.api.utils.common_functions.map_error_name(
+                        "Sample already exists"
+                    ),
                 )
                 return Response(
                     {
@@ -1246,8 +1263,10 @@ def sample_metadata_view(request, sample_unique_id):
         )
 
     try:
-        metadata_create_specs = sample_metadata_ingestion.prepare_sample_metadata_create(
-            sample_obj, schema_obj, payload
+        metadata_create_specs = (
+            sample_metadata_ingestion.prepare_sample_metadata_create(
+                sample_obj, schema_obj, payload
+            )
         )
     except ValueError as exc:
         error_message = str(exc)
@@ -1329,8 +1348,8 @@ def databrowser_overview_summary_view(request):
         )
     except PermissionDenied as exc:
         return Response({"error": str(exc)}, status=status.HTTP_403_FORBIDDEN)
-    response_serializer = (
-        core.api.v1.serializers.DatabrowserOverviewSummarySerializer(data=response_data)
+    response_serializer = core.api.v1.serializers.DatabrowserOverviewSummarySerializer(
+        data=response_data
     )
     response_serializer.is_valid(raise_exception=True)
     return Response(response_serializer.data, status=status.HTTP_200_OK)
@@ -1365,8 +1384,8 @@ def databrowser_metadata_summary_view(request):
         )
     except PermissionDenied as exc:
         return Response({"error": str(exc)}, status=status.HTTP_403_FORBIDDEN)
-    response_serializer = (
-        core.api.v1.serializers.DatabrowserMetadataSummarySerializer(data=response_data)
+    response_serializer = core.api.v1.serializers.DatabrowserMetadataSummarySerializer(
+        data=response_data
     )
     response_serializer.is_valid(raise_exception=True)
     return Response(response_serializer.data, status=status.HTTP_200_OK)
@@ -1392,10 +1411,8 @@ def databrowser_metadata_summary_view(request):
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def databrowser_metadata_property_distribution_view(request):
-    serializer = (
-        core.api.v1.serializers.DatabrowserPropertyDistributionQuerySerializer(
-            data=request.query_params
-        )
+    serializer = core.api.v1.serializers.DatabrowserPropertyDistributionQuerySerializer(
+        data=request.query_params
     )
     serializer.is_valid(raise_exception=True)
     try:
@@ -1444,8 +1461,8 @@ def databrowser_schema_summary_view(request):
         )
     except PermissionDenied as exc:
         return Response({"error": str(exc)}, status=status.HTTP_403_FORBIDDEN)
-    response_serializer = (
-        core.api.v1.serializers.DatabrowserSchemaSummarySerializer(data=response_data)
+    response_serializer = core.api.v1.serializers.DatabrowserSchemaSummarySerializer(
+        data=response_data
     )
     response_serializer.is_valid(raise_exception=True)
     return Response(response_serializer.data, status=status.HTTP_200_OK)
@@ -1534,7 +1551,9 @@ def variant_search_view(request):
 
     queryset = search_result["queryset"]
     if not queryset.exists():
-        return Response({"error": "No variants found"}, status=status.HTTP_404_NOT_FOUND)
+        return Response(
+            {"error": "No variants found"}, status=status.HTTP_404_NOT_FOUND
+        )
 
     paginator = VariantsPagination()
     try:
