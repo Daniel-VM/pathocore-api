@@ -1304,9 +1304,9 @@ def sample_metadata_view(request, sample_unique_id):
     tags=[TAG_DATABROWSER],
     summary="Databrowser overview summary",
     description=(
-        "Return backend-computed overview aggregates for the web databrowser. "
-        "This endpoint replaces loading all samples and then fetching metadata "
-        "sample-by-sample."
+        "Return global precomputed overview aggregates for the web databrowser. "
+        "This endpoint exposes a database-level snapshot and replaces loading "
+        "all samples and then fetching metadata sample-by-sample."
     ),
     parameters=[core.api.v1.serializers.DatabrowserSummaryQuerySerializer],
     responses={
@@ -1340,8 +1340,9 @@ def databrowser_overview_summary_view(request):
     tags=[TAG_DATABROWSER],
     summary="Databrowser metadata summary",
     description=(
-        "Return priority metadata sections already aggregated in the backend. "
-        "This avoids the previous N-samples/N-metadata-requests frontend pattern."
+        "Return global priority metadata sections already aggregated in the "
+        "backend. This avoids the previous N-samples/N-metadata-requests "
+        "frontend pattern."
     ),
     parameters=[core.api.v1.serializers.DatabrowserSummaryQuerySerializer],
     responses={
@@ -1376,7 +1377,8 @@ def databrowser_metadata_summary_view(request):
     summary="Databrowser metadata property distribution",
     description=(
         "Return the distribution for one metadata property using backend "
-        "aggregation and optional scope/filter query parameters."
+        "aggregation and optional filter query parameters. Databrowser "
+        "aggregates are database-level snapshots."
     ),
     parameters=[core.api.v1.serializers.DatabrowserPropertyDistributionQuerySerializer],
     responses={
@@ -1417,8 +1419,9 @@ def databrowser_metadata_property_distribution_view(request):
     tags=[TAG_DATABROWSER],
     summary="Databrowser schema summary",
     description=(
-        "Return schema cards, classification distribution and sample counts per "
-        "schema without downloading every schema JSON detail in the frontend."
+        "Return global schema cards, classification distribution and sample "
+        "counts per schema without downloading every schema JSON detail in the "
+        "frontend."
     ),
     parameters=[core.api.v1.serializers.DatabrowserSummaryQuerySerializer],
     responses={

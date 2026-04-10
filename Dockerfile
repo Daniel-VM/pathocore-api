@@ -25,7 +25,8 @@ COPY . /srv/pathocore-api
 
 RUN chmod +x /srv/pathocore-api/install.sh \
     && chmod +x /srv/pathocore-api/container_install.sh \
-    && chmod +x /srv/pathocore-api/scripts/container_start.sh
+    && chmod +x /srv/pathocore-api/scripts/container_start.sh \
+    && chmod +x /srv/pathocore-api/scripts/databrowser_cache_scheduler.sh
 
 ARG GIT_REVISION=develop
 ARG INSTALL_CONF=conf/docker_test_settings.txt
