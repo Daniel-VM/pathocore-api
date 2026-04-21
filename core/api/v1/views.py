@@ -58,6 +58,30 @@ class VariantsPagination(PageNumberPagination):
     max_page_size = 5000
 
 
+def _reject_generic_databrowser_query_params(
+    request, endpoint_name, allowed_params=None
+):
+    allowed_params = set(allowed_params or [])
+    unsupported_params = sorted(set(request.query_params.keys()) - allowed_params)
+    if unsupported_params:
+        if allowed_params:
+            allowed_text = ", ".join(sorted(allowed_params))
+            message = (
+                f"{endpoint_name} only supports these query parameters: "
+                f"{allowed_text}"
+            )
+        else:
+            message = f"{endpoint_name} does not support query parameters"
+        return Response(
+            {
+                "error": message,
+                "unsupported_query_params": unsupported_params,
+            },
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+    return None
+
+
 # FIXME: Sample ingest rejects json containing fields not defined in SampleIngestSerializer
 @extend_schema(
     methods=["POST"],
@@ -1319,31 +1343,27 @@ def sample_metadata_view(request, sample_unique_id):
     tags=[TAG_DATABROWSER],
     summary="Databrowser overview summary",
     description=(
-        "Return global precomputed overview aggregates for the web databrowser. "
-        "This endpoint exposes a database-level snapshot and replaces loading "
-        "all samples and then fetching metadata sample-by-sample."
+        "Return authenticated global overview aggregates for the generic web "
+        "databrowser. This endpoint exposes a database-level snapshot, is not "
+        "scoped by project/user and does not support query parameters."
     ),
-    parameters=[core.api.v1.serializers.DatabrowserSummaryQuerySerializer],
+    parameters=[],
     responses={
         200: core.api.v1.serializers.DatabrowserOverviewSummarySerializer,
+        400: core.api.v1.serializers.ErrorSerializer,
         401: core.api.v1.serializers.ErrorSerializer,
-        403: core.api.v1.serializers.ErrorSerializer,
     },
 )
 @authentication_classes([SessionAuthentication, BasicAuthentication])
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def databrowser_overview_summary_view(request):
-    serializer = core.api.v1.serializers.DatabrowserSummaryQuerySerializer(
-        data=request.query_params
+    query_params_error = _reject_generic_databrowser_query_params(
+        request, "overview-summary"
     )
-    serializer.is_valid(raise_exception=True)
-    try:
-        response_data = databrowser.overview_summary(
-            serializer.validated_data, request_user=request.user
-        )
-    except PermissionDenied as exc:
-        return Response({"error": str(exc)}, status=status.HTTP_403_FORBIDDEN)
+    if query_params_error is not None:
+        return query_params_error
+    response_data = databrowser.overview_summary({}, request_user=None)
     response_serializer = core.api.v1.serializers.DatabrowserOverviewSummarySerializer(
         data=response_data
     )
@@ -1355,31 +1375,27 @@ def databrowser_overview_summary_view(request):
     tags=[TAG_DATABROWSER],
     summary="Databrowser metadata summary",
     description=(
-        "Return global priority metadata sections already aggregated in the "
-        "backend. This avoids the previous N-samples/N-metadata-requests "
-        "frontend pattern."
+        "Return authenticated global priority metadata sections already "
+        "aggregated in the backend. This endpoint is not scoped by "
+        "project/user and does not support query parameters."
     ),
-    parameters=[core.api.v1.serializers.DatabrowserSummaryQuerySerializer],
+    parameters=[],
     responses={
         200: core.api.v1.serializers.DatabrowserMetadataSummarySerializer,
+        400: core.api.v1.serializers.ErrorSerializer,
         401: core.api.v1.serializers.ErrorSerializer,
-        403: core.api.v1.serializers.ErrorSerializer,
     },
 )
 @authentication_classes([SessionAuthentication, BasicAuthentication])
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def databrowser_metadata_summary_view(request):
-    serializer = core.api.v1.serializers.DatabrowserSummaryQuerySerializer(
-        data=request.query_params
+    query_params_error = _reject_generic_databrowser_query_params(
+        request, "metadata-summary"
     )
-    serializer.is_valid(raise_exception=True)
-    try:
-        response_data = databrowser.metadata_summary(
-            serializer.validated_data, request_user=request.user
-        )
-    except PermissionDenied as exc:
-        return Response({"error": str(exc)}, status=status.HTTP_403_FORBIDDEN)
+    if query_params_error is not None:
+        return query_params_error
+    response_data = databrowser.metadata_summary({}, request_user=None)
     response_serializer = core.api.v1.serializers.DatabrowserMetadataSummarySerializer(
         data=response_data
     )
@@ -1391,34 +1407,38 @@ def databrowser_metadata_summary_view(request):
     tags=[TAG_DATABROWSER],
     summary="Databrowser metadata property distribution",
     description=(
-        "Return the distribution for one metadata property using backend "
-        "aggregation and optional filter query parameters. Databrowser "
-        "aggregates are database-level snapshots."
+        "Return the authenticated global distribution for one metadata "
+        "property using backend aggregation. This endpoint is not scoped by "
+        "project/user. Only the `property` query parameter is supported."
     ),
     parameters=[core.api.v1.serializers.DatabrowserPropertyDistributionQuerySerializer],
     responses={
         200: core.api.v1.serializers.DatabrowserPropertyDistributionSerializer,
         400: core.api.v1.serializers.ErrorSerializer,
         401: core.api.v1.serializers.ErrorSerializer,
-        403: core.api.v1.serializers.ErrorSerializer,
     },
 )
 @authentication_classes([SessionAuthentication, BasicAuthentication])
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def databrowser_metadata_property_distribution_view(request):
+    query_params_error = _reject_generic_databrowser_query_params(
+        request,
+        "metadata/property-distribution",
+        allowed_params={"property"},
+    )
+    if query_params_error is not None:
+        return query_params_error
     serializer = core.api.v1.serializers.DatabrowserPropertyDistributionQuerySerializer(
         data=request.query_params
     )
     serializer.is_valid(raise_exception=True)
     try:
         response_data = databrowser.property_distribution(
-            serializer.validated_data, request_user=request.user
+            serializer.validated_data, request_user=None
         )
     except ValueError as exc:
         return Response({"error": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
-    except PermissionDenied as exc:
-        return Response({"error": str(exc)}, status=status.HTTP_403_FORBIDDEN)
     response_serializer = (
         core.api.v1.serializers.DatabrowserPropertyDistributionSerializer(
             data=response_data
@@ -1432,31 +1452,28 @@ def databrowser_metadata_property_distribution_view(request):
     tags=[TAG_DATABROWSER],
     summary="Databrowser schema summary",
     description=(
-        "Return global schema cards, classification distribution and sample "
-        "counts per schema without downloading every schema JSON detail in the "
-        "frontend."
+        "Return authenticated global schema cards, classification distribution "
+        "and sample counts per schema without downloading every schema JSON "
+        "detail in the frontend. This endpoint is not scoped by project/user "
+        "and does not support query parameters."
     ),
-    parameters=[core.api.v1.serializers.DatabrowserSummaryQuerySerializer],
+    parameters=[],
     responses={
         200: core.api.v1.serializers.DatabrowserSchemaSummarySerializer,
+        400: core.api.v1.serializers.ErrorSerializer,
         401: core.api.v1.serializers.ErrorSerializer,
-        403: core.api.v1.serializers.ErrorSerializer,
     },
 )
 @authentication_classes([SessionAuthentication, BasicAuthentication])
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def databrowser_schema_summary_view(request):
-    serializer = core.api.v1.serializers.DatabrowserSummaryQuerySerializer(
-        data=request.query_params
+    query_params_error = _reject_generic_databrowser_query_params(
+        request, "schema-summary"
     )
-    serializer.is_valid(raise_exception=True)
-    try:
-        response_data = databrowser.schema_summary(
-            serializer.validated_data, request_user=request.user
-        )
-    except PermissionDenied as exc:
-        return Response({"error": str(exc)}, status=status.HTTP_403_FORBIDDEN)
+    if query_params_error is not None:
+        return query_params_error
+    response_data = databrowser.schema_summary({}, request_user=None)
     response_serializer = core.api.v1.serializers.DatabrowserSchemaSummarySerializer(
         data=response_data
     )
