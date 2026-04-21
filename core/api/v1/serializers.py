@@ -701,25 +701,7 @@ class VariantFilterOptionsSerializer(serializers.Serializer):
     sequencing_platforms = serializers.ListField(child=serializers.DictField())
 
 
-class DatabrowserSummaryQuerySerializer(serializers.Serializer):
-    project_name = serializers.CharField(required=False, allow_blank=False)
-    schema_name = serializers.CharField(required=False, allow_blank=False)
-    schema_version = serializers.CharField(required=False, allow_blank=False)
-    date_from = serializers.DateField(required=False)
-    date_to = serializers.DateField(required=False)
-    sequencing_platform = serializers.CharField(required=False, allow_blank=False)
-
-    def validate(self, attrs):
-        date_from = attrs.get("date_from")
-        date_to = attrs.get("date_to")
-        if date_from and date_to and date_from > date_to:
-            raise serializers.ValidationError(
-                {"error": "date_from cannot be after date_to"}
-            )
-        return attrs
-
-
-class DatabrowserPropertyDistributionQuerySerializer(DatabrowserSummaryQuerySerializer):
+class DatabrowserPropertyDistributionQuerySerializer(serializers.Serializer):
     property = serializers.CharField(required=True, allow_blank=False)
 
 

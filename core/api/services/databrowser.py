@@ -351,7 +351,9 @@ def _cached_or_live_global_summary(summary_name, filters, live_builder):
     if normalized_filters:
         # Databrowser is a global database snapshot. Filtered views are still
         # computed globally, without user project scoping.
-        return live_builder(normalized_filters, request_user=None)
+        return _generic_databrowser_payload(
+            summary_name, live_builder(normalized_filters, request_user=None)
+        )
 
     try:
         cached = models.DatabrowserSummaryCache.objects.filter(
@@ -363,17 +365,23 @@ def _cached_or_live_global_summary(summary_name, filters, live_builder):
         cached = None
 
     if cached is not None:
-        return cached.payload
+        return _generic_databrowser_payload(summary_name, cached.payload)
 
     try:
-        return _refresh_global_summary(summary_name, live_builder)["payload"]
+        return _generic_databrowser_payload(
+            summary_name, _refresh_global_summary(summary_name, live_builder)["payload"]
+        )
     except DatabaseError:
-        return live_builder({}, request_user=None)
+        return _generic_databrowser_payload(
+            summary_name, live_builder({}, request_user=None)
+        )
 
 
 def _refresh_global_summary(summary_name, live_builder):
     filters = {}
-    payload = _json_safe(live_builder(filters, request_user=None))
+    payload = _generic_databrowser_payload(
+        summary_name, _json_safe(live_builder(filters, request_user=None))
+    )
     try:
         cache_obj, _ = models.DatabrowserSummaryCache.objects.update_or_create(
             summary_name=summary_name,
@@ -400,6 +408,34 @@ def _refresh_global_summary(summary_name, live_builder):
         "generated_at": cache_obj.generated_at,
         "payload": payload,
     }
+
+
+def _generic_databrowser_payload(summary_name, payload):
+    """Remove project/use-case details from generic databrowser payloads."""
+
+    generic_payload = _json_safe(payload)
+    if summary_name == OVERVIEW_SUMMARY:
+        generic_payload["projects"] = []
+        generic_payload["kpis"] = [
+            item
+            for item in generic_payload.get("kpis", [])
+            if item.get("label") != "Projects"
+        ]
+        generic_payload.get("metrics", {}).pop("project_count", None)
+    elif summary_name == SCHEMA_SUMMARY:
+        generic_payload["stats"] = [
+            item
+            for item in generic_payload.get("stats", [])
+            if item.get("label") != "Projects"
+        ]
+        for schema_card in generic_payload.get("schema_cards", []):
+            schema_card.pop("project_name", None)
+        for schema_option in generic_payload.get("schema_options", []):
+            schema_option.pop("project_name", None)
+    elif summary_name == METADATA_SUMMARY:
+        for schema_option in generic_payload.get("schema_options", []):
+            schema_option.pop("project_name", None)
+    return generic_payload
 
 
 def _normalize_filters(filters):
