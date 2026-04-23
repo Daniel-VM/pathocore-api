@@ -736,6 +736,7 @@ class DatabrowserSchemaSummarySerializer(serializers.Serializer):
 
 class DatabrowserPropertyDistributionSerializer(serializers.Serializer):
     property = serializers.CharField()
+    aliases = serializers.ListField(child=serializers.CharField())
     total_samples = serializers.IntegerField()
     matched_samples = serializers.IntegerField()
     values = serializers.ListField(child=serializers.DictField())
