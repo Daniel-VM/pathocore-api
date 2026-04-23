@@ -737,6 +737,13 @@ class DatabrowserSchemaSummarySerializer(serializers.Serializer):
 class DatabrowserPropertyDistributionSerializer(serializers.Serializer):
     property = serializers.CharField()
     aliases = serializers.ListField(child=serializers.CharField())
+    strategy = serializers.CharField()
+    data_contract_version = serializers.CharField()
+    coverage = serializers.DictField()
+    metadata = serializers.DictField()
     total_samples = serializers.IntegerField()
     matched_samples = serializers.IntegerField()
     values = serializers.ListField(child=serializers.DictField())
+    breakdowns = serializers.DictField()
+    cards = serializers.ListField(child=serializers.DictField())
+    ui_hints = serializers.DictField()

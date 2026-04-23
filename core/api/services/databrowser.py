@@ -24,6 +24,8 @@ SCHEMA_SUMMARY = core.config.DATABROWSER_SCHEMA_SUMMARY
 CACHEABLE_SUMMARIES = core.config.DATABROWSER_CACHEABLE_SUMMARIES
 GEOLOCATION_PROPERTIES = set(core.config.DATABROWSER_GEOLOCATION_PROPERTIES)
 GEOLOCATION_CENTROIDS = core.config.DATABROWSER_GEOLOCATION_CENTROIDS
+PATHOGEN_PROPERTIES = core.config.DATABROWSER_PATHOGEN_PROPERTIES
+YEAR_PROPERTIES = core.config.DATABROWSER_YEAR_PROPERTIES
 
 
 def overview_summary(filters=None, request_user=None):
@@ -315,20 +317,36 @@ def property_distribution(filters=None, request_user=None):
     strategy = property_spec["strategy"] if property_spec else "categorical"
     samples = _visible_samples(filters, None)
     sample_ids = Subquery(samples.values("id"))
-    values = _distribution_for_aliases(sample_ids, aliases, strategy)
-    matched_samples = (
-        _metadata_queryset(sample_ids)
-        .filter(schema_property__property__in=aliases)
-        .values("sample_id")
-        .distinct()
-        .count()
+    total_samples = samples.count()
+    property_rows = _metadata_sample_value_rows(sample_ids, aliases)
+    matched_samples = len({row["sample_id"] for row in property_rows})
+    values = _build_distribution(_value_counts_from_rows(property_rows), strategy)
+    breakdowns = _property_distribution_breakdowns(
+        sample_ids=sample_ids,
+        property_rows=property_rows,
+        property_strategy=strategy,
     )
     return {
         "property": property_name,
         "aliases": aliases,
-        "total_samples": samples.count(),
+        "strategy": strategy,
+        "data_contract_version": "2026-04-flexible-property-distribution",
+        "coverage": _coverage_payload(total_samples, matched_samples),
+        "metadata": _property_distribution_metadata(
+            property_name, aliases, strategy, property_spec
+        ),
+        "total_samples": total_samples,
         "matched_samples": matched_samples,
         "values": values,
+        "breakdowns": breakdowns,
+        "cards": _property_distribution_cards(
+            property_name=property_name,
+            property_spec=property_spec,
+            values=values,
+            breakdowns=breakdowns,
+            strategy=strategy,
+        ),
+        "ui_hints": _property_distribution_ui_hints(strategy),
     }
 
 
@@ -578,6 +596,404 @@ def _distribution_for_aliases(sample_ids, aliases, strategy):
         .annotate(count=Count("sample_id", distinct=True))
     )
     return _build_distribution([(row["value"], row["count"]) for row in rows], strategy)
+
+
+def _metadata_sample_value_rows(sample_ids, aliases):
+    return list(
+        _metadata_queryset(sample_ids)
+        .filter(schema_property__property__in=aliases)
+        .exclude(value__isnull=True)
+        .exclude(value="")
+        .values("sample_id", "value")
+        .distinct()
+    )
+
+
+def _value_counts_from_rows(rows):
+    sample_ids_by_value = defaultdict(set)
+    for row in rows:
+        sample_ids_by_value[row["value"]].add(row["sample_id"])
+    return [(value, len(sample_ids)) for value, sample_ids in sample_ids_by_value.items()]
+
+
+def _property_distribution_breakdowns(sample_ids, property_rows, property_strategy):
+    if not property_rows:
+        return _empty_property_distribution_breakdowns()
+
+    pathogen_index = _sample_context_index(
+        sample_ids, PATHOGEN_PROPERTIES, _categorical_label
+    )
+    year_index = _sample_context_index(sample_ids, YEAR_PROPERTIES, _year_label)
+    location_index = _sample_context_index(
+        sample_ids, GEOLOCATION_PROPERTIES, _location_label
+    )
+    return {
+        "pathogen": _grouped_property_distribution(
+            property_rows=property_rows,
+            context_index=pathogen_index,
+            unknown_label="Unknown pathogen",
+            group_label="pathogen",
+            strategy=property_strategy,
+            chart_kind="grouped-bar",
+            max_groups=12,
+        ),
+        "year": _grouped_property_distribution(
+            property_rows=property_rows,
+            context_index=year_index,
+            unknown_label="Unknown year",
+            group_label="year",
+            strategy=property_strategy,
+            chart_kind="grouped-bar",
+            max_groups=30,
+            sort_mode="label",
+        ),
+        "location": _location_property_distribution(
+            property_rows=property_rows,
+            location_index=location_index,
+            strategy=property_strategy,
+        ),
+    }
+
+
+def _empty_property_distribution_breakdowns():
+    return {
+        "pathogen": {
+            "id": "by-pathogen",
+            "label": "By pathogen",
+            "group_by": "pathogen",
+            "source_properties": sorted(PATHOGEN_PROPERTIES),
+            "chart_kind": "grouped-bar",
+            "metric": "distinct_sample_count",
+            "groups_total": 0,
+            "groups_returned": 0,
+            "truncated": False,
+            "series": [],
+        },
+        "year": {
+            "id": "by-year",
+            "label": "By year",
+            "group_by": "year",
+            "source_properties": sorted(YEAR_PROPERTIES),
+            "chart_kind": "grouped-bar",
+            "metric": "distinct_sample_count",
+            "groups_total": 0,
+            "groups_returned": 0,
+            "truncated": False,
+            "series": [],
+        },
+        "location": {
+            "id": "by-location",
+            "label": "By location",
+            "group_by": "location",
+            "source_properties": sorted(GEOLOCATION_PROPERTIES),
+            "chart_kind": "choropleth-map",
+            "metric": "distinct_sample_count",
+            "map_join": {
+                "geo_field": "geo",
+                "join_key": "code",
+                "value_field": "value",
+            },
+            "matched_samples_with_property": 0,
+            "locations_total": 0,
+            "values": [],
+            "truncated": False,
+        },
+    }
+
+
+def _sample_context_index(sample_ids, aliases, normalizer):
+    rows = _metadata_sample_value_rows(sample_ids, aliases)
+    context = defaultdict(set)
+    for row in rows:
+        label = normalizer(row["value"])
+        if label:
+            context[row["sample_id"]].add(label)
+    return {sample_id: sorted(labels) for sample_id, labels in context.items()}
+
+
+def _grouped_property_distribution(
+    property_rows,
+    context_index,
+    unknown_label,
+    group_label,
+    strategy,
+    chart_kind,
+    max_groups,
+    sort_mode="count",
+):
+    group_sample_ids = defaultdict(set)
+    group_value_sample_ids = defaultdict(lambda: defaultdict(set))
+    for row in property_rows:
+        sample_id = row["sample_id"]
+        context_labels = context_index.get(sample_id) or [unknown_label]
+        for context_label in context_labels:
+            group_sample_ids[context_label].add(sample_id)
+            group_value_sample_ids[context_label][row["value"]].add(sample_id)
+
+    series = []
+    for label, sample_ids in group_sample_ids.items():
+        value_counts = [
+            (value, len(value_sample_ids))
+            for value, value_sample_ids in group_value_sample_ids[label].items()
+        ]
+        series.append(
+            {
+                "label": label,
+                "sample_count": len(sample_ids),
+                "values": _build_distribution(value_counts, strategy),
+            }
+        )
+
+    if sort_mode == "label":
+        series.sort(
+            key=lambda item: (item["label"].startswith("Unknown"), item["label"])
+        )
+    else:
+        series.sort(key=lambda item: (-item["sample_count"], item["label"]))
+
+    return {
+        "id": f"by-{group_label}",
+        "label": f"By {group_label}",
+        "group_by": group_label,
+        "source_properties": (
+            sorted(YEAR_PROPERTIES)
+            if group_label == "year"
+            else sorted(PATHOGEN_PROPERTIES)
+        ),
+        "chart_kind": chart_kind,
+        "metric": "distinct_sample_count",
+        "groups_total": len(series),
+        "groups_returned": min(len(series), max_groups),
+        "truncated": len(series) > max_groups,
+        "series": series[:max_groups],
+    }
+
+
+def _location_property_distribution(property_rows, location_index, strategy):
+    location_total_sample_ids = defaultdict(set)
+    for sample_id, labels in location_index.items():
+        for label in labels:
+            location_total_sample_ids[label].add(sample_id)
+
+    matched_sample_ids = {row["sample_id"] for row in property_rows}
+    location_sample_ids = defaultdict(set)
+    location_value_sample_ids = defaultdict(lambda: defaultdict(set))
+    for row in property_rows:
+        sample_id = row["sample_id"]
+        location_labels = location_index.get(sample_id) or ["Unknown location"]
+        for location_label in location_labels:
+            location_sample_ids[location_label].add(sample_id)
+            location_value_sample_ids[location_label][row["value"]].add(sample_id)
+
+    values = []
+    for label, sample_ids in location_sample_ids.items():
+        total_for_location = len(location_total_sample_ids.get(label, sample_ids))
+        matched_count = len(sample_ids)
+        geo = _geo_for_label(label)
+        value_counts = [
+            (raw_value, len(value_sample_ids))
+            for raw_value, value_sample_ids in location_value_sample_ids[label].items()
+        ]
+        item = {
+            "label": geo["label"] if geo else label,
+            "value": matched_count,
+            "matched_samples": matched_count,
+            "total_samples": total_for_location,
+            "matched_share": (
+                matched_count / total_for_location if total_for_location else 0
+            ),
+            "top_values": _build_distribution(value_counts, strategy)[:8],
+            "tooltip": {
+                "title": geo["label"] if geo else label,
+                "matched_samples": matched_count,
+                "total_samples": total_for_location,
+                "matched_share": (
+                    matched_count / total_for_location if total_for_location else 0
+                ),
+            },
+        }
+        if geo:
+            item["geo"] = geo
+        values.append(item)
+
+    values.sort(
+        key=lambda item: (
+            item["label"] == "Unknown location",
+            -item["matched_samples"],
+            item["label"],
+        )
+    )
+    return {
+        "id": "by-location",
+        "label": "By location",
+        "group_by": "location",
+        "source_properties": sorted(GEOLOCATION_PROPERTIES),
+        "chart_kind": "choropleth-map",
+        "metric": "distinct_sample_count",
+        "map_join": {
+            "geo_field": "geo",
+            "join_key": "code",
+            "value_field": "value",
+        },
+        "matched_samples_with_property": len(matched_sample_ids),
+        "locations_total": len(values),
+        "values": values[:50],
+        "truncated": len(values) > 50,
+    }
+
+
+def _property_distribution_cards(property_name, property_spec, values, breakdowns, strategy):
+    display_name = (
+        property_spec.get("display_name", _humanize(property_name))
+        if property_spec
+        else _humanize(property_name)
+    )
+    chart_title = (
+        property_spec.get("chart_title", f"Samples by {display_name}")
+        if property_spec
+        else f"Samples by {display_name}"
+    )
+    cards = [
+        {
+            "id": "overall-distribution",
+            "title": chart_title,
+            "description": "Distribution of distinct samples by selected metadata value.",
+            "default_renderer": _chart_kind_for_strategy(strategy),
+            "supported_renderers": _supported_renderers_for_strategy(strategy),
+            "metric": "distinct_sample_count",
+            "data_path": "values",
+            "has_data": bool(values),
+        }
+    ]
+    if breakdowns["pathogen"]["series"]:
+        cards.append(
+            {
+                "id": "by-pathogen",
+                "title": f"{display_name} by pathogen",
+                "description": (
+                    "Same property distribution grouped by pathogen or organism "
+                    "metadata."
+                ),
+                "default_renderer": "grouped-bar",
+                "supported_renderers": ["grouped-bar", "stacked-bar", "cards"],
+                "metric": "distinct_sample_count",
+                "data_path": "breakdowns.pathogen.series",
+                "has_data": True,
+            }
+        )
+    if breakdowns["year"]["series"]:
+        cards.append(
+            {
+                "id": "by-year",
+                "title": f"{display_name} by year",
+                "description": "Same property distribution grouped by sample collection year.",
+                "default_renderer": "grouped-bar",
+                "supported_renderers": ["grouped-bar", "stacked-bar", "timeline"],
+                "metric": "distinct_sample_count",
+                "data_path": "breakdowns.year.series",
+                "has_data": True,
+            }
+        )
+    if breakdowns["location"]["values"]:
+        cards.append(
+            {
+                "id": "by-location",
+                "title": f"{display_name} by location",
+                "description": (
+                    "Samples with the selected property grouped by autonomous "
+                    "community."
+                ),
+                "default_renderer": "choropleth-map",
+                "supported_renderers": ["choropleth-map", "bar", "cards"],
+                "metric": "distinct_sample_count",
+                "data_path": "breakdowns.location.values",
+                "has_data": True,
+            }
+        )
+    return cards
+
+
+def _property_distribution_metadata(property_name, aliases, strategy, property_spec):
+    display_name = (
+        property_spec.get("display_name", _humanize(property_name))
+        if property_spec
+        else _humanize(property_name)
+    )
+    return {
+        "property": property_name,
+        "display_name": display_name,
+        "aliases": aliases,
+        "strategy": strategy,
+        "group": property_spec.get("group") if property_spec else None,
+        "chart_title": (
+            property_spec.get("chart_title", f"Samples by {display_name}")
+            if property_spec
+            else f"Samples by {display_name}"
+        ),
+    }
+
+
+def _coverage_payload(total_samples, matched_samples):
+    return {
+        "matched_samples": matched_samples,
+        "total_samples": total_samples,
+        "matched_share": matched_samples / total_samples if total_samples else 0,
+    }
+
+
+def _property_distribution_ui_hints(strategy):
+    return {
+        "metric": "distinct_sample_count",
+        "label_field": "label",
+        "value_field": "value",
+        "default_card": "overall-distribution",
+        "card_order": [
+            "overall-distribution",
+            "by-pathogen",
+            "by-year",
+            "by-location",
+        ],
+        "overall_default_renderer": _chart_kind_for_strategy(strategy),
+        "location_map": {
+            "renderer": "choropleth-map",
+            "geo_path": "breakdowns.location.values[].geo",
+            "join_key": "geo.code",
+            "tooltip_path": "breakdowns.location.values[].tooltip",
+        },
+    }
+
+
+def _chart_kind_for_strategy(strategy):
+    if strategy == "date":
+        return "line"
+    if strategy == "geography":
+        return "choropleth-map"
+    return "bar"
+
+
+def _supported_renderers_for_strategy(strategy):
+    if strategy == "date":
+        return ["line", "bar", "cards"]
+    if strategy == "geography":
+        return ["choropleth-map", "bar", "cards"]
+    return ["bar", "pie", "cards"]
+
+
+def _categorical_label(value):
+    return _truncate(_strip_ontology(str(value)))
+
+
+def _year_label(value):
+    parsed = _parse_date_label(value)
+    return parsed[:4] if parsed else None
+
+
+def _location_label(value):
+    raw_label = _strip_ontology(str(value))
+    if not raw_label:
+        return None
+    geo = _geo_for_label(raw_label)
+    return geo["label"] if geo else _truncate(raw_label)
 
 
 def _priority_spec_for_property(property_name):
