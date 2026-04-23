@@ -483,7 +483,8 @@ def _is_geography_property_card(property_card):
     property_name = str(property_card.get("property_name", "")).lower()
     actual_property_name = str(property_card.get("actual_property_name", "")).lower()
     return property_name in GEOLOCATION_PROPERTIES or any(
-        property_name in actual_property_name for property_name in GEOLOCATION_PROPERTIES
+        property_name in actual_property_name
+        for property_name in GEOLOCATION_PROPERTIES
     )
 
 
@@ -613,7 +614,9 @@ def _value_counts_from_rows(rows):
     sample_ids_by_value = defaultdict(set)
     for row in rows:
         sample_ids_by_value[row["value"]].add(row["sample_id"])
-    return [(value, len(sample_ids)) for value, sample_ids in sample_ids_by_value.items()]
+    return [
+        (value, len(sample_ids)) for value, sample_ids in sample_ids_by_value.items()
+    ]
 
 
 def _property_distribution_breakdowns(sample_ids, property_rows, property_strategy):
@@ -842,7 +845,9 @@ def _location_property_distribution(property_rows, location_index, strategy):
     }
 
 
-def _property_distribution_cards(property_name, property_spec, values, breakdowns, strategy):
+def _property_distribution_cards(
+    property_name, property_spec, values, breakdowns, strategy
+):
     display_name = (
         property_spec.get("display_name", _humanize(property_name))
         if property_spec
@@ -1351,7 +1356,9 @@ def _geography_distribution(value_counts):
             geos[key] = geo
 
     items = []
-    for key, value in sorted(counts.items(), key=lambda item: (-item[1], labels[item[0]])):
+    for key, value in sorted(
+        counts.items(), key=lambda item: (-item[1], labels[item[0]])
+    ):
         item = {"label": labels[key], "value": value}
         if key in geos:
             item["geo"] = geos[key]
