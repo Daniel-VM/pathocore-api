@@ -229,6 +229,18 @@ DATABROWSER_GEOLOCATION_PROPERTIES = (
     "submitting_geo_loc_state",
 )
 
+DATABROWSER_PATHOGEN_PROPERTIES = (
+    "organism",
+    "pathogen",
+    "taxon_name",
+    "species",
+)
+
+DATABROWSER_YEAR_PROPERTIES = (
+    "sample_collection_date",
+    "collection_date",
+)
+
 DATABROWSER_GEOLOCATION_CENTROIDS = {
     "andalucia": {
         "admin_level": "autonomous_community",

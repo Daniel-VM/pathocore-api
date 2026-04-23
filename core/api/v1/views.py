@@ -1408,8 +1408,11 @@ def databrowser_metadata_summary_view(request):
     summary="Databrowser metadata property distribution",
     description=(
         "Return the authenticated global distribution for one metadata "
-        "property using backend aggregation. This endpoint is not scoped by "
-        "project/user. Only the `property` query parameter is supported."
+        "property using backend aggregation. The response keeps the flat "
+        "`values` distribution and also includes flexible frontend-ready "
+        "cards plus pathogen, year and location breakdowns. This endpoint is "
+        "not scoped by project/user. Only the `property` query parameter is "
+        "supported."
     ),
     parameters=[core.api.v1.serializers.DatabrowserPropertyDistributionQuerySerializer],
     responses={
