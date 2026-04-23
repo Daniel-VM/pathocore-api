@@ -1,6 +1,8 @@
 from collections import defaultdict
 from datetime import date
 import json
+import re
+import unicodedata
 
 from django.core.serializers.json import DjangoJSONEncoder
 from django.db import DatabaseError, IntegrityError
@@ -20,6 +22,8 @@ OVERVIEW_SUMMARY = core.config.DATABROWSER_OVERVIEW_SUMMARY
 METADATA_SUMMARY = core.config.DATABROWSER_METADATA_SUMMARY
 SCHEMA_SUMMARY = core.config.DATABROWSER_SCHEMA_SUMMARY
 CACHEABLE_SUMMARIES = core.config.DATABROWSER_CACHEABLE_SUMMARIES
+GEOLOCATION_PROPERTIES = set(core.config.DATABROWSER_GEOLOCATION_PROPERTIES)
+GEOLOCATION_CENTROIDS = core.config.DATABROWSER_GEOLOCATION_CENTROIDS
 
 
 def overview_summary(filters=None, request_user=None):
@@ -75,7 +79,7 @@ def _overview_summary_live(filters=None, request_user=None):
             "collecting_institution_geo_loc_state",
             "submitting_geo_loc_state",
         ],
-        "categorical",
+        "geography",
     )[:8]
     pathogens = _distribution_for_aliases(sample_ids, ["organism"], "categorical")[:6]
     sample_growth = _distribution_for_aliases(
@@ -244,26 +248,9 @@ def _metadata_summary_live(filters=None, request_user=None):
     filters = filters or {}
     samples = _visible_samples(filters, request_user)
     schemas = _visible_schemas(filters, request_user)
-    sample_count_by_schema = _sample_count_by_schema_id(samples)
     sample_ids = Subquery(samples.values("id"))
     definitions = _property_definitions(schemas)
     sections = _metadata_sections(sample_ids, definitions, samples.count())
-    schema_options = _schema_options(schemas, sample_count_by_schema)
-    schema_scopes = [
-        {
-            "key": option["key"],
-            "sample_count": option["sample_count"],
-            "sections": _metadata_sections(
-                Subquery(
-                    samples.filter(schema_obj_id=option["schema_id"]).values("id")
-                ),
-                _property_definitions(schemas.filter(id=option["schema_id"])),
-                option["sample_count"],
-                include_empty=False,
-            ),
-        }
-        for option in schema_options
-    ]
     populated_priority_properties = sum(
         1
         for section in sections
@@ -281,10 +268,13 @@ def _metadata_summary_live(filters=None, request_user=None):
     )
     return {
         "schema_options": [
-            {key: value for key, value in option.items() if key != "schema_id"}
-            for option in schema_options
+            {
+                "key": "all",
+                "label": "All schemas",
+                "scope": "global",
+            }
         ],
-        "schema_scopes": schema_scopes,
+        "schema_scopes": [],
         "sections": sections,
         "notes": [
             "La vista agrega resultados desde endpoints backend agregados; ya no descarga metadata muestra a muestra.",
@@ -320,18 +310,22 @@ def property_distribution(filters=None, request_user=None):
     property_name = filters.get("property")
     if not property_name:
         raise ValueError("property is required")
+    property_spec = _priority_spec_for_property(property_name)
+    aliases = property_spec["aliases"] if property_spec else [property_name]
+    strategy = property_spec["strategy"] if property_spec else "categorical"
     samples = _visible_samples(filters, None)
     sample_ids = Subquery(samples.values("id"))
-    values = _distribution_for_aliases(sample_ids, [property_name], "categorical")
+    values = _distribution_for_aliases(sample_ids, aliases, strategy)
     matched_samples = (
         _metadata_queryset(sample_ids)
-        .filter(schema_property__property__iexact=property_name)
+        .filter(schema_property__property__in=aliases)
         .values("sample_id")
         .distinct()
         .count()
     )
     return {
         "property": property_name,
+        "aliases": aliases,
         "total_samples": samples.count(),
         "matched_samples": matched_samples,
         "values": values,
@@ -415,6 +409,9 @@ def _generic_databrowser_payload(summary_name, payload):
 
     generic_payload = _json_safe(payload)
     if summary_name == OVERVIEW_SUMMARY:
+        generic_payload["geography"] = _enrich_geography_chart_items(
+            generic_payload.get("geography", [])
+        )
         generic_payload["projects"] = []
         generic_payload["kpis"] = [
             item
@@ -433,9 +430,60 @@ def _generic_databrowser_payload(summary_name, payload):
         for schema_option in generic_payload.get("schema_options", []):
             schema_option.pop("project_name", None)
     elif summary_name == METADATA_SUMMARY:
-        for schema_option in generic_payload.get("schema_options", []):
-            schema_option.pop("project_name", None)
+        _enrich_metadata_geography(generic_payload)
+        generic_payload["schema_options"] = [
+            {
+                "key": "all",
+                "label": "All schemas",
+                "scope": "global",
+            }
+        ]
+        generic_payload["schema_scopes"] = []
     return generic_payload
+
+
+def _enrich_metadata_geography(payload):
+    for section in payload.get("sections", []):
+        _enrich_section_geography(section)
+    for schema_scope in payload.get("schema_scopes", []):
+        for section in schema_scope.get("sections", []):
+            _enrich_section_geography(section)
+
+
+def _enrich_section_geography(section):
+    for property_card in section.get("properties", []):
+        if _is_geography_property_card(property_card):
+            property_card["values"] = _enrich_geography_chart_items(
+                property_card.get("values", [])
+            )
+    for chart in section.get("summary_charts", []):
+        if _is_geography_summary_chart(chart):
+            chart["values"] = _enrich_geography_chart_items(chart.get("values", []))
+
+
+def _is_geography_property_card(property_card):
+    property_name = str(property_card.get("property_name", "")).lower()
+    actual_property_name = str(property_card.get("actual_property_name", "")).lower()
+    return property_name in GEOLOCATION_PROPERTIES or any(
+        property_name in actual_property_name for property_name in GEOLOCATION_PROPERTIES
+    )
+
+
+def _is_geography_summary_chart(chart):
+    title = str(chart.get("title", "")).lower()
+    return "geographic" in title or "region" in title
+
+
+def _enrich_geography_chart_items(items):
+    enriched = []
+    for item in items or []:
+        enriched_item = dict(item)
+        geo = _geo_for_label(enriched_item.get("label", ""))
+        if geo:
+            enriched_item["label"] = geo["label"]
+            enriched_item["geo"] = geo
+        enriched.append(enriched_item)
+    return enriched
 
 
 def _normalize_filters(filters):
@@ -532,31 +580,47 @@ def _distribution_for_aliases(sample_ids, aliases, strategy):
     return _build_distribution([(row["value"], row["count"]) for row in rows], strategy)
 
 
+def _priority_spec_for_property(property_name):
+    normalized_property = str(property_name).lower()
+    for spec in PRIORITY_PROPERTIES:
+        expected_property = spec["expected_property"].lower()
+        aliases = [alias.lower() for alias in spec["aliases"]]
+        if normalized_property == expected_property or normalized_property in aliases:
+            return spec
+    if normalized_property in GEOLOCATION_PROPERTIES:
+        return {
+            "aliases": list(GEOLOCATION_PROPERTIES),
+            "strategy": "geography",
+        }
+    return None
+
+
 def _metadata_sections(sample_ids, definitions, total_samples, include_empty=True):
     priority_index = _priority_metadata_index(sample_ids)
     sections = []
     for section_id in SECTION_ORDER:
         properties = []
+        empty_properties = []
         for spec in [
             item for item in PRIORITY_PROPERTIES if item["group"] == section_id
         ]:
             card = _property_card(spec, definitions, total_samples, priority_index)
-            if (
-                include_empty
-                or card["participant_count"] > 0
-                or card.get("description")
-            ):
+            if card["participant_count"] > 0:
                 properties.append(card)
-        sections.append(
-            {
-                "description": SECTION_META[section_id]["description"],
-                "id": section_id,
-                "notes": SECTION_META[section_id]["notes"],
-                "properties": properties,
-                "summary_charts": _summary_charts(section_id, priority_index),
-                "title": SECTION_META[section_id]["title"],
-            }
-        )
+            elif include_empty:
+                empty_properties.append(_empty_property_card(card))
+        section = {
+            "description": SECTION_META[section_id]["description"],
+            "empty_properties": empty_properties,
+            "empty_properties_count": len(empty_properties),
+            "empty_properties_label": "Properties with 0 registered samples",
+            "id": section_id,
+            "notes": SECTION_META[section_id]["notes"],
+            "properties": properties,
+            "summary_charts": _summary_charts(section_id, priority_index),
+            "title": SECTION_META[section_id]["title"],
+        }
+        sections.append(section)
     return sections
 
 
@@ -592,6 +656,8 @@ def _property_card(spec, definitions, total_samples, priority_index):
         "participant_share": (
             participant_count / total_samples if total_samples > 0 else 0
         ),
+        "has_data": participant_count > 0,
+        "has_chart": bool(values),
         "property_name": spec["expected_property"],
         "values": values,
     }
@@ -602,6 +668,19 @@ def _property_card(spec, definitions, total_samples, priority_index):
             else f"{aliases_used[0]} (+{len(aliases_used) - 1})"
         )
     return card
+
+
+def _empty_property_card(card):
+    return {
+        "chart_title": card["chart_title"],
+        "description": card["description"],
+        "display_name": card["display_name"],
+        "has_chart": False,
+        "has_data": False,
+        "participant_count": 0,
+        "participant_share": 0,
+        "property_name": card["property_name"],
+    }
 
 
 def _summary_charts(section_id, priority_index):
@@ -618,7 +697,7 @@ def _summary_charts(section_id, priority_index):
                         "collecting_institution_geo_loc_state",
                         "submitting_geo_loc_state",
                     ],
-                    "categorical",
+                    "geography",
                 )[:8],
             },
             {
@@ -829,12 +908,39 @@ def _build_distribution(value_counts, strategy):
         return _bucket_distribution(value_counts, strategy)
     if strategy == "date":
         return _date_distribution(value_counts)
+    if strategy == "geography":
+        return _geography_distribution(value_counts)
     counts = defaultdict(int)
     for value, count in value_counts:
         label = _truncate(_strip_ontology(str(value)))
         if label:
             counts[label] += count
     return _chart_items(counts)[:50]
+
+
+def _geography_distribution(value_counts):
+    counts = defaultdict(int)
+    labels = {}
+    geos = {}
+    for raw_value, count in value_counts:
+        raw_label = _strip_ontology(str(raw_value))
+        if not raw_label:
+            continue
+        geo = _geo_for_label(raw_label)
+        label = geo["label"] if geo else _truncate(raw_label)
+        key = _normalize_geo_key(label if geo else raw_label)
+        counts[key] += count
+        labels[key] = label
+        if geo:
+            geos[key] = geo
+
+    items = []
+    for key, value in sorted(counts.items(), key=lambda item: (-item[1], labels[item[0]])):
+        item = {"label": labels[key], "value": value}
+        if key in geos:
+            item["geo"] = geos[key]
+        items.append(item)
+    return items[:50]
 
 
 def _bucket_distribution(value_counts, strategy):
@@ -931,6 +1037,18 @@ def _strip_ontology(value):
             break
         value = value[:start] + value[end + 1 :]
     return value.strip()
+
+
+def _geo_for_label(label):
+    geo = GEOLOCATION_CENTROIDS.get(_normalize_geo_key(label))
+    return dict(geo) if geo else None
+
+
+def _normalize_geo_key(value):
+    normalized = unicodedata.normalize("NFKD", str(value))
+    normalized = "".join(char for char in normalized if not unicodedata.combining(char))
+    normalized = re.sub(r"[^a-zA-Z0-9]+", " ", normalized)
+    return " ".join(normalized.lower().split())
 
 
 def _truncate(value, max_length=28):
