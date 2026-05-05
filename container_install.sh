@@ -118,6 +118,12 @@ else
     install_conf_container="$install_conf"
 fi
 
+# Export install settings so Docker Compose sees the same Keycloak runtime config
+# that install.sh writes into the installed project's .env file.
+set -a
+. "$install_conf"
+set +a
+
 if [ "$git_revision" = "current" ]; then
     git_revision="$(git rev-parse --abbrev-ref HEAD)"
 fi

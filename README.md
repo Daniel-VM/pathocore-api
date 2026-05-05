@@ -188,6 +188,53 @@ DATABROWSER_CACHE_REFRESH_TIME=12:00
 DATABROWSER_CACHE_REFRESH_ON_START=false
 ```
 
+### Keycloak authentication
+
+PathoCore validates `Bearer` JWTs issued by Keycloak. The API needs these
+settings:
+
+```text
+KEYCLOAK_ISSUER=https://<keycloak-host>/realms/<realm>
+KEYCLOAK_JWKS_URL=https://<keycloak-host>/realms/<realm>/protocol/openid-connect/certs
+KEYCLOAK_AUDIENCE=pathocore-api
+KEYCLOAK_CLIENT_ID=pathocore-web
+```
+
+Optional settings:
+
+```text
+KEYCLOAK_JWKS_CACHE_TTL_SECONDS=300
+KEYCLOAK_JWKS_TIMEOUT_SECONDS=5
+PATHOCORE_ENABLE_LEGACY_BASIC_AUTH=true
+```
+
+Authorization is derived from the JWT `groups` claim. Supported group paths are
+`/use-cases/<project>/<view|admin>`,
+`/use-cases/<project>/labs/<lab>/<view|admin>`, and `/superusers`.
+The older `viewer` role is accepted as `view` during migration.
+
+Configuration flow:
+
+* Bash install: copy `conf/template_install_settings.txt`, fill the `KEYCLOAK_*`
+  values, then run `install.sh`. The installer writes those values to
+  `<INSTALL_PATH>/.env`; `template_settings.py` loads that file at runtime.
+* Docker install: fill `conf/docker_test_settings.txt` or
+  `conf/docker_production_settings.txt`, then run `container_install.sh`.
+  The selected install settings are exported for Compose and also written to the
+  installed app `.env`.
+* Runtime environment variables override the installed `.env` values.
+
+Missing Keycloak values warn while legacy auth is enabled and fail when legacy
+auth is disabled.
+
+For a Dockerized API validating local host-issued tokens, keep the issuer as the
+token sees it and point JWKS through the Docker host gateway:
+
+```text
+KEYCLOAK_ISSUER=http://127.0.0.1:8090/realms/ciberisciii_datahub
+KEYCLOAK_JWKS_URL=http://host.docker.internal:8090/realms/ciberisciii_datahub/protocol/openid-connect/certs
+```
+
 ## Installation outside Docker
 
 PathoCore API can also be installed directly on a Linux server. This mode is intended

@@ -17,6 +17,15 @@ DB_PORT=3306
 LOCAL_SERVER_IP='change_me_server_ip'
 DNS_URL='pathocore-api.example.org'
 
+### Keycloak authentication settings
+PATHOCORE_ENABLE_LEGACY_BASIC_AUTH="false"
+KEYCLOAK_ISSUER=""
+KEYCLOAK_JWKS_URL=""
+KEYCLOAK_AUDIENCE="pathocore-api"
+KEYCLOAK_CLIENT_ID="pathocore-api"
+KEYCLOAK_JWKS_CACHE_TTL_SECONDS=300
+KEYCLOAK_JWKS_TIMEOUT_SECONDS=5
+
 ### Logs settings
 LOG_TYPE="regular_folder"
 LOG_PATH=""

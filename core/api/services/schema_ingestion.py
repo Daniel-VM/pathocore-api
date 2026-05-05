@@ -55,6 +55,7 @@ def prepare_schema_create(payload, request_user):
 
     schema_app_name = _normalize_str(payload.get("schema_app_name"))
     schema_app_name = access_control.validate_allowed_project_name(schema_app_name)
+    access_control.ensure_project_write_access(request_user, schema_app_name)
 
     file_name = f"{schema_name}_{schema_version}.json".replace(" ", "_")
     file_payload = ContentFile(
@@ -109,7 +110,7 @@ def prepare_schema_create(payload, request_user):
     return {
         "schema_fields": {
             "file_name": file_payload,
-            "user_name": request_user,
+            "user_name": access_control.get_persisted_user(request_user),
             "schema_name": schema_name,
             "schema_version": schema_version,
             "schema_default": False,

@@ -1,5 +1,4 @@
 # Generic imports
-from rest_framework.authentication import SessionAuthentication, BasicAuthentication
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.decorators import (
     authentication_classes,
@@ -24,6 +23,13 @@ from django.db import transaction, IntegrityError
 import core.models
 import core.api.v1.serializers
 import core.api.utils.common_functions
+from core.api.authentication import (
+    KeycloakJWTAuthentication as SessionAuthentication,
+)
+from core.api.authentication import (
+    LegacyBasicOrSessionAuthentication as BasicAuthentication,
+)
+from core.api.permissions import HasProjectAccess
 from core.api.services import sample_ingestion
 from core.api.services import sample_listing
 from core.api.services import sample_detail
@@ -35,6 +41,7 @@ from core.api.services import schema_listing
 from core.api.services import databrowser
 from core.api.services import variant_ingestion
 from core.api.services import variant_search
+from core.api.utils import access_control
 
 # Documentation TAGs for drf-spectacular
 TAG_SCHEMAS = "Schemas"
@@ -43,6 +50,7 @@ TAG_SAMPLE_METADATA = "Sample Metadata"
 TAG_SAMPLE_HISTORY = "Sample History"
 TAG_DATABROWSER = "Databrowser"
 TAG_VARIANTS = "Variants"
+TAG_AUTH = "Authentication"
 
 
 # API-side agination for /samples list endpoint.
@@ -80,6 +88,69 @@ def _reject_generic_databrowser_query_params(
             status=status.HTTP_400_BAD_REQUEST,
         )
     return None
+
+
+@extend_schema(
+    tags=[TAG_AUTH],
+    summary="Return authenticated user context",
+    responses={
+        200: inline_serializer(
+            name="AuthMeResponse",
+            fields={
+                "authenticated": serializers.BooleanField(),
+                "provider": serializers.CharField(),
+                "user": inline_serializer(
+                    name="AuthMeUser",
+                    fields={
+                        "id": serializers.CharField(),
+                        "username": serializers.CharField(),
+                        "groups": serializers.ListField(
+                            child=serializers.CharField(), required=False
+                        ),
+                        "projects": serializers.ListField(
+                            child=serializers.DictField(), required=False
+                        ),
+                    },
+                ),
+                "token": serializers.DictField(),
+            },
+        ),
+        401: core.api.v1.serializers.ErrorSerializer,
+    },
+)
+@authentication_classes([SessionAuthentication, BasicAuthentication])
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def auth_me_view(request):
+    user_projects = access_control.get_user_projects(request.user)
+    if not user_projects and not access_control.is_keycloak_user(request.user):
+        try:
+            project_code = access_control.get_user_project_code(request.user)
+        except PermissionDenied:
+            project_code = None
+        if project_code:
+            user_projects = [
+                {
+                    "id": project_code,
+                    "labs": [],
+                    "role": "admin" if access_control.is_admin_user(request.user) else "",
+                }
+            ]
+
+    return Response(
+        {
+            "authenticated": True,
+            "provider": getattr(request.user, "auth_provider", "legacy-basic"),
+            "user": {
+                "id": str(getattr(request.user, "id", "")),
+                "username": str(getattr(request.user, "username", "")),
+                "groups": list(getattr(request.user, "groups", [])),
+                "projects": user_projects,
+            },
+            "token": request.auth if isinstance(request.auth, dict) else {},
+        },
+        status=status.HTTP_200_OK,
+    )
 
 
 # FIXME: Sample ingest rejects json containing fields not defined in SampleIngestSerializer
@@ -203,13 +274,6 @@ def _reject_generic_databrowser_query_params(
 @permission_classes([IsAuthenticated])
 def samples(request):
     if request.method == "POST":
-        # Few checks
-        if not request.user.is_staff:
-            return Response(
-                {"error": "Admin privileges required"},
-                status=status.HTTP_403_FORBIDDEN,
-            )
-
         # validation before ingestion
         serializer = core.api.v1.serializers.SampleIngestSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -236,8 +300,10 @@ def samples(request):
         # Create/Ingest Sample
         try:
             sample_create_data = sample_ingestion.prepare_sample_create(
-                serializer.validated_data
+                serializer.validated_data, request_user=request.user
             )
+        except PermissionDenied as exc:
+            return Response({"error": str(exc)}, status=status.HTTP_403_FORBIDDEN)
         except ValueError as exc:
             error_message = str(exc)
             if error_message == "Sample already exists":
@@ -300,7 +366,7 @@ def samples(request):
                     sample_unique_id=next_sample_unique_id,
                     fingerprint=sample_create_data["fingerprint"],
                     schema_obj=sample_create_data["schema_obj"],
-                    user=request.user,
+                    user=access_control.get_persisted_user(request.user),
                     **sample_create_data["defaults"],
                 )
                 created = True
@@ -526,13 +592,8 @@ def schema(request):
 )
 @authentication_classes([SessionAuthentication, BasicAuthentication])
 @api_view(["POST"])
-@permission_classes([IsAuthenticated])
+@permission_classes([IsAuthenticated, HasProjectAccess])
 def schema_create(request, project_name):
-    if not request.user.is_staff:
-        return Response(
-            {"error": "Admin privileges required"},
-            status=status.HTTP_403_FORBIDDEN,
-        )
     serializer = core.api.v1.serializers.SchemaIngestSerializer(data=request.data)
     serializer.is_valid(raise_exception=True)
     payload = dict(serializer.validated_data)
@@ -542,6 +603,8 @@ def schema_create(request, project_name):
         schema_create_data = schema_ingestion.prepare_schema_create(
             payload, request_user=request.user
         )
+    except PermissionDenied as exc:
+        return Response({"error": str(exc)}, status=status.HTTP_403_FORBIDDEN)
     except ValueError as exc:
         error_message = str(exc)
         if error_message == "Schema already exists":
@@ -1248,11 +1311,6 @@ def sample_metadata_view(request, sample_unique_id):
         return Response(response_serializer.data, status=status.HTTP_200_OK)
 
     # POST method
-    if not request.user.is_staff:
-        return Response(
-            {"error": "Admin privileges required"},
-            status=status.HTTP_403_FORBIDDEN,
-        )
     serializer = core.api.v1.serializers.SampleMetadataIngestSerializer(
         data=request.data
     )
@@ -1266,11 +1324,14 @@ def sample_metadata_view(request, sample_unique_id):
     schema_name = serializer.validated_data.get("schema_name")
     schema_version = serializer.validated_data.get("schema_version")
     try:
+        access_control.ensure_sample_write_access(sample_obj, request.user)
         schema_obj = sample_metadata_ingestion.resolve_sample_metadata_schema(
             sample_obj,
             schema_name=schema_name,
             schema_version=schema_version,
         )
+    except PermissionDenied as exc:
+        return Response({"error": str(exc)}, status=status.HTTP_403_FORBIDDEN)
     except ValueError as exc:
         error_message = str(exc)
         core.api.utils.common_functions.record_sample_error(
@@ -1767,12 +1828,6 @@ def variant_filter_options_view(request):
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
 def variant_ingest_view(request):
-    if not request.user.is_staff:
-        return Response(
-            {"error": "Admin privileges required"},
-            status=status.HTTP_403_FORBIDDEN,
-        )
-
     serializer = core.api.v1.serializers.VariantIngestSerializer(data=request.data)
     serializer.is_valid(raise_exception=True)
 
@@ -1799,6 +1854,8 @@ def variant_ingest_view(request):
             request_user=request.user,
             chunk_size=chunk_size,
         )
+    except PermissionDenied as exc:
+        return Response({"error": str(exc)}, status=status.HTTP_403_FORBIDDEN)
     except ValueError as exc:
         response_data = {"data": {}, "success": False, "errors": [str(exc)]}
         if str(exc).startswith("Sample not found:"):

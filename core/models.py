@@ -73,7 +73,7 @@ class SchemaManager(models.Manager):
 
 class Schema(models.Model):
     file_name = models.FileField(upload_to=core.config.SCHEMAS_UPLOAD_FOLDER)
-    user_name = models.ForeignKey(User, on_delete=models.CASCADE)
+    user_name = models.ForeignKey(User, on_delete=models.CASCADE, null=True, blank=True)
     schema_name = models.CharField(max_length=40)
     schema_version = models.CharField(max_length=10)
     schema_in_use = models.BooleanField(default=True)

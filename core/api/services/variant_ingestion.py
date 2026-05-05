@@ -21,6 +21,8 @@ def ingest_variants(payload, request_user=None, chunk_size=DEFAULT_CHUNK_SIZE):
         sample_obj = _resolve_sample_from_candidates(
             item["sample_candidates"], request_user=request_user
         )
+        if request_user is not None:
+            access_control.ensure_sample_write_access(sample_obj, request_user)
         analysis_date = _parse_required_date(item["analysis_date"])
         key = (sample_obj.pk, analysis_date)
         entry = groups.setdefault(

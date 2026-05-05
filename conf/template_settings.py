@@ -5,6 +5,25 @@ import os
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 
+def _load_runtime_env_file():
+    env_file = os.environ.get("PATHOCORE_ENV_FILE")
+    env_path = Path(env_file) if env_file else BASE_DIR / ".env"
+    if not env_path.is_file():
+        return
+    for raw_line in env_path.read_text().splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        key = key.strip()
+        value = value.strip().strip("\"'")
+        if key:
+            os.environ.setdefault(key, value)
+
+
+_load_runtime_env_file()
+
+
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/3.2/howto/deployment/checklist/
 
@@ -25,7 +44,7 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
-    "core",
+    "core.apps.CoreConfig",
     "rest_framework",
     "drf_spectacular",
 ]
@@ -91,7 +110,36 @@ AUTH_PASSWORD_VALIDATORS = [
 
 REST_FRAMEWORK = {
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
+    "DEFAULT_AUTHENTICATION_CLASSES": [
+        "core.api.authentication.KeycloakJWTAuthentication",
+    ]
+    + (
+        ["core.api.authentication.LegacyBasicOrSessionAuthentication"]
+        if os.environ.get("PATHOCORE_ENABLE_LEGACY_BASIC_AUTH", "true").lower()
+        in ("1", "true", "yes", "on")
+        else []
+    ),
+    "DEFAULT_PERMISSION_CLASSES": [
+        "rest_framework.permissions.IsAuthenticated",
+    ],
 }
+
+PATHOCORE_ENABLE_LEGACY_BASIC_AUTH = (
+    os.environ.get("PATHOCORE_ENABLE_LEGACY_BASIC_AUTH", "true").lower()
+    in ("1", "true", "yes", "on")
+)
+
+# Keycloak setup
+KEYCLOAK_ISSUER = os.environ.get("KEYCLOAK_ISSUER", "").strip()
+KEYCLOAK_CLIENT_ID = os.environ.get("KEYCLOAK_CLIENT_ID", "").strip()
+KEYCLOAK_AUDIENCE = os.environ.get("KEYCLOAK_AUDIENCE", "").strip()
+KEYCLOAK_JWKS_URL = os.environ.get("KEYCLOAK_JWKS_URL", "").strip()
+KEYCLOAK_JWKS_CACHE_TTL_SECONDS = int(
+    os.environ.get("KEYCLOAK_JWKS_CACHE_TTL_SECONDS", "300")
+)
+KEYCLOAK_JWKS_TIMEOUT_SECONDS = int(
+    os.environ.get("KEYCLOAK_JWKS_TIMEOUT_SECONDS", "5")
+)
 
 SPECTACULAR_SETTINGS = {
     "TITLE": "PathoCore API",
@@ -99,8 +147,12 @@ SPECTACULAR_SETTINGS = {
         "PathoCore API for schema management, sample ingestion, metadata ingestion, "
         "and search/discovery endpoints used by multiple client projects "
         "(e.g. mepram, relecov, redlabra).\n\n"
-        "Authentication: HTTP Basic Auth.\n"
-        "Authorization: users are project-scoped by profile code unless admin/staff."
+        "Authentication: Bearer JWT issued by Keycloak.\n"
+        "Authorization: project scope is derived from the standard `groups` claim "
+        "using Keycloak group paths such as "
+        "`/use-cases/<use-case>/labs/<lab>/<view|admin>`.\n"
+        "Legacy Basic/Session authentication can remain enabled temporarily "
+        "during migration."
     ),
     "VERSION": "v1",
     "CONTACT": {
@@ -111,7 +163,8 @@ SPECTACULAR_SETTINGS = {
     "GENERIC_ADDITIONAL_PROPERTIES": "dict",
     "COMPONENT_SPLIT_REQUEST": True,
     "SORT_OPERATIONS": False,
-    "SECURITY": [{"basicAuth": []}],
+    "SECURITY": [{"bearerAuth": []}]
+    + ([{"basicAuth": []}] if PATHOCORE_ENABLE_LEGACY_BASIC_AUTH else []),
     # Keep /v1 in real URLs but hide it in Swagger paths for readability.
     "SCHEMA_PATH_PREFIX": "/v1",
     "SCHEMA_PATH_PREFIX_TRIM": True,
@@ -169,7 +222,12 @@ USE_TZ = False
 ASGI_APPLICATION = "pathocore_api.asgi.application"
 
 # Swagger settings
-SWAGGER_SETTINGS = {"SECURITY_DEFINITIONS": {"basic": {"type": "basic"}}}
+SWAGGER_SETTINGS = {
+    "SECURITY_DEFINITIONS": {
+        "basic": {"type": "basic"},
+        "bearerAuth": {"type": "apiKey", "name": "Authorization", "in": "header"},
+    }
+}
 
 #  Media settings
 MEDIA_URL = "/documents/"
