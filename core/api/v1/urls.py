@@ -8,6 +8,7 @@ app_name = "pathocore_api"
 
 # TODO: keep this in sync with versioned API structure
 urlpatterns = [
+    path("auth/me", core.api.v1.views.auth_me_view, name="auth_me"),
     path("schema", core.api.v1.views.schema, name="schema"),
     path(
         "schema/project_name=<str:project_name>",

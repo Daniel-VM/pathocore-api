@@ -18,6 +18,17 @@ DB_PORT=3306
 LOCAL_SERVER_IP='<PathocoreAPI_IP>' # example: 172.0.0.1
 DNS_URL='<PathocoreAPI_url_address>' # example: pathocore-api.isciii.es
 
+### Keycloak authentication settings
+### Runtime environment variables override these installed defaults.
+PATHOCORE_ENABLE_LEGACY_BASIC_AUTH="true"
+KEYCLOAK_ISSUER=""    # Keycloak host realm, ie: http://<host>:<port>/realms/<realm_name>
+KEYCLOAK_JWKS_URL=""  # Keycloak certs, ie "http://<host>:<port>/realms/<realm_name>/protocol/openid-connect/certs"
+
+KEYCLOAK_AUDIENCE="pathocore-api"
+KEYCLOAK_CLIENT_ID="pathocore-web"
+KEYCLOAK_JWKS_CACHE_TTL_SECONDS=300
+KEYCLOAK_JWKS_TIMEOUT_SECONDS=5
+
 ### Logs settings
 LOG_TYPE="symbolic_link" # can be symbolic link, or regular_folder
 LOG_PATH="" # mandatory if LOG_TYPE="symbolic_link", where is the log folder so we can create a symbolic link in the repository folder.
