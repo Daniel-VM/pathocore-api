@@ -1,5 +1,5 @@
 # Generic imports
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.decorators import (
     authentication_classes,
     permission_classes,
@@ -1404,7 +1404,7 @@ def sample_metadata_view(request, sample_unique_id):
     tags=[TAG_DATABROWSER],
     summary="Databrowser overview summary",
     description=(
-        "Return authenticated global overview aggregates for the generic web "
+        "Return public global overview aggregates for the generic web "
         "databrowser. This endpoint exposes a database-level snapshot, is not "
         "scoped by project/user and does not support query parameters."
     ),
@@ -1412,12 +1412,11 @@ def sample_metadata_view(request, sample_unique_id):
     responses={
         200: core.api.v1.serializers.DatabrowserOverviewSummarySerializer,
         400: core.api.v1.serializers.ErrorSerializer,
-        401: core.api.v1.serializers.ErrorSerializer,
     },
 )
-@authentication_classes([SessionAuthentication, BasicAuthentication])
+@authentication_classes([])
 @api_view(["GET"])
-@permission_classes([IsAuthenticated])
+@permission_classes([AllowAny])
 def databrowser_overview_summary_view(request):
     query_params_error = _reject_generic_databrowser_query_params(
         request, "overview-summary"
@@ -1436,7 +1435,7 @@ def databrowser_overview_summary_view(request):
     tags=[TAG_DATABROWSER],
     summary="Databrowser metadata summary",
     description=(
-        "Return authenticated global priority metadata sections already "
+        "Return public global priority metadata sections already "
         "aggregated in the backend. This endpoint is not scoped by "
         "project/user and does not support query parameters."
     ),
@@ -1444,12 +1443,11 @@ def databrowser_overview_summary_view(request):
     responses={
         200: core.api.v1.serializers.DatabrowserMetadataSummarySerializer,
         400: core.api.v1.serializers.ErrorSerializer,
-        401: core.api.v1.serializers.ErrorSerializer,
     },
 )
-@authentication_classes([SessionAuthentication, BasicAuthentication])
+@authentication_classes([])
 @api_view(["GET"])
-@permission_classes([IsAuthenticated])
+@permission_classes([AllowAny])
 def databrowser_metadata_summary_view(request):
     query_params_error = _reject_generic_databrowser_query_params(
         request, "metadata-summary"
@@ -1468,7 +1466,7 @@ def databrowser_metadata_summary_view(request):
     tags=[TAG_DATABROWSER],
     summary="Databrowser metadata property distribution",
     description=(
-        "Return the authenticated global distribution for one metadata "
+        "Return the public global distribution for one metadata "
         "property using backend aggregation. The response keeps the flat "
         "`values` distribution and also includes flexible frontend-ready "
         "cards plus pathogen, year and location breakdowns. This endpoint is "
@@ -1479,12 +1477,11 @@ def databrowser_metadata_summary_view(request):
     responses={
         200: core.api.v1.serializers.DatabrowserPropertyDistributionSerializer,
         400: core.api.v1.serializers.ErrorSerializer,
-        401: core.api.v1.serializers.ErrorSerializer,
     },
 )
-@authentication_classes([SessionAuthentication, BasicAuthentication])
+@authentication_classes([])
 @api_view(["GET"])
-@permission_classes([IsAuthenticated])
+@permission_classes([AllowAny])
 def databrowser_metadata_property_distribution_view(request):
     query_params_error = _reject_generic_databrowser_query_params(
         request,
@@ -1516,7 +1513,7 @@ def databrowser_metadata_property_distribution_view(request):
     tags=[TAG_DATABROWSER],
     summary="Databrowser schema summary",
     description=(
-        "Return authenticated global schema cards, classification distribution "
+        "Return public global schema cards, classification distribution "
         "and sample counts per schema without downloading every schema JSON "
         "detail in the frontend. This endpoint is not scoped by project/user "
         "and does not support query parameters."
@@ -1525,12 +1522,11 @@ def databrowser_metadata_property_distribution_view(request):
     responses={
         200: core.api.v1.serializers.DatabrowserSchemaSummarySerializer,
         400: core.api.v1.serializers.ErrorSerializer,
-        401: core.api.v1.serializers.ErrorSerializer,
     },
 )
-@authentication_classes([SessionAuthentication, BasicAuthentication])
+@authentication_classes([])
 @api_view(["GET"])
-@permission_classes([IsAuthenticated])
+@permission_classes([AllowAny])
 def databrowser_schema_summary_view(request):
     query_params_error = _reject_generic_databrowser_query_params(
         request, "schema-summary"
@@ -1551,13 +1547,12 @@ def databrowser_schema_summary_view(request):
     description=(
         "Search visible per-sample genomic variants by HGVS genomic notation "
         "(`g.<position><ref>><alt>`) or by position/ref/alt query parameters. "
-        "The same project scope rules used by sample endpoints are applied."
+        "The public global databrowser scope is applied."
     ),
     parameters=[core.api.v1.serializers.VariantSearchQuerySerializer],
     responses={
         200: core.api.v1.serializers.VariantSearchResponseSerializer,
         400: core.api.v1.serializers.ErrorSerializer,
-        401: core.api.v1.serializers.ErrorSerializer,
         403: core.api.v1.serializers.ErrorSerializer,
         404: core.api.v1.serializers.ErrorSerializer,
     },
@@ -1609,9 +1604,9 @@ def databrowser_schema_summary_view(request):
         )
     ],
 )
-@authentication_classes([SessionAuthentication, BasicAuthentication])
+@authentication_classes([])
 @api_view(["GET"])
-@permission_classes([IsAuthenticated])
+@permission_classes([AllowAny])
 def variant_search_view(request):
     serializer = core.api.v1.serializers.VariantSearchQuerySerializer(
         data=request.query_params
@@ -1619,7 +1614,7 @@ def variant_search_view(request):
     serializer.is_valid(raise_exception=True)
     try:
         search_result = variant_search.search_variants(
-            serializer.validated_data, request_user=request.user
+            serializer.validated_data, request_user=None
         )
     except PermissionDenied as exc:
         return Response({"error": str(exc)}, status=status.HTTP_403_FORBIDDEN)
@@ -1661,13 +1656,12 @@ def variant_search_view(request):
     responses={
         200: core.api.v1.serializers.VariantSummaryResponseSerializer,
         400: core.api.v1.serializers.ErrorSerializer,
-        401: core.api.v1.serializers.ErrorSerializer,
         403: core.api.v1.serializers.ErrorSerializer,
     },
 )
-@authentication_classes([SessionAuthentication, BasicAuthentication])
+@authentication_classes([])
 @api_view(["GET"])
-@permission_classes([IsAuthenticated])
+@permission_classes([AllowAny])
 def variant_summary_view(request):
     serializer = core.api.v1.serializers.VariantFilterQuerySerializer(
         data=request.query_params
@@ -1675,7 +1669,7 @@ def variant_summary_view(request):
     serializer.is_valid(raise_exception=True)
     try:
         response_data = variant_search.variant_summary(
-            serializer.validated_data, request_user=request.user
+            serializer.validated_data, request_user=None
         )
     except PermissionDenied as exc:
         return Response({"error": str(exc)}, status=status.HTTP_403_FORBIDDEN)
@@ -1693,13 +1687,12 @@ def variant_summary_view(request):
     responses={
         200: core.api.v1.serializers.VariantReferenceGenomeSerializer(many=True),
         400: core.api.v1.serializers.ErrorSerializer,
-        401: core.api.v1.serializers.ErrorSerializer,
         403: core.api.v1.serializers.ErrorSerializer,
     },
 )
-@authentication_classes([SessionAuthentication, BasicAuthentication])
+@authentication_classes([])
 @api_view(["GET"])
-@permission_classes([IsAuthenticated])
+@permission_classes([AllowAny])
 def variant_reference_genomes_view(request):
     serializer = core.api.v1.serializers.VariantFilterQuerySerializer(
         data=request.query_params
@@ -1707,7 +1700,7 @@ def variant_reference_genomes_view(request):
     serializer.is_valid(raise_exception=True)
     try:
         response_data = variant_search.reference_genomes(
-            serializer.validated_data, request_user=request.user
+            serializer.validated_data, request_user=None
         )
     except PermissionDenied as exc:
         return Response({"error": str(exc)}, status=status.HTTP_403_FORBIDDEN)
@@ -1725,13 +1718,12 @@ def variant_reference_genomes_view(request):
     responses={
         200: core.api.v1.serializers.VariantFilterOptionsSerializer,
         400: core.api.v1.serializers.ErrorSerializer,
-        401: core.api.v1.serializers.ErrorSerializer,
         403: core.api.v1.serializers.ErrorSerializer,
     },
 )
-@authentication_classes([SessionAuthentication, BasicAuthentication])
+@authentication_classes([])
 @api_view(["GET"])
-@permission_classes([IsAuthenticated])
+@permission_classes([AllowAny])
 def variant_filter_options_view(request):
     serializer = core.api.v1.serializers.VariantFilterQuerySerializer(
         data=request.query_params
@@ -1739,7 +1731,7 @@ def variant_filter_options_view(request):
     serializer.is_valid(raise_exception=True)
     try:
         response_data = variant_search.filter_options(
-            serializer.validated_data, request_user=request.user
+            serializer.validated_data, request_user=None
         )
     except PermissionDenied as exc:
         return Response({"error": str(exc)}, status=status.HTTP_403_FORBIDDEN)
