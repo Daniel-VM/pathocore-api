@@ -107,9 +107,7 @@ def _reject_generic_databrowser_query_params(
                         "groups": serializers.ListField(
                             child=serializers.CharField(), required=False
                         ),
-                        "projects": serializers.ListField(
-                            child=serializers.DictField(), required=False
-                        ),
+                        "projects": serializers.JSONField(required=False),
                     },
                 ),
                 "token": serializers.DictField(),
@@ -122,8 +120,13 @@ def _reject_generic_databrowser_query_params(
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def auth_me_view(request):
-    user_projects = access_control.get_user_projects(request.user)
-    if not user_projects and not access_control.is_keycloak_user(request.user):
+    is_keycloak_user = access_control.is_keycloak_user(request.user)
+    if is_keycloak_user:
+        user_projects = access_control.get_user_project_permissions(request.user)
+    else:
+        user_projects = access_control.get_user_projects(request.user)
+
+    if not user_projects and not is_keycloak_user:
         try:
             project_code = access_control.get_user_project_code(request.user)
         except PermissionDenied:
