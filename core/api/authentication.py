@@ -25,6 +25,7 @@ class KeycloakClaims:
     payload: dict
     authorization: dict = field(default_factory=dict)
     project_access: list[dict] = field(default_factory=list)
+    authorization_model: object | None = None
 
     @property
     def subject(self):
@@ -42,6 +43,8 @@ class KeycloakClaims:
     def projects(self):
         if self.project_access:
             return self.project_access
+        if self.authorization_model is not None:
+            return self.authorization_model.to_project_access()
         return access_control.build_project_access(
             projects_claim=self.payload.get("projects"),
             groups_claim=self.payload.get("groups"),
@@ -59,6 +62,7 @@ class KeycloakTokenUser:
     groups: list[str] = field(default_factory=list)
     projects: list[dict] = field(default_factory=list)
     authorization: dict = field(default_factory=dict)
+    authorization_model: object | None = None
     token_payload: dict = field(default_factory=dict)
     auth_provider: str = "keycloak"
     is_staff: bool = False
@@ -87,6 +91,11 @@ class KeycloakTokenUser:
     def __str__(self):
         return self.username or self.subject
 
+    def can(self, project, lab=None, role="view"):
+        if self.authorization_model is not None:
+            return self.authorization_model.can(project, lab=lab, role=role)
+        return access_control.user_can(self, project, lab_id=lab, role=role)
+
 
 class KeycloakJWTAuthentication:
     www_authenticate_realm = "api"
@@ -111,6 +120,7 @@ class KeycloakJWTAuthentication:
             groups=claims.groups,
             projects=claims.projects,
             authorization=claims.authorization,
+            authorization_model=claims.authorization_model,
             token_payload=claims.payload,
             is_staff=claims.superuser,
             is_superuser=claims.superuser,
@@ -214,19 +224,18 @@ def decode_and_validate_keycloak_token(token):
         raise AuthenticationFailed("Token is missing required claim: sub")
 
     try:
-        authorization = access_control.build_keycloak_authorization(
-            subject=subject,
-            username=str(payload.get("preferred_username") or subject),
-            groups_claim=payload.get("groups"),
-        )
+        authorization_model = access_control.build_user_from_token(payload, strict=True)
     except access_control.GroupParsingError as exc:
         raise AuthenticationFailed(f"Malformed groups claim: {exc}") from exc
+    except ValueError as exc:
+        raise AuthenticationFailed(str(exc)) from exc
 
     return KeycloakClaims(
         raw_token=token,
         payload=payload,
-        authorization=authorization["authorization"],
-        project_access=authorization["project_access"],
+        authorization=authorization_model.to_authorization_dict(),
+        project_access=authorization_model.to_project_access(),
+        authorization_model=authorization_model,
     )
 
 

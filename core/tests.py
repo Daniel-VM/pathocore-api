@@ -99,7 +99,7 @@ class AccessControlTests(SimpleTestCase):
         ):
             access_control.get_user_projects(user)
 
-    def test_keycloak_authorization_model_infers_project_view_from_labs(self):
+    def test_keycloak_authorization_model_separates_project_and_lab_roles(self):
         authorization = access_control.build_keycloak_authorization(
             subject="user-1",
             username="daniel",
@@ -118,16 +118,85 @@ class AccessControlTests(SimpleTestCase):
                 "superuser": True,
                 "projects": {
                     "mepram": {
-                        "project_role": "view",
-                        "labs": {"lab1": "admin"},
+                        "project_role": None,
+                        "labs": {"lab1": {"role": "admin"}},
                     },
                     "relecov": {
-                        "project_role": "view",
-                        "labs": {"lab2": "view"},
+                        "project_role": None,
+                        "labs": {"lab2": {"role": "view"}},
                     },
                 },
             },
         )
+
+    def test_build_user_from_token_returns_reusable_authorization_model(self):
+        authorization_user = access_control.build_user_from_token(
+            {
+                "sub": "user-1",
+                "preferred_username": "daniel",
+                "groups": [
+                    "/use-cases/mepram/labs/lab1/admin",
+                    "/use-cases/mepram/view",
+                    "/use-cases/relecov/labs/lab2/viewer",
+                ],
+            }
+        )
+
+        self.assertEqual(
+            authorization_user.to_authorization_dict(),
+            {
+                "id": "user-1",
+                "username": "daniel",
+                "superuser": False,
+                "projects": {
+                    "mepram": {
+                        "project_role": "view",
+                        "labs": {"lab1": {"role": "admin"}},
+                    },
+                    "relecov": {
+                        "project_role": None,
+                        "labs": {"lab2": {"role": "view"}},
+                    },
+                },
+            },
+        )
+        self.assertTrue(authorization_user.can("mepram"))
+        self.assertFalse(authorization_user.can("mepram", role="admin"))
+        self.assertTrue(authorization_user.can("mepram", lab="lab1", role="admin"))
+        self.assertTrue(authorization_user.can("relecov"))
+        self.assertTrue(authorization_user.can("relecov", lab="lab2"))
+        self.assertFalse(authorization_user.can("relecov", lab="lab2", role="admin"))
+        self.assertEqual(
+            authorization_user.to_project_permissions(),
+            {
+                "mepram": {
+                    "project_role": "view",
+                    "labs": {"lab1": {"role": "admin"}},
+                },
+                "relecov": {
+                    "project_role": None,
+                    "labs": {"lab2": {"role": "view"}},
+                },
+            },
+        )
+
+    def test_keycloak_token_user_can_delegates_to_authorization_model(self):
+        authorization_user = access_control.build_user_from_token(
+            {
+                "sub": "user-1",
+                "preferred_username": "daniel",
+                "groups": ["/use-cases/mepram/labs/lab1/admin"],
+            }
+        )
+        user = KeycloakTokenUser(
+            subject="user-1",
+            username="daniel",
+            authorization_model=authorization_user,
+        )
+
+        self.assertTrue(user.can("mepram"))
+        self.assertTrue(user.can("mepram", lab="lab1", role="admin"))
+        self.assertFalse(user.can("mepram", role="admin"))
 
     def test_projects_claim_is_used_only_as_legacy_fallback(self):
         user = KeycloakTokenUser(
@@ -466,7 +535,7 @@ class KeycloakAuthenticationTests(SimpleTestCase):
             ),
         )
         self.assertEqual(config["audience"], "pathocore-api")
-        self.assertEqual(config["client_id"], "pathocore-api")
+        self.assertEqual(config["client_id"], "pathocore-web")
 
 
 class AuthMeViewTests(SimpleTestCase):
@@ -504,26 +573,24 @@ class AuthMeViewTests(SimpleTestCase):
         )
         self.assertEqual(
             response.data["user"]["projects"],
-            [
-                {
-                    "id": "mepram",
-                    "labs": ["lab1"],
-                    "role": None,
-                    "effective_role": "admin",
+            {
+                "mepram": {
                     "project_role": None,
-                    "lab_roles": [{"lab": "lab1", "role": "admin"}],
-                    "source_groups": ["/use-cases/mepram/labs/lab1/admin"],
+                    "labs": {
+                        "lab1": {
+                            "role": "admin",
+                        },
+                    },
                 },
-                {
-                    "id": "relecov",
-                    "labs": ["lab2"],
-                    "role": None,
-                    "effective_role": "view",
+                "relecov": {
                     "project_role": None,
-                    "lab_roles": [{"lab": "lab2", "role": "view"}],
-                    "source_groups": ["/use-cases/relecov/labs/lab2/viewer"],
+                    "labs": {
+                        "lab2": {
+                            "role": "view",
+                        },
+                    },
                 },
-            ],
+            },
         )
         self.assertEqual(response.data["token"]["preferred_username"], "juan")
 
