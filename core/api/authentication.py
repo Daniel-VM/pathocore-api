@@ -14,7 +14,6 @@ from rest_framework.exceptions import AuthenticationFailed
 
 from core.api.utils import access_control
 
-
 _JWKS_CACHE = {"expires_at": 0.0, "keys_by_kid": {}}
 _JWKS_CACHE_LOCK = threading.Lock()
 
@@ -178,8 +177,7 @@ def decode_and_validate_keycloak_token(token):
             if not value
         ]
         raise AuthenticationFailed(
-            "Keycloak authentication is not configured: missing "
-            + ", ".join(missing)
+            "Keycloak authentication is not configured: missing " + ", ".join(missing)
         )
 
     try:

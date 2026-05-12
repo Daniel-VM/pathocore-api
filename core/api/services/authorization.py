@@ -1,6 +1,5 @@
 from dataclasses import dataclass, field
 
-
 ROLE_VIEW = "view"
 ROLE_ADMIN = "admin"
 ROLE_PRECEDENCE = {ROLE_VIEW: 1, ROLE_ADMIN: 2}
@@ -54,10 +53,7 @@ class ProjectAuthorization:
     def to_authorization_dict(self):
         return {
             "project_role": self.explicit_project_role,
-            "labs": {
-                lab: {"role": self.labs[lab]}
-                for lab in sorted(self.labs)
-            },
+            "labs": {lab: {"role": self.labs[lab]} for lab in sorted(self.labs)},
         }
 
     def to_project_access_dict(self):
@@ -272,8 +268,7 @@ def project_permissions_from_project_access(project_access):
                 {
                     normalized_lab
                     for normalized_lab in (
-                        normalize_identifier(lab)
-                        for lab in raw_labs
+                        normalize_identifier(lab) for lab in raw_labs
                     )
                     if normalized_lab
                 }

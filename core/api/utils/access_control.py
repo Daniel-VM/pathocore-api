@@ -4,7 +4,6 @@ from django.db.models import Q
 import core.config
 from core.api.services import authorization
 
-
 ROLE_VIEW = authorization.ROLE_VIEW
 ROLE_ADMIN = authorization.ROLE_ADMIN
 GroupParsingError = authorization.GroupParsingError
