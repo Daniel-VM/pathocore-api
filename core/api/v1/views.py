@@ -136,7 +136,9 @@ def auth_me_view(request):
                 {
                     "id": project_code,
                     "labs": [],
-                    "role": "admin" if access_control.is_admin_user(request.user) else "",
+                    "role": (
+                        "admin" if access_control.is_admin_user(request.user) else ""
+                    ),
                 }
             ]
 

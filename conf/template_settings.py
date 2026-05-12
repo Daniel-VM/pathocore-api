@@ -124,10 +124,9 @@ REST_FRAMEWORK = {
     ],
 }
 
-PATHOCORE_ENABLE_LEGACY_BASIC_AUTH = (
-    os.environ.get("PATHOCORE_ENABLE_LEGACY_BASIC_AUTH", "true").lower()
-    in ("1", "true", "yes", "on")
-)
+PATHOCORE_ENABLE_LEGACY_BASIC_AUTH = os.environ.get(
+    "PATHOCORE_ENABLE_LEGACY_BASIC_AUTH", "true"
+).lower() in ("1", "true", "yes", "on")
 
 # Keycloak setup
 KEYCLOAK_ISSUER = os.environ.get("KEYCLOAK_ISSUER", "").strip()
