@@ -50,12 +50,13 @@ if not 0 <= hour <= 23 or not 0 <= minute <= 59:
 
 
 def refresh(reason):
-    log(f"running refresh_databrowser_cache ({reason})")
-    result = subprocess.run(["python", "manage.py", "refresh_databrowser_cache"])
-    if result.returncode == 0:
-        log("refresh_databrowser_cache finished")
-    else:
-        log(f"refresh_databrowser_cache failed with exit code {result.returncode}")
+    for command in ("refresh_databrowser_cache", "refresh_use_case_cache"):
+        log(f"running {command} ({reason})")
+        result = subprocess.run(["python", "manage.py", command])
+        if result.returncode == 0:
+            log(f"{command} finished")
+        else:
+            log(f"{command} failed with exit code {result.returncode}")
 
 
 if parse_bool(os.environ.get("DATABROWSER_CACHE_REFRESH_ON_START", "false")):

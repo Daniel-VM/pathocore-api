@@ -72,6 +72,11 @@ urlpatterns = [
         name="databrowser_schema_summary",
     ),
     path(
+        "use-cases/data-summary",
+        core.api.v1.views.use_case_data_summary_view,
+        name="use_case_data_summary",
+    ),
+    path(
         "variants/search",
         core.api.v1.views.variant_search_view,
         name="variant_search",
