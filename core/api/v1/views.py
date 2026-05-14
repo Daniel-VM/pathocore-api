@@ -39,6 +39,7 @@ from core.api.services import sample_history
 from core.api.services import schema_ingestion
 from core.api.services import schema_listing
 from core.api.services import databrowser
+from core.api.services import use_case_data
 from core.api.services import variant_ingestion
 from core.api.services import variant_search
 from core.api.utils import access_control
@@ -49,6 +50,7 @@ TAG_SAMPLES = "Samples"
 TAG_SAMPLE_METADATA = "Sample Metadata"
 TAG_SAMPLE_HISTORY = "Sample History"
 TAG_DATABROWSER = "Databrowser"
+TAG_USE_CASES = "Use Cases"
 TAG_VARIANTS = "Variants"
 TAG_AUTH = "Authentication"
 
@@ -1540,6 +1542,43 @@ def databrowser_schema_summary_view(request):
         return query_params_error
     response_data = databrowser.schema_summary({}, request_user=None)
     response_serializer = core.api.v1.serializers.DatabrowserSchemaSummarySerializer(
+        data=response_data
+    )
+    response_serializer.is_valid(raise_exception=True)
+    return Response(response_serializer.data, status=status.HTTP_200_OK)
+
+
+@extend_schema(
+    tags=[TAG_USE_CASES],
+    summary="Use-case data summary",
+    description=(
+        "Return cached, project-scoped aggregates for the use-case data panel. "
+        "The endpoint is generic across use cases and requires project access."
+    ),
+    parameters=[core.api.v1.serializers.UseCaseDataSummaryQuerySerializer],
+    responses={
+        200: core.api.v1.serializers.UseCaseDataSummarySerializer,
+        400: core.api.v1.serializers.ErrorSerializer,
+        403: core.api.v1.serializers.ErrorSerializer,
+    },
+)
+@authentication_classes([SessionAuthentication, BasicAuthentication])
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def use_case_data_summary_view(request):
+    serializer = core.api.v1.serializers.UseCaseDataSummaryQuerySerializer(
+        data=request.query_params
+    )
+    serializer.is_valid(raise_exception=True)
+    project_name = access_control.ensure_project_access(
+        request.user, serializer.validated_data["project_name"]
+    )
+    try:
+        response_data = use_case_data.data_summary(project_name)
+    except ValueError as exc:
+        return Response({"error": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+
+    response_serializer = core.api.v1.serializers.UseCaseDataSummarySerializer(
         data=response_data
     )
     response_serializer.is_valid(raise_exception=True)

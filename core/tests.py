@@ -1,5 +1,7 @@
+from datetime import date
+
 from django.core.exceptions import PermissionDenied
-from django.test import SimpleTestCase
+from django.test import SimpleTestCase, TestCase
 from django.test import override_settings
 from unittest.mock import patch
 from rest_framework.exceptions import AuthenticationFailed
@@ -12,6 +14,7 @@ from core.api.authentication import decode_and_validate_keycloak_token
 from core.api.authentication import KeycloakClaims
 from core.api.authentication import KeycloakJWTAuthentication
 from core.api.authentication import KeycloakTokenUser
+from core import models
 from core.api.utils import access_control
 from core.api.v1.views import auth_me_view
 
@@ -593,6 +596,137 @@ class AuthMeViewTests(SimpleTestCase):
             },
         )
         self.assertEqual(response.data["token"]["preferred_username"], "juan")
+
+
+@override_settings(ROOT_URLCONF="conf.urls", ALLOWED_HOSTS=["testserver", "localhost"])
+class UseCaseDataSummaryTests(TestCase):
+    def setUp(self):
+        self.client = APIClient()
+        self.schema = models.Schema.objects.create(
+            file_name="schemas/mepram.json",
+            schema_name="MePRAM",
+            schema_version="1.0",
+            schema_app_name="mepram",
+            schema_in_use=True,
+        )
+        self.sample_1 = models.Sample.objects.create(
+            sample_unique_id="MEP0000001",
+            sequencing_sample_id="SEQ-1",
+            submitting_lab_sample_id="SUB-1",
+            collecting_institution="Hospital A",
+            schema_obj=self.schema,
+        )
+        self.sample_2 = models.Sample.objects.create(
+            sample_unique_id="MEP0000002",
+            sequencing_sample_id="SEQ-2",
+            submitting_lab_sample_id="SUB-2",
+            collecting_institution="Hospital B",
+            schema_obj=self.schema,
+        )
+        self.properties = {
+            property_name: models.SchemaProperties.objects.create(
+                schemaID=self.schema,
+                property=property_name,
+                type="string",
+            )
+            for property_name in (
+                "organism",
+                "sample_collection_date",
+                "submitting_institution",
+                "submitting_geo_loc_state",
+                "collecting_institution_geo_loc_state",
+                "carbapenemase_genes",
+                "bioinformatics_protocol_software_name",
+            )
+        }
+        self._metadata(self.sample_1, "organism", "K. pneumoniae")
+        self._metadata(self.sample_1, "sample_collection_date", "2025-01-02")
+        self._metadata(self.sample_1, "submitting_institution", "Hospital A")
+        self._metadata(
+            self.sample_1, "submitting_geo_loc_state", "Comunidad de Madrid"
+        )
+        self._metadata(
+            self.sample_1, "collecting_institution_geo_loc_state", "Comunidad de Madrid"
+        )
+        self._metadata(self.sample_1, "carbapenemase_genes", "OXA-48")
+        self._metadata(self.sample_1, "bioinformatics_protocol_software_name", "ivar")
+        self._metadata(self.sample_2, "organism", "E. coli")
+        self._metadata(self.sample_2, "sample_collection_date", "2025-02-03")
+        self._metadata(self.sample_2, "submitting_institution", "Hospital B")
+        self._metadata(self.sample_2, "submitting_geo_loc_state", "Cataluna")
+
+    def _metadata(self, sample, property_name, value):
+        return models.MetadataValues.objects.create(
+            sample=sample,
+            schema_property=self.properties[property_name],
+            value=value,
+            analysis_date=date.today(),
+        )
+
+    def test_use_case_data_summary_is_project_scoped_and_cached(self):
+        user = KeycloakTokenUser(
+            subject="user-1",
+            username="daniel",
+            groups=["/use-cases/mepram/viewer"],
+        )
+        self.client.force_authenticate(user=user)
+
+        response = self.client.get(
+            "/v1/use-cases/data-summary",
+            {"project_name": "mepram"},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["data_contract_version"], "1.1")
+        self.assertEqual(payload["project_name"], "mepram")
+        self.assertEqual(payload["project"], {"id": "mepram", "label": "Mepram"})
+        self.assertEqual(payload["metrics"]["total_samples"], 2)
+        self.assertEqual(payload["metrics"]["analyzed_samples"], 1)
+        self.assertEqual(payload["metrics"]["participating_centers"], 2)
+        self.assertEqual(
+            payload["dimensions"]["pathogen"]["values"],
+            [
+                {"label": "E. coli", "value": 1},
+                {"label": "K. pneumoniae", "value": 1},
+            ],
+        )
+        self.assertEqual(
+            payload["dimensions"]["pathogen"]["coverage"]["matched_samples"], 2
+        )
+        self.assertIn("samples_by_month", payload["time_series"])
+        self.assertIn("regions", payload["geography"])
+        self.assertEqual(payload["overview"]["total_samples"], 2)
+        self.assertEqual(payload["overview"]["analyzed_samples"], 1)
+        self.assertEqual(payload["overview"]["participating_centers"], 2)
+        self.assertEqual(
+            payload["overview"]["project_pathogen_distribution"],
+            [
+                {"label": "E. coli", "value": 1},
+                {"label": "K. pneumoniae", "value": 1},
+            ],
+        )
+        self.assertTrue(
+            models.DatabrowserSummaryCache.objects.filter(
+                summary_name="use-case-data-summary",
+                scope_key="project:mepram",
+            ).exists()
+        )
+
+    def test_use_case_data_summary_requires_project_access(self):
+        user = KeycloakTokenUser(
+            subject="user-1",
+            username="daniel",
+            groups=["/use-cases/relecov/view"],
+        )
+        self.client.force_authenticate(user=user)
+
+        response = self.client.get(
+            "/v1/use-cases/data-summary",
+            {"project_name": "mepram"},
+        )
+
+        self.assertEqual(response.status_code, 403)
 
 
 @override_settings(ROOT_URLCONF="conf.urls", ALLOWED_HOSTS=["testserver", "localhost"])

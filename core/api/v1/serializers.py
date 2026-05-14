@@ -747,3 +747,33 @@ class DatabrowserPropertyDistributionSerializer(serializers.Serializer):
     breakdowns = serializers.DictField()
     cards = serializers.ListField(child=serializers.DictField())
     ui_hints = serializers.DictField()
+
+
+class UseCaseDataSummaryQuerySerializer(serializers.Serializer):
+    project_name = serializers.CharField(required=True, allow_blank=False)
+
+    def validate(self, attrs):
+        allowed_keys = set(self.fields.keys())
+        provided_keys = set(self.initial_data.keys())
+        unknown_keys = provided_keys - allowed_keys
+        if unknown_keys:
+            raise serializers.ValidationError(
+                {"error": f"Unknown filter(s): {', '.join(sorted(unknown_keys))}"}
+            )
+        return attrs
+
+
+class UseCaseDataSummarySerializer(serializers.Serializer):
+    data_contract_version = serializers.CharField()
+    project_name = serializers.CharField()
+    project_label = serializers.CharField()
+    generated_at = serializers.DateTimeField()
+    project = serializers.DictField()
+    cache = serializers.DictField()
+    metrics = serializers.DictField()
+    dimensions = serializers.DictField()
+    time_series = serializers.DictField()
+    geography = serializers.DictField()
+    visualization_hints = serializers.DictField()
+    overview = serializers.DictField()
+    data_quality = serializers.DictField()
