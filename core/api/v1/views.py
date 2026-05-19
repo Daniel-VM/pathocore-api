@@ -1082,8 +1082,6 @@ def sample_metadata_property_view(request):
     return Response(response_serializer.data, status=status.HTTP_200_OK)
 
 
-# TODO: Define response body
-# TODO: not ready for complex fields
 @extend_schema(
     tags=[TAG_SAMPLE_METADATA],
     summary="Search metadata with repeatable filter expressions",
@@ -1092,9 +1090,12 @@ def sample_metadata_property_view(request):
         "Each filter accepts `property`, `property:value`, or `property=value`.\n\n"
         "Examples:\n"
         "- `filter=bioinformatics_protocol_software_version:3.3.2`\n"
+        "- `filter=amr_acquired_genes.origin:submitting`\n"
         "- `filter=all_in_one_library_kit=Ion Xpress`\n"
         "- `filter=sequence_file_path_R1` (property existence)\n"
-        "Use `match=all|any` to combine multiple filters."
+        "Use `match=all|any` to combine multiple filters. With `match=all`, "
+        "filters on different children of the same complex field must match "
+        "within the same grouped record."
     ),
     parameters=[
         OpenApiParameter(
@@ -1210,7 +1211,8 @@ def sample_metadata_search_view(request):
     summary="Get metadata for one sample",
     description=(
         "Return stored metadata key/value entries for one sample identified by "
-        "`sample_unique_id`."
+        "`sample_unique_id`. Nested metadata values are returned as dotted "
+        "property names such as `amr_acquired_genes.origin`."
     ),
     parameters=[
         OpenApiParameter(
@@ -1302,8 +1304,6 @@ def sample_metadata_view(request, sample_unique_id):
         return Response({"error": str(exc)}, status=status.HTTP_403_FORBIDDEN)
     if sample_obj is None:
         return Response({"error": "Sample not found"}, status=status.HTTP_404_NOT_FOUND)
-    # TODO: complex fields (grouped metadata) are not exposed yet.
-
     # GET method
     if request.method == "GET":
         metadata_list = sample_metadata.list_sample_metadata(
@@ -1371,8 +1371,7 @@ def sample_metadata_view(request, sample_unique_id):
         return Response({"error": error_message}, status=status.HTTP_400_BAD_REQUEST)
 
     with transaction.atomic():
-        for metadata_create_spec in metadata_create_specs:
-            core.models.MetadataValues.objects.create(**metadata_create_spec)
+        sample_metadata_ingestion.create_sample_metadata_values(metadata_create_specs)
     stored_count = len(metadata_create_specs)
 
     if stored_count:

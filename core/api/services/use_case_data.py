@@ -18,6 +18,7 @@ USE_CASE_DATA_SUMMARY = "use-case-data-summary"
 NO_FILTERS_HASH = core.config.DATABROWSER_NO_FILTERS_HASH
 
 PATHOGEN_ALIASES = (
+    "organism.species",
     "organism",
     "species",
     "pathogen",
@@ -50,6 +51,7 @@ RESISTANCE_PROFILE_ALIASES = (
     "antimicrobial_resistance_profile",
 )
 RESISTANCE_SIGNAL_ALIASES = (
+    "amr_acquired_genes.gene_name",
     "carbapenemase_genes",
     "carbapenemase_class_a_test",
     "ESBL_test",

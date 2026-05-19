@@ -1,5 +1,6 @@
 from datetime import date
 
+from django.contrib.auth.models import User
 from django.core.exceptions import PermissionDenied
 from django.test import SimpleTestCase, TestCase
 from django.test import override_settings
@@ -15,6 +16,9 @@ from core.api.authentication import KeycloakClaims
 from core.api.authentication import KeycloakJWTAuthentication
 from core.api.authentication import KeycloakTokenUser
 from core import models
+from core.api.services import sample_metadata
+from core.api.services import sample_metadata_ingestion
+from core.api.services import schema_ingestion
 from core.api.utils import access_control
 from core.api.v1.views import auth_me_view
 
@@ -727,6 +731,205 @@ class UseCaseDataSummaryTests(TestCase):
         )
 
         self.assertEqual(response.status_code, 403)
+
+
+class ComplexMetadataTests(TestCase):
+    def setUp(self):
+        self.schema = models.Schema.objects.create(
+            file_name="schemas/mepram.json",
+            schema_name="MePRAM",
+            schema_version="1.0",
+            schema_app_name="mepram",
+            schema_in_use=True,
+        )
+        self.properties = {}
+        for property_name in (
+            "bioinformatics_analysis_date",
+            "amr_acquired_genes",
+            "amr_acquired_genes.gene_name",
+            "amr_acquired_genes.origin",
+            "organism",
+            "organism.species",
+            "organism.origin",
+        ):
+            property_type = (
+                "array"
+                if property_name in {"amr_acquired_genes", "organism"}
+                else "string"
+            )
+            self.properties[property_name] = models.SchemaProperties.objects.create(
+                schemaID=self.schema,
+                property=property_name,
+                type=property_type,
+            )
+        self.sample_1 = models.Sample.objects.create(
+            sample_unique_id="MEP0000001",
+            sequencing_sample_id="SEQ-1",
+            submitting_lab_sample_id="SUB-1",
+            collecting_institution="Hospital A",
+            schema_obj=self.schema,
+        )
+        self.sample_2 = models.Sample.objects.create(
+            sample_unique_id="MEP0000002",
+            sequencing_sample_id="SEQ-2",
+            submitting_lab_sample_id="SUB-2",
+            collecting_institution="Hospital B",
+            schema_obj=self.schema,
+        )
+
+    def _ingest_metadata(self, sample, amr_records, organism_origin="isciii"):
+        create_specs = sample_metadata_ingestion.prepare_sample_metadata_create(
+            sample,
+            self.schema,
+            {
+                "bioinformatics_analysis_date": "2026-01-10",
+                "amr_acquired_genes": amr_records,
+                "organism": [
+                    {
+                        "species": "Escherichia coli",
+                        "origin": organism_origin,
+                    }
+                ],
+            },
+        )
+        sample_metadata_ingestion.create_sample_metadata_values(create_specs)
+
+    def test_complex_metadata_ingestion_creates_groups_and_dotted_values(self):
+        self._ingest_metadata(
+            self.sample_1,
+            [
+                {"gene_name": "VIM", "origin": "isciii"},
+                {"gene_name": "NDM", "origin": "submitting"},
+            ],
+        )
+
+        self.assertEqual(
+            models.MetadataGroup.objects.filter(
+                sample=self.sample_1,
+                group_property=self.properties["amr_acquired_genes"],
+            ).count(),
+            2,
+        )
+        grouped_metadata = sample_metadata.list_sample_metadata(self.sample_1)
+
+        self.assertIn(
+            {
+                "property": "amr_acquired_genes.origin",
+                "value": "isciii",
+                "classification": None,
+                "group_id": models.MetadataGroup.objects.get(
+                    sample=self.sample_1,
+                    group_property=self.properties["amr_acquired_genes"],
+                    group_index=0,
+                ).id,
+                "group_index": 0,
+                "group_property": "amr_acquired_genes",
+            },
+            grouped_metadata,
+        )
+
+    def test_complex_metadata_search_requires_same_group_for_child_filters(self):
+        self._ingest_metadata(
+            self.sample_1,
+            [
+                {"gene_name": "VIM", "origin": "isciii"},
+                {"gene_name": "NDM", "origin": "submitting"},
+            ],
+        )
+        self._ingest_metadata(
+            self.sample_2,
+            [{"gene_name": "VIM", "origin": "submitting"}],
+            organism_origin="submitting",
+        )
+
+        results = sample_metadata.search_samples_metadata(
+            [
+                {"property": "amr_acquired_genes.gene_name", "value": "VIM"},
+                {"property": "amr_acquired_genes.origin", "value": "submitting"},
+            ],
+            match="all",
+        )
+
+        self.assertEqual(
+            [item["sample_unique_id"] for item in results],
+            ["MEP0000002"],
+        )
+
+    def test_complex_metadata_can_be_searched_by_single_child_property(self):
+        self._ingest_metadata(
+            self.sample_1,
+            [{"gene_name": "VIM", "origin": "isciii"}],
+        )
+
+        results = sample_metadata.list_samples_by_metadata_query(
+            property_name="organism.origin",
+            values=["isciii"],
+            match="any",
+        )
+
+        self.assertEqual(
+            results,
+            [
+                {
+                    "sample_unique_id": "MEP0000001",
+                    "values": {"organism.origin": "isciii"},
+                }
+            ],
+        )
+
+    def test_schema_ingestion_registers_nested_child_properties(self):
+        user = User.objects.create_superuser(
+            username="admin",
+            email="admin@example.test",
+            password="password",
+        )
+
+        schema_create_data = schema_ingestion.prepare_schema_create(
+            {
+                "schema": {
+                    "title": "Nested MePRAM",
+                    "version": "1.0",
+                    "type": "object",
+                    "properties": {
+                        "organism": {
+                            "type": "array",
+                            "items": {
+                                "type": "object",
+                                "properties": {
+                                    "species": {
+                                        "type": "string",
+                                        "classification": "Strain characterization",
+                                    },
+                                    "origin": {
+                                        "type": "string",
+                                        "enum": ["submitting", "isciii"],
+                                        "classification": (
+                                            "Sample collecting and processing"
+                                        ),
+                                    },
+                                },
+                            },
+                            "required": ["species", "origin"],
+                        }
+                    },
+                },
+                "schema_app_name": "mepram",
+            },
+            request_user=user,
+        )
+
+        property_specs = {
+            item["property"]: item
+            for item in schema_create_data["property_specs"]
+        }
+        self.assertIn("organism", property_specs)
+        self.assertIn("organism.species", property_specs)
+        self.assertIn("organism.origin", property_specs)
+        self.assertTrue(property_specs["organism.origin"]["options"])
+        self.assertEqual(
+            property_specs["organism.origin"]["enum_values"],
+            ["submitting", "isciii"],
+        )
 
 
 @override_settings(ROOT_URLCONF="conf.urls", ALLOWED_HOSTS=["testserver", "localhost"])

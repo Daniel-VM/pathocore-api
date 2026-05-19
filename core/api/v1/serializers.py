@@ -483,9 +483,7 @@ class SampleMetadataClassificationResultSerializer(serializers.Serializer):
 
 class SampleMetadataSearchResultSerializer(serializers.Serializer):
     sample_unique_id = serializers.CharField()
-    values = serializers.DictField(
-        child=serializers.CharField(allow_null=True, allow_blank=True)
-    )
+    values = serializers.JSONField()
 
 
 class SampleMetadataIngestSerializer(serializers.Serializer):
