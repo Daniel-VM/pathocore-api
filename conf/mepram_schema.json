@@ -4625,7 +4625,11 @@
                 "properties": {
                     "species": {
                         "enum": [
-                            "Klebsiella pneumoniae, Escherichia coli, Pseudonomas aeruginosa, Enterobacter cloacae"
+                            "Klebsiella pneumoniae [SNOMED:56415008]",
+                            "Escherichia coli [SNOMED:112283007]",
+                            "Enterobacter cloacae complex [SNOMED:414102007]",
+                            "Pseudomonas aeruginosa [SNOMED:52499004]",
+                            "Acinetobacter baumannii complex [SNOMED:113376007]"
                         ],
                         "examples": [
                             "Klebsiella pneumoniae"
@@ -4641,7 +4645,8 @@
                     },
                     "origin": {
                         "enum": [
-                            "submitting, isciii"
+                            "submitting",
+                            "isciii"
                         ],
                         "examples": [
                             "isciii"
@@ -4657,7 +4662,9 @@
                     },
                     "family": {
                         "enum": [
-                            "Enterobacteriaceae, Pseudomonaceae"
+                            "Enterobacteriaceae",
+                            "Pseudomonadaceae",
+                            "Moraxellaceae"
                         ],
                         "examples": [
                             "Enterobacteriaceae"
@@ -4673,7 +4680,11 @@
                     },
                     "tax_id": {
                         "enum": [
-                            "NCBI:txid573, NCBI:txid562. NCBI:txid287"
+                            "NCBI:txid3390273",
+                            "NCBI:txid562",
+                            "NCBI:txid136841",
+                            "NCBI:txid354276",
+                            "NCBI:txid909768"
                         ],
                         "examples": [
                             "txid573"
@@ -4801,7 +4812,8 @@
                     },
                     "origin": {
                         "enum": [
-                            "submitting, isciii"
+                            "submitting",
+                            "isciii"
                         ],
                         "examples": [
                             "isciii"
@@ -4906,7 +4918,8 @@
                     },
                     "origin": {
                         "enum": [
-                            "submitting, isciii"
+                            "submitting",
+                            "isciii"
                         ],
                         "examples": [
                             "isciii"
@@ -7612,7 +7625,8 @@
                     },
                     "origin": {
                         "enum": [
-                            "submitting, isciii"
+                            "submitting",
+                            "isciii"
                         ],
                         "examples": [
                             "isciii"

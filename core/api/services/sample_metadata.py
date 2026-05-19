@@ -1,3 +1,5 @@
+from collections import defaultdict
+
 from django.db.models import Q, Exists, OuterRef, Subquery
 
 from core import models
@@ -13,11 +15,23 @@ def _normalize_list(values):
     return cleaned or None
 
 
+def _complex_parent_property(property_name):
+    if "." not in property_name:
+        return None
+    parent_name, _, child_name = property_name.partition(".")
+    if not parent_name.strip() or not child_name.strip():
+        return None
+    return parent_name.strip()
+
+
 def list_sample_metadata(
     sample_obj, classifications=None, properties=None, request_user=None
 ):
     queryset = models.MetadataValues.objects.filter(sample=sample_obj).select_related(
-        "schema_property", "schema_property__classificationID", "group"
+        "schema_property",
+        "schema_property__classificationID",
+        "group",
+        "group__group_property",
     )
     if request_user is not None:
         queryset = access_control.apply_metadata_values_scope(queryset, request_user)
@@ -31,7 +45,12 @@ def list_sample_metadata(
         queryset = queryset.filter(schema_property__property__in=properties)
 
     results = []
-    for item in queryset:
+    for item in queryset.order_by(
+        "group__group_property__property",
+        "group__group_index",
+        "schema_property__property",
+        "id",
+    ):
         classification_obj = item.schema_property.classificationID
         classification_name = (
             classification_obj.classification_name if classification_obj else None
@@ -43,6 +62,9 @@ def list_sample_metadata(
                 "classification": classification_name,
                 "group_id": item.group_id,
                 "group_index": item.group.group_index if item.group_id else None,
+                "group_property": (
+                    item.group.group_property.property if item.group_id else None
+                ),
             }
         )
     return results
@@ -241,7 +263,14 @@ def search_samples_metadata(filters, match="all", request_user=None):
             value = value.strip()
             if not value:
                 raise ValueError("value cannot be empty")
-        normalized_filters.append({"property": prop, "value": value})
+        normalized_filters.append(
+            {
+                "property": prop,
+                "property_lower": prop.lower(),
+                "parent_property": _complex_parent_property(prop),
+                "value": value,
+            }
+        )
 
     # Validate properties exist in user-visible schemas and resolve each filter
     # property to concrete schema_property ids (possibly several across schemas).
@@ -275,7 +304,7 @@ def search_samples_metadata(filters, match="all", request_user=None):
 
     filter_conditions = []
     for item in normalized_filters:
-        prop_ids = property_ids_by_lower_name[item["property"].lower()]
+        prop_ids = property_ids_by_lower_name[item["property_lower"]]
         condition = Q(schema_property_id__in=prop_ids)
         if item["value"] is not None:
             condition &= Q(value__iexact=item["value"])
@@ -296,12 +325,63 @@ def search_samples_metadata(filters, match="all", request_user=None):
         ).filter(any_condition)
         matched_samples = samples_queryset.filter(Exists(exists_queryset))
     else:
+        parent_grouped_filters = defaultdict(list)
+        simple_filter_conditions = []
+        for item, condition in zip(normalized_filters, filter_conditions):
+            parent_property = item["parent_property"]
+            if parent_property:
+                parent_grouped_filters[parent_property.lower()].append(
+                    {
+                        "parent_property": parent_property,
+                        "property": item["property"],
+                        "condition": condition,
+                    }
+                )
+            else:
+                simple_filter_conditions.append(condition)
+
+        same_group_filters = []
+        for grouped_items in parent_grouped_filters.values():
+            distinct_child_properties = {
+                item["property"].lower() for item in grouped_items
+            }
+            if len(grouped_items) > 1 and len(distinct_child_properties) > 1:
+                parent_property = grouped_items[0]["parent_property"]
+                parent_ids = list(
+                    properties_queryset.filter(
+                        property__iexact=parent_property
+                    ).values_list("id", flat=True)
+                )
+                if not parent_ids:
+                    raise ValueError(f"Unknown property: {parent_property}")
+                same_group_filters.append(
+                    {
+                        "parent_ids": parent_ids,
+                        "conditions": [item["condition"] for item in grouped_items],
+                    }
+                )
+            else:
+                simple_filter_conditions.extend(
+                    item["condition"] for item in grouped_items
+                )
+
         matched_samples = samples_queryset
-        for condition in filter_conditions:
+        for condition in simple_filter_conditions:
             exists_queryset = models.MetadataValues.objects.filter(
                 sample_id=OuterRef("pk")
             ).filter(condition)
             matched_samples = matched_samples.filter(Exists(exists_queryset))
+        for same_group_filter in same_group_filters:
+            group_queryset = models.MetadataGroup.objects.filter(
+                sample_id=OuterRef("pk"),
+                group_property_id__in=same_group_filter["parent_ids"],
+            )
+            for condition in same_group_filter["conditions"]:
+                value_queryset = models.MetadataValues.objects.filter(
+                    group_id=OuterRef("pk")
+                ).filter(condition)
+                group_queryset = group_queryset.filter(Exists(value_queryset))
+            matched_samples = matched_samples.filter(Exists(group_queryset))
 
     if not matched_samples.exists():
         return []

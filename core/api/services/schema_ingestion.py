@@ -23,6 +23,110 @@ def _stringify_examples(examples):
     return str(examples)[:250]
 
 
+def _schema_property_type(prop_data):
+    prop_type = prop_data.get("type")
+    if isinstance(prop_type, list):
+        prop_type = prop_type[0] if prop_type else None
+    if prop_type is None and isinstance(prop_data.get("anyOf"), list):
+        for entry in prop_data["anyOf"]:
+            if isinstance(entry, dict) and entry.get("type"):
+                prop_type = entry["type"]
+                break
+    if prop_type is None:
+        prop_type = "string"
+    return str(prop_type)[:20]
+
+
+def _nested_schema_properties(prop_data):
+    if not isinstance(prop_data, dict):
+        return None
+    properties = prop_data.get("properties")
+    if isinstance(properties, dict):
+        return properties
+    items = prop_data.get("items")
+    if isinstance(items, dict) and isinstance(items.get("properties"), dict):
+        return items["properties"]
+    return None
+
+
+def _nested_required_fields(prop_data):
+    required = prop_data.get("required")
+    items = prop_data.get("items")
+    if isinstance(items, dict) and isinstance(items.get("required"), list):
+        required = items["required"]
+    if not isinstance(required, list):
+        return []
+    return required
+
+
+def _property_spec(
+    property_path,
+    prop_data,
+    *,
+    required=False,
+    inherited_classification=None,
+):
+    if len(property_path) > 50:
+        raise ValueError(
+            f"schema property path '{property_path}' exceeds 50 characters"
+        )
+
+    classification_name = (
+        _normalize_str(prop_data.get("classification")) or inherited_classification
+    )
+    has_enum = isinstance(prop_data.get("enum"), list) and len(prop_data["enum"]) > 0
+
+    return {
+        "property": property_path,
+        "classification_name": classification_name,
+        "examples": _stringify_examples(prop_data.get("examples")),
+        "ontology": _normalize_str(prop_data.get("ontology")),
+        "type": _schema_property_type(prop_data),
+        "format": _normalize_str(prop_data.get("format")),
+        "description": _normalize_str(prop_data.get("description")),
+        "label": _normalize_str(prop_data.get("label")),
+        "required": required,
+        "options": has_enum,
+        "fill_mode": _normalize_str(prop_data.get("fill_mode")),
+        "enum_values": (
+            [str(item) for item in prop_data.get("enum", [])] if has_enum else []
+        ),
+    }
+
+
+def _iter_schema_property_specs(
+    properties,
+    required_fields,
+    *,
+    parent_path="",
+    inherited_classification=None,
+):
+    for prop_name, prop_data in properties.items():
+        if not isinstance(prop_data, dict):
+            continue
+
+        property_path = f"{parent_path}.{prop_name}" if parent_path else prop_name
+        classification_name = (
+            _normalize_str(prop_data.get("classification")) or inherited_classification
+        )
+
+        yield _property_spec(
+            property_path,
+            prop_data,
+            required=prop_name in required_fields,
+            inherited_classification=inherited_classification,
+        )
+
+        nested_properties = _nested_schema_properties(prop_data)
+        if nested_properties:
+            yield from _iter_schema_property_specs(
+                nested_properties,
+                _nested_required_fields(prop_data),
+                parent_path=property_path,
+                inherited_classification=classification_name,
+            )
+
+
 def prepare_schema_create(payload, request_user):
     if request_user is None:
         raise ValueError("User is required to upload a schema")
@@ -67,45 +171,13 @@ def prepare_schema_create(payload, request_user):
         required_fields = []
 
     property_specs = []
-    for prop_name, prop_data in properties.items():
-        if not isinstance(prop_data, dict):
+    seen_properties = set()
+    for property_spec in _iter_schema_property_specs(properties, required_fields):
+        property_key = property_spec["property"].lower()
+        if property_key in seen_properties:
             continue
-
-        prop_type = prop_data.get("type")
-        if isinstance(prop_type, list):
-            prop_type = prop_type[0] if prop_type else None
-        if prop_type is None and isinstance(prop_data.get("anyOf"), list):
-            for entry in prop_data["anyOf"]:
-                if isinstance(entry, dict) and entry.get("type"):
-                    prop_type = entry["type"]
-                    break
-        if prop_type is None:
-            prop_type = "string"
-
-        has_enum = (
-            isinstance(prop_data.get("enum"), list) and len(prop_data["enum"]) > 0
-        )
-
-        property_specs.append(
-            {
-                "property": prop_name,
-                "classification_name": _normalize_str(prop_data.get("classification")),
-                "examples": _stringify_examples(prop_data.get("examples")),
-                "ontology": _normalize_str(prop_data.get("ontology")),
-                "type": str(prop_type)[:20],
-                "format": _normalize_str(prop_data.get("format")),
-                "description": _normalize_str(prop_data.get("description")),
-                "label": _normalize_str(prop_data.get("label")),
-                "required": prop_name in required_fields,
-                "options": has_enum,
-                "fill_mode": _normalize_str(prop_data.get("fill_mode")),
-                "enum_values": (
-                    [str(item) for item in prop_data.get("enum", [])]
-                    if has_enum
-                    else []
-                ),
-            }
-        )
+        seen_properties.add(property_key)
+        property_specs.append(property_spec)
 
     return {
         "schema_fields": {
