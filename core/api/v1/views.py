@@ -40,6 +40,7 @@ from core.api.services import schema_ingestion
 from core.api.services import schema_listing
 from core.api.services import databrowser
 from core.api.services import use_case_data
+from core.api.services import use_case_isolates
 from core.api.services import variant_ingestion
 from core.api.services import variant_search
 from core.api.utils import access_control
@@ -1578,6 +1579,48 @@ def use_case_data_summary_view(request):
         return Response({"error": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
 
     response_serializer = core.api.v1.serializers.UseCaseDataSummarySerializer(
+        data=response_data
+    )
+    response_serializer.is_valid(raise_exception=True)
+    return Response(response_serializer.data, status=status.HTTP_200_OK)
+
+
+@extend_schema(
+    tags=[TAG_USE_CASES],
+    summary="Use-case isolate explorer",
+    description=(
+        "Return project-scoped isolate rows for operational explorer views. "
+        "The endpoint is generic across use cases and exposes normalized "
+        "columns, rows, filter options, and source-property quality metadata."
+    ),
+    parameters=[core.api.v1.serializers.UseCaseIsolateExplorerQuerySerializer],
+    responses={
+        200: core.api.v1.serializers.UseCaseIsolateExplorerSerializer,
+        400: core.api.v1.serializers.ErrorSerializer,
+        403: core.api.v1.serializers.ErrorSerializer,
+    },
+)
+@authentication_classes([SessionAuthentication, BasicAuthentication])
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def use_case_isolate_explorer_view(request):
+    serializer = core.api.v1.serializers.UseCaseIsolateExplorerQuerySerializer(
+        data=request.query_params
+    )
+    serializer.is_valid(raise_exception=True)
+    project_name = access_control.ensure_project_access(
+        request.user, serializer.validated_data["project_name"]
+    )
+    try:
+        response_data = use_case_isolates.isolate_explorer(
+            project_name,
+            filters=serializer.validated_data,
+            request_user=request.user,
+        )
+    except ValueError as exc:
+        return Response({"error": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+
+    response_serializer = core.api.v1.serializers.UseCaseIsolateExplorerSerializer(
         data=response_data
     )
     response_serializer.is_valid(raise_exception=True)

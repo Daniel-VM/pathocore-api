@@ -4,6 +4,7 @@ from django.contrib.auth.models import User
 from django.core.exceptions import PermissionDenied
 from django.test import SimpleTestCase, TestCase
 from django.test import override_settings
+from django.utils import timezone
 from unittest.mock import patch
 from rest_framework.exceptions import AuthenticationFailed
 from rest_framework.test import APIClient
@@ -731,6 +732,79 @@ class UseCaseDataSummaryTests(TestCase):
         )
 
         self.assertEqual(response.status_code, 403)
+
+    def test_use_case_isolate_explorer_returns_live_rows(self):
+        self.properties["amr_acquired_genes"] = models.SchemaProperties.objects.create(
+            schemaID=self.schema,
+            property="amr_acquired_genes",
+            type="array",
+        )
+        self.properties["amr_acquired_genes.gene_name"] = (
+            models.SchemaProperties.objects.create(
+                schemaID=self.schema,
+                property="amr_acquired_genes.gene_name",
+                type="string",
+            )
+        )
+        self.properties["sequence_type.sequence_type_1"] = (
+            models.SchemaProperties.objects.create(
+                schemaID=self.schema,
+                property="sequence_type.sequence_type_1",
+                type="string",
+            )
+        )
+        group = models.MetadataGroup.objects.create(
+            sample=self.sample_1,
+            group_property=self.properties["amr_acquired_genes"],
+            group_index=0,
+            created_at=timezone.now(),
+        )
+        models.MetadataValues.objects.create(
+            sample=self.sample_1,
+            schema_property=self.properties["amr_acquired_genes.gene_name"],
+            group=group,
+            value="KPC",
+            analysis_date=date.today(),
+        )
+        self._metadata(self.sample_1, "sequence_type.sequence_type_1", "307")
+
+        user = KeycloakTokenUser(
+            subject="user-1",
+            username="daniel",
+            groups=["/use-cases/mepram/viewer"],
+        )
+        self.client.force_authenticate(user=user)
+
+        response = self.client.get(
+            "/v1/use-cases/isolate-explorer",
+            {"project_name": "mepram"},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["data_contract_version"], "1.0")
+        self.assertEqual(payload["project_name"], "mepram")
+        self.assertEqual(payload["total_samples"], 2)
+        self.assertEqual(payload["matched_samples"], 2)
+        self.assertEqual(payload["total_loaded"], 2)
+        row = next(
+            item for item in payload["rows"] if item["sample_unique_id"] == "MEP0000001"
+        )
+        self.assertEqual(row["sample_unique_id"], "MEP0000001")
+        self.assertEqual(row["sequencing_sample_id"], "SEQ-1")
+        self.assertEqual(row["collection_date"], "2025-01-02")
+        self.assertEqual(row["pathogen"], "K. pneumoniae")
+        self.assertEqual(row["sequence_type"], "ST307")
+        self.assertIn("KPC", row["carbapenemase"])
+        self.assertIn("OXA-48", row["carbapenemase"])
+        self.assertIn(
+            "K. pneumoniae",
+            payload["filter_options"]["pathogens"],
+        )
+        self.assertEqual(
+            payload["data_quality"]["fields"]["carbapenemase"]["matched_samples"],
+            1,
+        )
 
 
 class ComplexMetadataTests(TestCase):
