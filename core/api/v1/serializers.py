@@ -761,6 +761,39 @@ class UseCaseDataSummaryQuerySerializer(serializers.Serializer):
         return attrs
 
 
+class UseCaseIsolateExplorerQuerySerializer(serializers.Serializer):
+    project_name = serializers.CharField(required=True, allow_blank=False)
+    search = serializers.CharField(required=False, allow_blank=True)
+    pathogen = serializers.CharField(required=False, allow_blank=True)
+    region = serializers.CharField(required=False, allow_blank=True)
+    sequence_type = serializers.CharField(required=False, allow_blank=True)
+    carbapenemase = serializers.CharField(required=False, allow_blank=True)
+    center = serializers.CharField(required=False, allow_blank=True)
+    infection_type = serializers.CharField(required=False, allow_blank=True)
+    sequencing_platform = serializers.CharField(required=False, allow_blank=True)
+    resistance_profile = serializers.CharField(required=False, allow_blank=True)
+    collection_date_from = serializers.DateField(required=False)
+    collection_date_to = serializers.DateField(required=False)
+    page = serializers.IntegerField(required=False, min_value=1)
+    page_size = serializers.IntegerField(required=False, min_value=1, max_value=5000)
+
+    def validate(self, attrs):
+        allowed_keys = set(self.fields.keys())
+        provided_keys = set(self.initial_data.keys())
+        unknown_keys = provided_keys - allowed_keys
+        if unknown_keys:
+            raise serializers.ValidationError(
+                {"error": f"Unknown filter(s): {', '.join(sorted(unknown_keys))}"}
+            )
+        date_from = attrs.get("collection_date_from")
+        date_to = attrs.get("collection_date_to")
+        if date_from and date_to and date_from > date_to:
+            raise serializers.ValidationError(
+                {"error": "collection_date_from cannot be after collection_date_to"}
+            )
+        return attrs
+
+
 class UseCaseDataSummarySerializer(serializers.Serializer):
     data_contract_version = serializers.CharField()
     project_name = serializers.CharField()
@@ -775,3 +808,20 @@ class UseCaseDataSummarySerializer(serializers.Serializer):
     visualization_hints = serializers.DictField()
     overview = serializers.DictField()
     data_quality = serializers.DictField()
+
+
+class UseCaseIsolateExplorerSerializer(serializers.Serializer):
+    data_contract_version = serializers.CharField()
+    project_name = serializers.CharField()
+    project_label = serializers.CharField()
+    generated_at = serializers.DateTimeField()
+    project = serializers.DictField()
+    query = serializers.DictField()
+    columns = serializers.ListField(child=serializers.DictField())
+    rows = serializers.ListField(child=serializers.DictField())
+    filter_options = serializers.DictField()
+    total_samples = serializers.IntegerField()
+    matched_samples = serializers.IntegerField()
+    total_loaded = serializers.IntegerField()
+    data_quality = serializers.DictField()
+    notes = serializers.ListField(child=serializers.CharField())

@@ -77,6 +77,11 @@ urlpatterns = [
         name="use_case_data_summary",
     ),
     path(
+        "use-cases/isolate-explorer",
+        core.api.v1.views.use_case_isolate_explorer_view,
+        name="use_case_isolate_explorer",
+    ),
+    path(
         "variants/search",
         core.api.v1.views.variant_search_view,
         name="variant_search",
