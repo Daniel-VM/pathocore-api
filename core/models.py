@@ -35,42 +35,6 @@ def create_or_update_user_profile(sender, instance, created, **kwargs):
         Profile.objects.create(user=instance)
 
 
-# TODO: remove
-class BioinfoMetadataFile(models.Model):
-    title = models.CharField(max_length=200)
-    file_path = models.CharField(max_length=200)
-    created_at = models.DateTimeField(auto_now_add=True, verbose_name=("created at"))
-
-    class Meta:
-        db_table = "core_metadata_values_file"
-
-    def __str__(self):
-        return "%s" % (self.title)
-
-    def get_title(self):
-        return "%s" % (self.title)
-
-    def get_file_path(self):
-        return "%s" % (self.file_path)
-
-    def get_uploaded_file(self):
-        return "%s" % (self.uploadedFile)
-
-
-class SchemaManager(models.Manager):
-    def create_new_schema(self, data):
-        new_schema = self.create(
-            file_name=data["file_name"],
-            user_name=data["user_name"],
-            schema_name=data["schema_name"],
-            schema_version=data["schema_version"],
-            schema_default=data.get("schema_default", False),
-            schema_in_use=data.get("schema_in_use", True),
-            schema_app_name=data["schema_app_name"],
-        )
-        return new_schema
-
-
 class Schema(models.Model):
     file_name = models.FileField(upload_to=core.config.SCHEMAS_UPLOAD_FOLDER)
     user_name = models.ForeignKey(User, on_delete=models.CASCADE, null=True, blank=True)
@@ -118,14 +82,6 @@ class Schema(models.Model):
         self.schema_default = default
         self.save()
 
-    objects = SchemaManager()
-
-
-class ClassificationManager(models.Manager):
-    def create_new_classification(self, classification_name):
-        new_class_obj = self.create(classification_name=classification_name)
-        return new_class_obj
-
 
 class Classification(models.Model):
     classification_name = models.CharField(max_length=150)
@@ -142,41 +98,6 @@ class Classification(models.Model):
 
     def get_classification_name(self):
         return "%s" % (self.classification_name)
-
-    objects = ClassificationManager()
-
-
-class SchemaPropertiesManager(models.Manager):
-    def create_new_property(self, data):
-        required = True if "required" in data else False
-        options = True if "options" in data else False
-        format = data["format"] if "format" in data else None
-        if Classification.objects.filter(
-            classification_name__iexact=data["classification"]
-        ).exists():
-            classification_id = Classification.objects.filter(
-                classification_name=data["classification"]
-            ).last()
-        else:
-            classification_id = Classification.objects.create_new_classification(
-                data["classification"]
-            )
-
-        new_property_obj = self.create(
-            schemaID=data["schemaID"],
-            property=data["property"],
-            examples=data["examples"],
-            ontology=data["ontology"],
-            type=data["type"],
-            description=data["description"],
-            label=data["label"],
-            classificationID=classification_id,
-            fill_mode=data["fill_mode"],
-            required=required,
-            options=options,
-            format=format,
-        )
-        return new_property_obj
 
 
 class SchemaProperties(models.Model):
@@ -246,18 +167,6 @@ class SchemaProperties(models.Model):
             return self.classificationID.get_classification_name()
         return ""
 
-    objects = SchemaPropertiesManager()
-
-
-class PropertyOptionsManager(models.Manager):
-    def create_property_options(self, data):
-        new_property_option_obj = self.create(
-            propertyID=data["propertyID"],
-            enum=data["enum"],
-            ontology=data["ontology"],
-        )
-        return new_property_option_obj
-
 
 class PropertyOptions(models.Model):
     propertyID = models.ForeignKey(SchemaProperties, on_delete=models.CASCADE)
@@ -272,52 +181,6 @@ class PropertyOptions(models.Model):
 
     def get_enum(self):
         return "%s" % (self.enum)
-
-    objects = PropertyOptionsManager()
-
-
-class MetadataVisualizationManager(models.Manager):
-    def create_metadata_visualization(self, data):
-        new_met_visual = self.create(
-            schemaID=data["schema_id"],
-            property_name=data["property_name"],
-            label_name=data["label_name"],
-            order=data["order"],
-            in_use=data["in_use"],
-            fill_mode=data["fill_mode"],
-        )
-        return new_met_visual
-
-
-# TODO: remove
-class MetadataVisualization(models.Model):
-    schemaID = models.ForeignKey(Schema, on_delete=models.CASCADE)
-    property_name = models.CharField(max_length=60)
-    label_name = models.CharField(max_length=80)
-    order = models.IntegerField()
-    in_use = models.BooleanField(default=True)
-    fill_mode = models.CharField(max_length=40)
-    generated_at = models.DateTimeField(auto_now_add=True, null=True, blank=True)
-
-    class Meta:
-        db_table = "core_metadata_visualization"
-
-    def __str__(self):
-        return "%s" % (self.label_name)
-
-    def get_label(self):
-        return "%s" % (self.label_name)
-
-    def get_property(self):
-        return "%s" % (self.property_name)
-
-    def get_order(self):
-        return "%s" % (self.order)
-
-    def get_schema_obj(self):
-        return self.schemaID
-
-    objects = MetadataVisualizationManager()
 
 
 class MetadataGroup(models.Model):
@@ -345,39 +208,6 @@ class MetadataGroup(models.Model):
 
     def __str__(self):
         return f"{self.sample.sample_unique_id}:{self.group_property.property}[{self.group_index}]"
-
-
-class MetadataValuesManager(models.Manager):
-    def create_new_value(self, data):
-        # Get group object
-        group_obj = data.get("group")
-        group_id = data.get("group_id")
-        if group_obj is not None and not isinstance(group_obj, MetadataGroup):
-            group_obj = MetadataGroup.objects.get(pk=group_obj)
-        elif group_obj is None and group_id is not None:
-            group_obj = MetadataGroup.objects.get(pk=group_id)
-
-        # verify that the value and its group belong to the same sample (sample)
-        if group_obj is not None:
-            sample_value = data["sample_id"]
-            sample_id = getattr(sample_value, "pk", sample_value)
-            if isinstance(sample_id, str) and sample_id.isdigit():
-                sample_id = int(sample_id)
-            # If the group belongs to a sample_id other than the one provided, we throw an error
-            if group_obj.sample_id != sample_id:
-                raise ValueError(
-                    f"Invalid group: group.sample_id ({group_obj.sample_id}) "
-                    f"does not match sample_id ({sample_id})"
-                )
-        # Instance is validated, then create the new value to be stored in db
-        new_value = self.create(
-            value=data["value"],
-            analysis_date=data["analysis_date"],
-            sample=data["sample_id"],
-            schema_property=data["schema_property_id"],
-            group=group_obj,
-        )
-        return new_value
 
 
 class MetadataValues(models.Model):
@@ -428,8 +258,6 @@ class MetadataValues(models.Model):
     def get_b_process_field_id(self):
         return "%s" % (self.schema_property)
 
-    objects = MetadataValuesManager()
-
 
 class SampleState(models.Model):
     state = models.CharField(max_length=80)
@@ -474,19 +302,6 @@ class ErrorName(models.Model):
 
     def get_description(self):
         return "%s" % (self.error_text)
-
-
-class SampleManager(models.Manager):
-    def create_new_sample(self, data):
-        # FIXME: Sequencing_date is not supposed to be mandatory, collecting date is
-        new_sample = self.create(
-            sample_unique_id=data["sample_unique_id"],
-            sequencing_sample_id=data["sequencing_sample_id"],
-            sequencing_date=data["sequencing_date"],
-            metadata_file=data["metadata_file"],
-            user=data["user"],
-        )
-        return new_sample
 
 
 class Sample(models.Model):
@@ -617,8 +432,6 @@ class Sample(models.Model):
         self.save()
         return self
 
-    objects = SampleManager()
-
 
 class SampleIdSequence(models.Model):
     sequence_name = models.CharField(max_length=40, unique=True)
@@ -683,16 +496,6 @@ class PublicDatabaseType(models.Model):
         return "%s" % (self.public_type_display)
 
 
-class PublicDatabaseFieldsManager(models.Manager):
-    def create_new_field(self, data):
-        new_field = self.create(
-            database_type=data["database_type"],
-            property_name=data["property_name"],
-            label_name=data["label_name"],
-        )
-        return new_field
-
-
 class PublicDatabaseFields(models.Model):
     schemaID = models.ManyToManyField(Schema)
     database_type = models.ForeignKey(
@@ -716,8 +519,6 @@ class PublicDatabaseFields(models.Model):
 
     def get_id(self):
         return "%s" % (self.pk)
-
-    objects = PublicDatabaseFieldsManager()
 
 
 class PublicDatabaseValues(models.Model):
@@ -885,17 +686,6 @@ class VariantAnnotation(models.Model):
         return f"{self.variant}:{self.effect}:{self.aminoacid_change}"
 
 
-class TemporalSampleStorageManager(models.Manager):
-    def save_temp_data(self, data):
-        new_t_data = self.create(
-            sample_name=data["sample_name"],
-            field=data["field"],
-            value=data["value"],
-            user=data["user"],
-        )
-        return new_t_data
-
-
 class TemporalSampleStorage(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, null=True)
     sample_name = models.CharField(max_length=100, null=True)
@@ -920,16 +710,6 @@ class TemporalSampleStorage(models.Model):
         self.save()
         return
 
-    objects = TemporalSampleStorageManager()
-
-
-class ConfigSettingManager(models.Manager):
-    def create_config_setting(self, configuration_name, configuration_value):
-        new_config_settings = self.create(
-            configurationName=configuration_name, configurationValue=configuration_value
-        )
-        return new_config_settings
-
 
 class ConfigSetting(models.Model):
     configuration_name = models.CharField(max_length=80)
@@ -949,5 +729,3 @@ class ConfigSetting(models.Model):
         self.configuration_value = new_value
         self.save()
         return self
-
-    objects = ConfigSettingManager()

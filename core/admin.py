@@ -122,15 +122,6 @@ class PropertyOptionsAdmin(admin.ModelAdmin):
     list_display = ["propertyID", "enum", "ontology"]
 
 
-class MetadataVisualizationAdmin(admin.ModelAdmin):
-    list_display = [
-        "property_name",
-        "label_name",
-        "fill_mode",
-        "in_use",
-    ]
-
-
 class VariantAdmin(admin.ModelAdmin):
     list_display = ["chrom", "position", "reference", "alternate", "variant_type"]
     search_fields = ["chrom", "reference", "alternate"]
@@ -177,7 +168,6 @@ admin.site.register(core.models.PropertyOptions, PropertyOptionsAdmin)
 admin.site.register(core.models.PublicDatabaseType, PublicDatabaseTypeAdmin)
 admin.site.register(core.models.PublicDatabaseFields, PublicDatabaseFieldsAdmin)
 admin.site.register(core.models.PublicDatabaseValues, PublicDatabaseValuesAdmin)
-admin.site.register(core.models.MetadataVisualization, MetadataVisualizationAdmin)
 admin.site.register(core.models.MetadataValues, MetadataValuesAdmin)
 admin.site.register(core.models.Classification, ClassificationAdmin)
 admin.site.register(core.models.TemporalSampleStorage, TemporalSampleStorageAdmin)
