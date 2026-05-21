@@ -19,9 +19,7 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         project_names = options.get("project")
         try:
-            refreshed = use_case_data.refresh_use_case_data_summary_cache(
-                project_names
-            )
+            refreshed = use_case_data.refresh_use_case_data_summary_cache(project_names)
         except ValueError as exc:
             raise CommandError(str(exc)) from exc
 
