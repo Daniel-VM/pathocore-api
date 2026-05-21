@@ -15,6 +15,7 @@ from core.api.utils import access_control
 
 
 USE_CASE_DATA_SUMMARY = "use-case-data-summary"
+DATA_CONTRACT_VERSION = "1.2"
 NO_FILTERS_HASH = core.config.DATABROWSER_NO_FILTERS_HASH
 
 PATHOGEN_ALIASES = (
@@ -45,11 +46,6 @@ INFECTION_TYPE_ALIASES = (
 SEQUENCING_PLATFORM_ALIASES = (
     "sequencing_instrument_platform",
 )
-RESISTANCE_PROFILE_ALIASES = (
-    "ECDC Resistance profile",
-    "IDSA Resistance profile",
-    "antimicrobial_resistance_profile",
-)
 RESISTANCE_SIGNAL_ALIASES = (
     "amr_acquired_genes.gene_name",
     "carbapenemase_genes",
@@ -57,6 +53,7 @@ RESISTANCE_SIGNAL_ALIASES = (
     "ESBL_test",
     "mbl_test",
 )
+SPECIMEN_SOURCE_ALIASES = ("specimen_source",)
 BIOINFO_ANALYSIS_ALIASES = (
     "bioinformatics_protocol_software_name",
     "preprocessing_software_name",
@@ -82,7 +79,10 @@ def data_summary(project_name, *, use_cache=True):
 
     if use_cache:
         cached = _get_cached_project_summary(project_name)
-        if cached is not None and cached.payload.get("data_contract_version") == "1.1":
+        if (
+            cached is not None
+            and cached.payload.get("data_contract_version") == DATA_CONTRACT_VERSION
+        ):
             return cached.payload
 
     try:
@@ -205,8 +205,8 @@ def _build_project_summary(project_name):
     sequencing_platform_distribution = _distribution_for_aliases(
         sample_ids, SEQUENCING_PLATFORM_ALIASES
     )
-    resistance_profile_distribution = _distribution_for_aliases(
-        sample_ids, RESISTANCE_PROFILE_ALIASES, split_values=True
+    specimen_source_distribution = _distribution_for_aliases(
+        sample_ids, SPECIMEN_SOURCE_ALIASES
     )
     resistance_signal_distribution = _distribution_from_index(
         resistance_signals_by_sample
@@ -239,6 +239,9 @@ def _build_project_summary(project_name):
         "samples_with_collection_date": len(collection_dates),
         "samples_with_pathogen": len(pathogen_by_sample),
         "samples_with_region": len(region_by_sample),
+        "samples_with_specimen_source": _matched_sample_count_for_aliases(
+            sample_ids, SPECIMEN_SOURCE_ALIASES
+        ),
         "samples_with_resistance_signals": len(resistance_signals_by_sample),
     }
 
@@ -310,15 +313,15 @@ def _build_project_summary(project_name):
                 sample_ids, SEQUENCING_PLATFORM_ALIASES
             ),
         ),
-        "resistance_profile": _dimension(
-            key="resistance_profile",
-            label="Resistance profile",
+        "specimen_source": _dimension(
+            key="specimen_source",
+            label="Specimen source",
             kind="categorical",
-            source_properties=RESISTANCE_PROFILE_ALIASES,
-            values=resistance_profile_distribution,
+            source_properties=SPECIMEN_SOURCE_ALIASES,
+            values=specimen_source_distribution,
             total_samples=sample_count,
             matched_samples=_matched_sample_count_for_aliases(
-                sample_ids, RESISTANCE_PROFILE_ALIASES
+                sample_ids, SPECIMEN_SOURCE_ALIASES
             ),
         ),
         "resistance_signal": _dimension(
@@ -381,14 +384,14 @@ def _build_project_summary(project_name):
         "submitting_regions": submitting_regions,
         "infection_types": infection_type_distribution,
         "sequencing_platforms": sequencing_platform_distribution,
-        "resistance_profiles": resistance_profile_distribution,
-        "resistance_profiles_simulated": False,
+        "specimen_sources": specimen_source_distribution,
+        "specimen_sources_simulated": False,
         "notes": _summary_notes(sample_count),
     }
     generated_at = timezone.now()
 
     return {
-        "data_contract_version": "1.1",
+        "data_contract_version": DATA_CONTRACT_VERSION,
         "project_name": project_name,
         "project_label": _project_label(project_name),
         "generated_at": generated_at,
@@ -426,7 +429,7 @@ def _build_project_summary(project_name):
                 "submitting_regions": list(SUBMITTING_REGION_ALIASES),
                 "infection_types": list(INFECTION_TYPE_ALIASES),
                 "sequencing_platforms": list(SEQUENCING_PLATFORM_ALIASES),
-                "resistance_profiles": list(RESISTANCE_PROFILE_ALIASES),
+                "specimen_sources": list(SPECIMEN_SOURCE_ALIASES),
                 "resistance_signals": list(RESISTANCE_SIGNAL_ALIASES),
                 "bioinformatics_analysis": list(BIOINFO_ANALYSIS_ALIASES),
             },
@@ -705,7 +708,9 @@ def _territorial_coverage(
             for sample_id in region_sample_ids
             if sample_id in center_by_sample
         }
-        dominant_pathogen = _top_label_for_samples(region_sample_ids, pathogen_by_sample)
+        dominant_pathogen = _top_label_for_samples(
+            region_sample_ids, pathogen_by_sample
+        )
         top_resistance_signal = _top_label_for_samples(
             region_sample_ids, resistance_signals_by_sample
         )
@@ -791,8 +796,8 @@ def _missing_operational_fields(overview):
     missing = []
     if not overview["project_pathogen_distribution"]:
         missing.append("pathogen")
-    if not overview["resistance_profiles"]:
-        missing.append("resistance_profiles")
+    if not overview["specimen_sources"]:
+        missing.append("specimen_source")
     if not overview["resistance_signals_series"]["series"]:
         missing.append("resistance_signals")
     if not overview["territorial_coverage"]:
@@ -802,7 +807,10 @@ def _missing_operational_fields(overview):
 
 def _summary_notes(sample_count):
     notes = [
-        "Los agregados se calculan en backend para evitar una llamada de metadata por muestra.",
+        (
+            "Los agregados se calculan en backend para evitar una llamada de "
+            "metadata por muestra."
+        ),
         (
             "Las fechas priorizan sample_collection_date y caen a "
             "sequencing_date/created_at si no existe metadata de coleccion."

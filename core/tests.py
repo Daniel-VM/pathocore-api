@@ -640,6 +640,8 @@ class UseCaseDataSummaryTests(TestCase):
                 "submitting_institution",
                 "submitting_geo_loc_state",
                 "collecting_institution_geo_loc_state",
+                "collecting_institution_geo_loc_region",
+                "specimen_source",
                 "carbapenemase_genes",
                 "bioinformatics_protocol_software_name",
             )
@@ -653,12 +655,18 @@ class UseCaseDataSummaryTests(TestCase):
         self._metadata(
             self.sample_1, "collecting_institution_geo_loc_state", "Comunidad de Madrid"
         )
+        self._metadata(self.sample_1, "collecting_institution_geo_loc_region", "Madrid")
+        self._metadata(self.sample_1, "specimen_source", "Blood")
         self._metadata(self.sample_1, "carbapenemase_genes", "OXA-48")
         self._metadata(self.sample_1, "bioinformatics_protocol_software_name", "ivar")
         self._metadata(self.sample_2, "organism", "E. coli")
         self._metadata(self.sample_2, "sample_collection_date", "2025-02-03")
         self._metadata(self.sample_2, "submitting_institution", "Hospital B")
         self._metadata(self.sample_2, "submitting_geo_loc_state", "Cataluna")
+        self._metadata(
+            self.sample_2, "collecting_institution_geo_loc_region", "Barcelona"
+        )
+        self._metadata(self.sample_2, "specimen_source", "Urine")
 
     def _metadata(self, sample, property_name, value):
         return models.MetadataValues.objects.create(
@@ -683,7 +691,7 @@ class UseCaseDataSummaryTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         payload = response.json()
-        self.assertEqual(payload["data_contract_version"], "1.1")
+        self.assertEqual(payload["data_contract_version"], "1.2")
         self.assertEqual(payload["project_name"], "mepram")
         self.assertEqual(payload["project"], {"id": "mepram", "label": "Mepram"})
         self.assertEqual(payload["metrics"]["total_samples"], 2)
@@ -698,6 +706,13 @@ class UseCaseDataSummaryTests(TestCase):
         )
         self.assertEqual(
             payload["dimensions"]["pathogen"]["coverage"]["matched_samples"], 2
+        )
+        self.assertEqual(
+            payload["dimensions"]["specimen_source"]["values"],
+            [
+                {"label": "Blood", "value": 1},
+                {"label": "Urine", "value": 1},
+            ],
         )
         self.assertIn("samples_by_month", payload["time_series"])
         self.assertIn("regions", payload["geography"])
@@ -746,10 +761,66 @@ class UseCaseDataSummaryTests(TestCase):
                 type="string",
             )
         )
+        self.properties["amr_acquired_genes.allele_name"] = (
+            models.SchemaProperties.objects.create(
+                schemaID=self.schema,
+                property="amr_acquired_genes.allele_name",
+                type="string",
+            )
+        )
+        self.properties["amr_acquired_genes.classification"] = (
+            models.SchemaProperties.objects.create(
+                schemaID=self.schema,
+                property="amr_acquired_genes.classification",
+                type="string",
+            )
+        )
+        self.properties["amr_acquired_genes.origin"] = (
+            models.SchemaProperties.objects.create(
+                schemaID=self.schema,
+                property="amr_acquired_genes.origin",
+                type="string",
+            )
+        )
+        self.properties["organism.species"] = (
+            models.SchemaProperties.objects.create(
+                schemaID=self.schema,
+                property="organism.species",
+                type="string",
+            )
+        )
+        self.properties["organism.origin"] = (
+            models.SchemaProperties.objects.create(
+                schemaID=self.schema,
+                property="organism.origin",
+                type="string",
+            )
+        )
         self.properties["sequence_type.sequence_type_1"] = (
             models.SchemaProperties.objects.create(
                 schemaID=self.schema,
                 property="sequence_type.sequence_type_1",
+                type="string",
+            )
+        )
+        self.properties["sequence_type.sequence_type_1_scheme"] = (
+            models.SchemaProperties.objects.create(
+                schemaID=self.schema,
+                property="sequence_type.sequence_type_1_scheme",
+                type="string",
+            )
+        )
+        self.properties["sequence_type.sequence_type_2_scheme"] = (
+            models.SchemaProperties.objects.create(
+                schemaID=self.schema,
+                property="sequence_type.sequence_type_2_scheme",
+                type="string",
+            )
+        )
+        self.properties["sequence_type.origin"] = (
+            models.SchemaProperties.objects.create(
+                schemaID=self.schema,
+                property="sequence_type.origin",
                 type="string",
             )
         )
@@ -766,7 +837,109 @@ class UseCaseDataSummaryTests(TestCase):
             value="KPC",
             analysis_date=date.today(),
         )
+        models.MetadataValues.objects.create(
+            sample=self.sample_1,
+            schema_property=self.properties["amr_acquired_genes.allele_name"],
+            group=group,
+            value="blaKPC-2",
+            analysis_date=date.today(),
+        )
+        models.MetadataValues.objects.create(
+            sample=self.sample_1,
+            schema_property=self.properties["amr_acquired_genes.classification"],
+            group=group,
+            value="Bla_Carb",
+            analysis_date=date.today(),
+        )
+        models.MetadataValues.objects.create(
+            sample=self.sample_1,
+            schema_property=self.properties["amr_acquired_genes.origin"],
+            group=group,
+            value="isciii",
+            analysis_date=date.today(),
+        )
+        esbl_group = models.MetadataGroup.objects.create(
+            sample=self.sample_1,
+            group_property=self.properties["amr_acquired_genes"],
+            group_index=1,
+            created_at=timezone.now(),
+        )
+        models.MetadataValues.objects.create(
+            sample=self.sample_1,
+            schema_property=self.properties["amr_acquired_genes.gene_name"],
+            group=esbl_group,
+            value="CTX-M",
+            analysis_date=date.today(),
+        )
+        models.MetadataValues.objects.create(
+            sample=self.sample_1,
+            schema_property=self.properties["amr_acquired_genes.allele_name"],
+            group=esbl_group,
+            value="blaCTX-M-15",
+            analysis_date=date.today(),
+        )
+        models.MetadataValues.objects.create(
+            sample=self.sample_1,
+            schema_property=self.properties["amr_acquired_genes.classification"],
+            group=esbl_group,
+            value="Bla_ESBL",
+            analysis_date=date.today(),
+        )
+        models.MetadataValues.objects.create(
+            sample=self.sample_1,
+            schema_property=self.properties["amr_acquired_genes.origin"],
+            group=esbl_group,
+            value="submitting",
+            analysis_date=date.today(),
+        )
+        submitting_organism_group = models.MetadataGroup.objects.create(
+            sample=self.sample_1,
+            group_property=self.properties["organism"],
+            group_index=0,
+            created_at=timezone.now(),
+        )
+        models.MetadataValues.objects.create(
+            sample=self.sample_1,
+            schema_property=self.properties["organism.species"],
+            group=submitting_organism_group,
+            value="Klebsiella pneumoniae group",
+            analysis_date=date.today(),
+        )
+        models.MetadataValues.objects.create(
+            sample=self.sample_1,
+            schema_property=self.properties["organism.origin"],
+            group=submitting_organism_group,
+            value="submitting",
+            analysis_date=date.today(),
+        )
+        isciii_organism_group = models.MetadataGroup.objects.create(
+            sample=self.sample_1,
+            group_property=self.properties["organism"],
+            group_index=1,
+            created_at=timezone.now(),
+        )
+        models.MetadataValues.objects.create(
+            sample=self.sample_1,
+            schema_property=self.properties["organism.species"],
+            group=isciii_organism_group,
+            value="K. pneumoniae",
+            analysis_date=date.today(),
+        )
+        models.MetadataValues.objects.create(
+            sample=self.sample_1,
+            schema_property=self.properties["organism.origin"],
+            group=isciii_organism_group,
+            value="isciii",
+            analysis_date=date.today(),
+        )
         self._metadata(self.sample_1, "sequence_type.sequence_type_1", "307")
+        self._metadata(
+            self.sample_1, "sequence_type.sequence_type_1_scheme", "Pasteur"
+        )
+        self._metadata(
+            self.sample_1, "sequence_type.sequence_type_2_scheme", "Oxford"
+        )
+        self._metadata(self.sample_1, "sequence_type.origin", "isciii")
 
         user = KeycloakTokenUser(
             subject="user-1",
@@ -782,29 +955,99 @@ class UseCaseDataSummaryTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         payload = response.json()
-        self.assertEqual(payload["data_contract_version"], "1.0")
+        self.assertEqual(payload["data_contract_version"], "1.2")
         self.assertEqual(payload["project_name"], "mepram")
         self.assertEqual(payload["total_samples"], 2)
         self.assertEqual(payload["matched_samples"], 2)
         self.assertEqual(payload["total_loaded"], 2)
         row = next(
-            item for item in payload["rows"] if item["sample_unique_id"] == "MEP0000001"
+            item
+            for item in payload["rows"]
+            if item["sample_unique_id"] == "MEP0000001"
         )
         self.assertEqual(row["sample_unique_id"], "MEP0000001")
         self.assertEqual(row["sequencing_sample_id"], "SEQ-1")
         self.assertEqual(row["collection_date"], "2025-01-02")
         self.assertEqual(row["pathogen"], "K. pneumoniae")
+        self.assertEqual(row["species"], "K. pneumoniae")
+        self.assertEqual(row["species_group"], "Klebsiella pneumoniae group")
+        self.assertEqual(row["province"], "Madrid")
+        self.assertEqual(row["is_sequenced"], True)
+        self.assertEqual(row["sequencing_status"], "Sequenced")
+        self.assertEqual(row["data_origin"], "isciii")
         self.assertEqual(row["sequence_type"], "ST307")
-        self.assertIn("KPC", row["carbapenemase"])
-        self.assertIn("OXA-48", row["carbapenemase"])
+        self.assertEqual(row["sequence_type_schemes"], ["Pasteur", "Oxford"])
+        self.assertEqual(row["amr_gene"], "CTX-M, KPC")
+        self.assertEqual(row["amr_allele"], "blaCTX-M-15, blaKPC-2")
+        self.assertEqual(row["amr_classification"], "Bla_Carb, Bla_ESBL")
+        self.assertEqual(row["bla_carb"], "KPC > blaKPC-2")
+        self.assertEqual(row["bla_esbl"], "CTX-M > blaCTX-M-15")
+        self.assertEqual(row["amr_gene_records"][0]["gene"], "CTX-M")
+        submitting_row = next(
+            item
+            for item in payload["rows"]
+            if item["sample_unique_id"] == "MEP0000002"
+        )
+        self.assertIsNone(submitting_row["species"])
+        self.assertEqual(submitting_row["species_group"], "E. coli")
+        self.assertEqual(submitting_row["is_sequenced"], False)
+        self.assertEqual(submitting_row["sequencing_status"], "Not sequenced")
+        self.assertNotIn("carbapenemase", row)
+        self.assertNotIn("sequencing_platform", row)
+        self.assertNotIn("resistance_profile", row)
+        self.assertNotIn("resistance_profiles", payload["filter_options"])
+        self.assertNotIn("sequencing_platforms", payload["filter_options"])
+        self.assertEqual(payload["filter_options"]["genes"], ["CTX-M", "KPC"])
+        self.assertEqual(
+            payload["filter_options"]["alleles"],
+            ["blaCTX-M-15", "blaKPC-2"],
+        )
+        self.assertEqual(
+            payload["filter_options"]["classifications"],
+            ["Bla_Carb", "Bla_ESBL"],
+        )
+        self.assertEqual(
+            payload["filter_options"]["bla_groups"],
+            ["bla_carb", "bla_esbl"],
+        )
+        self.assertIn("Madrid", payload["filter_options"]["provinces"])
         self.assertIn(
             "K. pneumoniae",
             payload["filter_options"]["pathogens"],
         )
         self.assertEqual(
-            payload["data_quality"]["fields"]["carbapenemase"]["matched_samples"],
+            payload["data_quality"]["fields"]["bla_carb"]["matched_samples"],
             1,
         )
+        filtered_response = self.client.get(
+            "/v1/use-cases/isolate-explorer",
+            {"project_name": "mepram", "province": "Madrid"},
+        )
+        self.assertEqual(filtered_response.status_code, 200)
+        filtered_payload = filtered_response.json()
+        self.assertEqual(filtered_payload["matched_samples"], 1)
+        self.assertEqual(
+            filtered_payload["rows"][0]["sample_unique_id"],
+            "MEP0000001",
+        )
+        gene_combo_response = self.client.get(
+            "/v1/use-cases/isolate-explorer",
+            {"project_name": "mepram", "gene": "KPC,CTX-M"},
+        )
+        self.assertEqual(gene_combo_response.status_code, 200)
+        self.assertEqual(gene_combo_response.json()["matched_samples"], 1)
+        bla_combo_response = self.client.get(
+            "/v1/use-cases/isolate-explorer",
+            {"project_name": "mepram", "bla_group": "bla_carb,bla_esbl"},
+        )
+        self.assertEqual(bla_combo_response.status_code, 200)
+        self.assertEqual(bla_combo_response.json()["matched_samples"], 1)
+        tokenized_search_response = self.client.get(
+            "/v1/use-cases/isolate-explorer",
+            {"project_name": "mepram", "search": "KPC CTX-M"},
+        )
+        self.assertEqual(tokenized_search_response.status_code, 200)
+        self.assertEqual(tokenized_search_response.json()["matched_samples"], 1)
 
 
 class ComplexMetadataTests(TestCase):
