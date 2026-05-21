@@ -649,9 +649,7 @@ class UseCaseDataSummaryTests(TestCase):
         self._metadata(self.sample_1, "organism", "K. pneumoniae")
         self._metadata(self.sample_1, "sample_collection_date", "2025-01-02")
         self._metadata(self.sample_1, "submitting_institution", "Hospital A")
-        self._metadata(
-            self.sample_1, "submitting_geo_loc_state", "Comunidad de Madrid"
-        )
+        self._metadata(self.sample_1, "submitting_geo_loc_state", "Comunidad de Madrid")
         self._metadata(
             self.sample_1, "collecting_institution_geo_loc_state", "Comunidad de Madrid"
         )
@@ -782,19 +780,15 @@ class UseCaseDataSummaryTests(TestCase):
                 type="string",
             )
         )
-        self.properties["organism.species"] = (
-            models.SchemaProperties.objects.create(
-                schemaID=self.schema,
-                property="organism.species",
-                type="string",
-            )
+        self.properties["organism.species"] = models.SchemaProperties.objects.create(
+            schemaID=self.schema,
+            property="organism.species",
+            type="string",
         )
-        self.properties["organism.origin"] = (
-            models.SchemaProperties.objects.create(
-                schemaID=self.schema,
-                property="organism.origin",
-                type="string",
-            )
+        self.properties["organism.origin"] = models.SchemaProperties.objects.create(
+            schemaID=self.schema,
+            property="organism.origin",
+            type="string",
         )
         self.properties["sequence_type.sequence_type_1"] = (
             models.SchemaProperties.objects.create(
@@ -933,12 +927,8 @@ class UseCaseDataSummaryTests(TestCase):
             analysis_date=date.today(),
         )
         self._metadata(self.sample_1, "sequence_type.sequence_type_1", "307")
-        self._metadata(
-            self.sample_1, "sequence_type.sequence_type_1_scheme", "Pasteur"
-        )
-        self._metadata(
-            self.sample_1, "sequence_type.sequence_type_2_scheme", "Oxford"
-        )
+        self._metadata(self.sample_1, "sequence_type.sequence_type_1_scheme", "Pasteur")
+        self._metadata(self.sample_1, "sequence_type.sequence_type_2_scheme", "Oxford")
         self._metadata(self.sample_1, "sequence_type.origin", "isciii")
 
         user = KeycloakTokenUser(
@@ -961,9 +951,7 @@ class UseCaseDataSummaryTests(TestCase):
         self.assertEqual(payload["matched_samples"], 2)
         self.assertEqual(payload["total_loaded"], 2)
         row = next(
-            item
-            for item in payload["rows"]
-            if item["sample_unique_id"] == "MEP0000001"
+            item for item in payload["rows"] if item["sample_unique_id"] == "MEP0000001"
         )
         self.assertEqual(row["sample_unique_id"], "MEP0000001")
         self.assertEqual(row["sequencing_sample_id"], "SEQ-1")
@@ -984,9 +972,7 @@ class UseCaseDataSummaryTests(TestCase):
         self.assertEqual(row["bla_esbl"], "CTX-M > blaCTX-M-15")
         self.assertEqual(row["amr_gene_records"][0]["gene"], "CTX-M")
         submitting_row = next(
-            item
-            for item in payload["rows"]
-            if item["sample_unique_id"] == "MEP0000002"
+            item for item in payload["rows"] if item["sample_unique_id"] == "MEP0000002"
         )
         self.assertIsNone(submitting_row["species"])
         self.assertEqual(submitting_row["species_group"], "E. coli")
@@ -1236,8 +1222,7 @@ class ComplexMetadataTests(TestCase):
         )
 
         property_specs = {
-            item["property"]: item
-            for item in schema_create_data["property_specs"]
+            item["property"]: item for item in schema_create_data["property_specs"]
         }
         self.assertIn("organism", property_specs)
         self.assertIn("organism.species", property_specs)

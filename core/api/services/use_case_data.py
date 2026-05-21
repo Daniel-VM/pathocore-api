@@ -13,7 +13,6 @@ import core.config
 from core import models
 from core.api.utils import access_control
 
-
 USE_CASE_DATA_SUMMARY = "use-case-data-summary"
 DATA_CONTRACT_VERSION = "1.2"
 NO_FILTERS_HASH = core.config.DATABROWSER_NO_FILTERS_HASH
@@ -37,15 +36,9 @@ COLLECTING_REGION_ALIASES = (
     "collecting_institution_geo_loc_state",
     "geo_loc_state",
 )
-SUBMITTING_REGION_ALIASES = (
-    "submitting_geo_loc_state",
-)
-INFECTION_TYPE_ALIASES = (
-    "infection_type",
-)
-SEQUENCING_PLATFORM_ALIASES = (
-    "sequencing_instrument_platform",
-)
+SUBMITTING_REGION_ALIASES = ("submitting_geo_loc_state",)
+INFECTION_TYPE_ALIASES = ("infection_type",)
+SEQUENCING_PLATFORM_ALIASES = ("sequencing_instrument_platform",)
 RESISTANCE_SIGNAL_ALIASES = (
     "amr_acquired_genes.gene_name",
     "carbapenemase_genes",
@@ -178,12 +171,8 @@ def _build_project_summary(project_name):
     resistance_signals_by_sample = _sample_values_index(
         sample_ids, RESISTANCE_SIGNAL_ALIASES
     )
-    sample_years = _sample_period_index(
-        sample_rows, collection_dates, period="year"
-    )
-    sample_months = _sample_period_index(
-        sample_rows, collection_dates, period="month"
-    )
+    sample_years = _sample_period_index(sample_rows, collection_dates, period="year")
+    sample_months = _sample_period_index(sample_rows, collection_dates, period="month")
 
     analyzed_sample_count = _analyzed_sample_count(sample_ids)
     collecting_regions = _distribution_from_index(collecting_region_by_sample)
@@ -612,10 +601,9 @@ def _preferred_region_index(collecting_region_by_sample, submitting_region_by_sa
     region_by_sample = {}
     sample_ids = set(collecting_region_by_sample) | set(submitting_region_by_sample)
     for sample_id in sample_ids:
-        label = (
-            collecting_region_by_sample.get(sample_id)
-            or submitting_region_by_sample.get(sample_id)
-        )
+        label = collecting_region_by_sample.get(
+            sample_id
+        ) or submitting_region_by_sample.get(sample_id)
         if label:
             region_by_sample[sample_id] = label
     return region_by_sample
@@ -642,10 +630,7 @@ def _timeline_from_period_index(period_by_sample):
     counts = defaultdict(int)
     for label in period_by_sample.values():
         counts[label] += 1
-    return [
-        {"label": label, "value": counts[label]}
-        for label in sorted(counts.keys())
-    ]
+    return [{"label": label, "value": counts[label]} for label in sorted(counts.keys())]
 
 
 def _multi_series_chart(period_by_sample, values_by_sample, *, simulated):

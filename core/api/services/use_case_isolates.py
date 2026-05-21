@@ -11,7 +11,6 @@ from core import models
 from core.api.services import use_case_data
 from core.api.utils import access_control
 
-
 DATA_CONTRACT_VERSION = "1.2"
 
 SEQUENCE_TYPE_ALIASES = (
@@ -275,8 +274,7 @@ def isolate_explorer(project_name, *, filters=None, request_user=None):
 
 def _metadata_indexes(sample_ids):
     aliases_by_field = {
-        field: tuple(spec["source_properties"])
-        for field, spec in FIELD_SPECS.items()
+        field: tuple(spec["source_properties"]) for field, spec in FIELD_SPECS.items()
     }
     all_aliases = []
     for aliases in aliases_by_field.values():
@@ -566,9 +564,7 @@ def _apply_filters(rows, filters):
     ):
         value = _clean_filter(filters.get(key))
         if value:
-            filtered = [
-                row for row in filtered if _equals(row.get(row_key), value)
-            ]
+            filtered = [row for row in filtered if _equals(row.get(row_key), value)]
 
     sequence_type = _clean_filter(filters.get("sequence_type"))
     if sequence_type:
@@ -596,9 +592,7 @@ def _apply_filters(rows, filters):
 
     bla_groups = _filter_values(filters, "bla_group")
     if bla_groups:
-        filtered = [
-            row for row in filtered if _row_has_all_bla_groups(row, bla_groups)
-        ]
+        filtered = [row for row in filtered if _row_has_all_bla_groups(row, bla_groups)]
 
     date_from = _parse_date(filters.get("collection_date_from"))
     if date_from:
@@ -639,9 +633,7 @@ def _paginate(rows, filters):
 
 def _filter_options(rows):
     collection_dates = _sorted_unique(row.get("collection_date") for row in rows)
-    amr_records = [
-        record for row in rows for record in row.get("amr_gene_records", [])
-    ]
+    amr_records = [record for row in rows for record in row.get("amr_gene_records", [])]
     return {
         "autonomous_communities": _sorted_unique(row.get("region") for row in rows),
         "alleles": _sorted_unique(record.get("allele") for record in amr_records),
@@ -689,8 +681,7 @@ def _columns():
         if spec.get("include_column", True)
     ]
     computed_columns = [
-        _computed_column(field, spec)
-        for field, spec in COMPUTED_FIELD_SPECS.items()
+        _computed_column(field, spec) for field, spec in COMPUTED_FIELD_SPECS.items()
     ]
     return base_columns + metadata_columns + computed_columns
 
@@ -965,9 +956,7 @@ def _organism_record(values_by_field):
 
 
 def _organism_summary(records):
-    isciii_records = [
-        record for record in records if record.get("origin") == "isciii"
-    ]
+    isciii_records = [record for record in records if record.get("origin") == "isciii"]
     submitting_records = [
         record for record in records if record.get("origin") == "submitting"
     ]
@@ -1086,13 +1075,7 @@ def _normalize_geo_key(value):
 
 
 def _normalize_sequence_type(value):
-    return (
-        str(value or "")
-        .upper()
-        .replace(" ", "")
-        .replace("-", "")
-        .removeprefix("ST")
-    )
+    return str(value or "").upper().replace(" ", "").replace("-", "").removeprefix("ST")
 
 
 def _clean_filter(value):
@@ -1135,9 +1118,7 @@ def _row_has_all_bla_groups(row, bla_groups):
 
 def _search_tokens(search):
     return [
-        token.casefold()
-        for token in re.split(r"[\s,;|]+", str(search or ""))
-        if token
+        token.casefold() for token in re.split(r"[\s,;|]+", str(search or "")) if token
     ]
 
 
