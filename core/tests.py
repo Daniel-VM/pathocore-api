@@ -1,11 +1,13 @@
+import base64
 from datetime import date
+from unittest.mock import patch
 
 from django.contrib.auth.models import User
 from django.core.exceptions import PermissionDenied
+from django.core.management import call_command
 from django.test import SimpleTestCase, TestCase
 from django.test import override_settings
 from django.utils import timezone
-from unittest.mock import patch
 from rest_framework.exceptions import AuthenticationFailed
 from rest_framework.test import APIClient
 from rest_framework.test import APIRequestFactory
@@ -1304,3 +1306,88 @@ class TestKeycloakRequestFlow(SimpleTestCase):
 
         self.assertEqual(response.status_code, 400)
         decode_mock.assert_called_once_with("token-value")
+
+
+@override_settings(ROOT_URLCONF="conf.urls", ALLOWED_HOSTS=["testserver", "localhost"])
+class DocumentationAuthenticationTests(TestCase):
+    def setUp(self):
+        self.client = APIClient()
+        self.admin_user = User.objects.create_superuser(
+            username="admin",
+            email="admin@example.org",
+            password="admin-pass",
+        )
+        self.regular_user = User.objects.create_user(
+            username="regular",
+            email="regular@example.org",
+            password="regular-pass",
+        )
+
+    def test_openapi_requires_authentication(self):
+        response = self.client.get("/openapi/")
+
+        self.assertIn(response.status_code, (401, 403))
+        self.assertIn("keycloak", response.data)
+        self.assertIn("django_admin", response.data)
+
+    def test_openapi_allows_django_admin_basic_auth(self):
+        response = self.client.get(
+            "/openapi/",
+            HTTP_AUTHORIZATION=self._basic_auth("admin", "admin-pass"),
+        )
+
+        self.assertEqual(response.status_code, 200)
+
+    def test_openapi_rejects_non_admin_basic_auth(self):
+        response = self.client.get(
+            "/openapi/",
+            HTTP_AUTHORIZATION=self._basic_auth("regular", "regular-pass"),
+        )
+
+        self.assertIn(response.status_code, (401, 403))
+
+    @staticmethod
+    def _basic_auth(username, password):
+        raw_credentials = f"{username}:{password}".encode("utf-8")
+        encoded = base64.b64encode(raw_credentials).decode("ascii")
+        return f"Basic {encoded}"
+
+
+@override_settings(
+    ROOT_URLCONF="conf.urls",
+    ALLOWED_HOSTS=["testserver", "localhost"],
+    PATHOCORE_ENABLE_PUBLIC_READ_ENDPOINTS=False,
+)
+class PublicReadEndpointSettingsTests(TestCase):
+    def setUp(self):
+        self.client = APIClient()
+
+    def test_public_read_endpoints_can_be_disabled(self):
+        response = self.client.get("/v1/databrowser/overview-summary")
+
+        self.assertEqual(response.status_code, 403)
+
+
+class DefaultSuperuserCommandTests(TestCase):
+    def test_command_creates_or_updates_default_superuser(self):
+        call_command(
+            "ensure_default_superuser",
+            username="admin",
+            email="admin@example.org",
+            password="admin_pass",
+        )
+
+        user = User.objects.get(username="admin")
+        self.assertTrue(user.is_staff)
+        self.assertTrue(user.is_superuser)
+        self.assertTrue(user.check_password("admin_pass"))
+
+        call_command(
+            "ensure_default_superuser",
+            username="admin",
+            email="admin@example.org",
+            password="new_pass",
+        )
+
+        user.refresh_from_db()
+        self.assertTrue(user.check_password("new_pass"))

@@ -103,19 +103,20 @@ The OpenAPI schema is available at:
 http://localhost:8000/openapi/
 ```
 
-### 6. Create an administrative user
+### 6. Use the test administrative user
 
-The test stack does not create a Django superuser automatically. Create one inside
-the `app` container:
+The test stack creates an idempotent Django superuser from
+`conf/docker_test_settings.txt` so authenticated Swagger/API administration works
+after a fresh Docker install:
 
-```bash
-docker compose -f docker-compose.test.yml exec app bash
-cd /opt/pathocore-api
-source virtualenv/bin/activate
-python manage.py createsuperuser
+```text
+admin / admin_pass
 ```
 
-After that, you can authenticate against the API with the credentials you have just created.
+Override `DJANGO_SUPERUSER_USERNAME`, `DJANGO_SUPERUSER_EMAIL` and
+`DJANGO_SUPERUSER_PASSWORD` before running `container_install.sh` to use different
+local credentials. Production compose keeps `PATHOCORE_CREATE_DEFAULT_SUPERUSER`
+disabled by default.
 
 ### 7. Optional: load a small non-sensitive test dataset
 
@@ -206,6 +207,11 @@ Optional settings:
 KEYCLOAK_JWKS_CACHE_TTL_SECONDS=300
 KEYCLOAK_JWKS_TIMEOUT_SECONDS=5
 PATHOCORE_ENABLE_LEGACY_BASIC_AUTH=true
+PATHOCORE_ENABLE_PUBLIC_READ_ENDPOINTS=true
+PATHOCORE_CREATE_DEFAULT_SUPERUSER=false
+DJANGO_SUPERUSER_USERNAME=
+DJANGO_SUPERUSER_EMAIL=
+DJANGO_SUPERUSER_PASSWORD=
 ```
 
 Authorization is derived from the JWT `groups` claim. Supported group paths are
@@ -226,6 +232,36 @@ Configuration flow:
 
 Missing Keycloak values warn while legacy auth is enabled and fail when legacy
 auth is disabled.
+
+Swagger UI, Redoc and the OpenAPI schema require authentication. They can be
+opened with a valid Keycloak Bearer token or with a Django staff/superuser
+session or Basic Auth credentials.
+
+When using Keycloak:
+
+```text
+1. Open the configured Keycloak realm URL.
+2. Log in with your use-case credentials.
+3. Copy the access token.
+4. Send API requests with: Authorization: Bearer <token>
+```
+
+For local Docker testing, Swagger and admin API access can also use the default
+Django superuser credentials:
+
+```text
+admin / admin_pass
+```
+
+The generic databrowser and variant read endpoints are intentionally public for
+the no-login web experience. They are read-only, query-limited where applicable,
+and can be disabled globally with:
+
+```text
+PATHOCORE_ENABLE_PUBLIC_READ_ENDPOINTS=false
+```
+
+Disabling public read endpoints also disables anonymous access from the web app.
 
 For a Dockerized API validating local host-issued tokens, keep the issuer as the
 token sees it and point JWKS through the Docker host gateway:
@@ -264,5 +300,5 @@ bash install.sh --upgrade app --git_revision develop --conf install_settings.txt
 
 # Documentation
 
-This is an API-only project. Documentation is served via Swagger UI at `/swagger/`
-and the OpenAPI schema at `/openapi/`.
+This is an API-only project. Authenticated documentation is served via Swagger UI
+at `/swagger/` and the OpenAPI schema at `/openapi/`.

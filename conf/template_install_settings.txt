@@ -21,6 +21,11 @@ DNS_URL='<PathocoreAPI_url_address>' # example: pathocore-api.isciii.es
 ### Keycloak authentication settings
 ### Runtime environment variables override these installed defaults.
 PATHOCORE_ENABLE_LEGACY_BASIC_AUTH="true"
+PATHOCORE_ENABLE_PUBLIC_READ_ENDPOINTS="true"
+PATHOCORE_CREATE_DEFAULT_SUPERUSER="false"
+DJANGO_SUPERUSER_USERNAME=""
+DJANGO_SUPERUSER_EMAIL=""
+DJANGO_SUPERUSER_PASSWORD=""
 KEYCLOAK_ISSUER=""    # Keycloak host realm, ie: http://<host>:<port>/realms/<realm_name>
 KEYCLOAK_JWKS_URL=""  # Keycloak certs, ie "http://<host>:<port>/realms/<realm_name>/protocol/openid-connect/certs"
 

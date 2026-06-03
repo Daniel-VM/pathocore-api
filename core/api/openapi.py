@@ -15,3 +15,11 @@ class LegacyBasicOrSessionAuthenticationScheme(OpenApiAuthenticationExtension):
 
     def get_security_definition(self, auto_schema):
         return {"type": "http", "scheme": "basic"}
+
+
+class AdminBasicOrSessionAuthenticationScheme(OpenApiAuthenticationExtension):
+    target_class = "core.api.authentication.AdminBasicOrSessionAuthentication"
+    name = "adminBasicAuth"
+
+    def get_security_definition(self, auto_schema):
+        return {"type": "http", "scheme": "basic"}

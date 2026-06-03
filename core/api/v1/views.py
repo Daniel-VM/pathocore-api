@@ -1,5 +1,5 @@
 # Generic imports
-from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.decorators import (
     authentication_classes,
     permission_classes,
@@ -23,12 +23,8 @@ from django.db import transaction, IntegrityError
 import core.models
 import core.api.v1.serializers
 import core.api.utils.common_functions
-from core.api.authentication import (
-    KeycloakJWTAuthentication as SessionAuthentication,
-)
-from core.api.authentication import (
-    LegacyBasicOrSessionAuthentication as BasicAuthentication,
-)
+from core.api.authentication import API_AUTHENTICATION_CLASSES
+from core.api.permissions import AllowConfiguredPublicReadOnly
 from core.api.permissions import HasProjectAccess
 from core.api.services import sample_ingestion
 from core.api.services import sample_listing
@@ -119,7 +115,7 @@ def _reject_generic_databrowser_query_params(
         401: core.api.v1.serializers.ErrorSerializer,
     },
 )
-@authentication_classes([SessionAuthentication, BasicAuthentication])
+@authentication_classes(API_AUTHENTICATION_CLASSES)
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def auth_me_view(request):
@@ -277,7 +273,7 @@ def auth_me_view(request):
         )
     ],
 )
-@authentication_classes([SessionAuthentication, BasicAuthentication])
+@authentication_classes(API_AUTHENTICATION_CLASSES)
 @api_view(["GET", "POST"])
 @permission_classes([IsAuthenticated])
 def samples(request):
@@ -511,7 +507,7 @@ def samples(request):
         )
     ],
 )
-@authentication_classes([SessionAuthentication, BasicAuthentication])
+@authentication_classes(API_AUTHENTICATION_CLASSES)
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def schema(request):
@@ -598,7 +594,7 @@ def schema(request):
         ),
     ],
 )
-@authentication_classes([SessionAuthentication, BasicAuthentication])
+@authentication_classes(API_AUTHENTICATION_CLASSES)
 @api_view(["POST"])
 @permission_classes([IsAuthenticated, HasProjectAccess])
 def schema_create(request, project_name):
@@ -737,7 +733,7 @@ def schema_create(request, project_name):
         )
     ],
 )
-@authentication_classes([SessionAuthentication, BasicAuthentication])
+@authentication_classes(API_AUTHENTICATION_CLASSES)
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def schema_detail(request, schema_name, schema_version):
@@ -811,7 +807,7 @@ def schema_detail(request, schema_name, schema_version):
         )
     ],
 )
-@authentication_classes([SessionAuthentication, BasicAuthentication])
+@authentication_classes(API_AUTHENTICATION_CLASSES)
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def sample_detail_view(request, sample_unique_id):
@@ -885,7 +881,7 @@ def sample_detail_view(request, sample_unique_id):
         )
     ],
 )
-@authentication_classes([SessionAuthentication, BasicAuthentication])
+@authentication_classes(API_AUTHENTICATION_CLASSES)
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def sample_history_view(request):
@@ -927,7 +923,7 @@ def sample_history_view(request):
         404: core.api.v1.serializers.ErrorSerializer,
     },
 )
-@authentication_classes([SessionAuthentication, BasicAuthentication])
+@authentication_classes(API_AUTHENTICATION_CLASSES)
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def sample_history_detail_view(request, sample_unique_id):
@@ -1009,7 +1005,7 @@ def sample_history_detail_view(request, sample_unique_id):
         ),
     ],
 )
-@authentication_classes([SessionAuthentication, BasicAuthentication])
+@authentication_classes(API_AUTHENTICATION_CLASSES)
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def sample_metadata_property_view(request):
@@ -1145,7 +1141,7 @@ def sample_metadata_property_view(request):
         ),
     ],
 )
-@authentication_classes([SessionAuthentication, BasicAuthentication])
+@authentication_classes(API_AUTHENTICATION_CLASSES)
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def sample_metadata_search_view(request):
@@ -1293,7 +1289,7 @@ def sample_metadata_search_view(request):
         ),
     ],
 )
-@authentication_classes([SessionAuthentication, BasicAuthentication])
+@authentication_classes(API_AUTHENTICATION_CLASSES)
 @api_view(["GET", "POST"])
 @permission_classes([IsAuthenticated])
 def sample_metadata_view(request, sample_unique_id):
@@ -1423,7 +1419,7 @@ def sample_metadata_view(request, sample_unique_id):
 )
 @authentication_classes([])
 @api_view(["GET"])
-@permission_classes([AllowAny])
+@permission_classes([AllowConfiguredPublicReadOnly])
 def databrowser_overview_summary_view(request):
     query_params_error = _reject_generic_databrowser_query_params(
         request, "overview-summary"
@@ -1454,7 +1450,7 @@ def databrowser_overview_summary_view(request):
 )
 @authentication_classes([])
 @api_view(["GET"])
-@permission_classes([AllowAny])
+@permission_classes([AllowConfiguredPublicReadOnly])
 def databrowser_metadata_summary_view(request):
     query_params_error = _reject_generic_databrowser_query_params(
         request, "metadata-summary"
@@ -1488,7 +1484,7 @@ def databrowser_metadata_summary_view(request):
 )
 @authentication_classes([])
 @api_view(["GET"])
-@permission_classes([AllowAny])
+@permission_classes([AllowConfiguredPublicReadOnly])
 def databrowser_metadata_property_distribution_view(request):
     query_params_error = _reject_generic_databrowser_query_params(
         request,
@@ -1533,7 +1529,7 @@ def databrowser_metadata_property_distribution_view(request):
 )
 @authentication_classes([])
 @api_view(["GET"])
-@permission_classes([AllowAny])
+@permission_classes([AllowConfiguredPublicReadOnly])
 def databrowser_schema_summary_view(request):
     query_params_error = _reject_generic_databrowser_query_params(
         request, "schema-summary"
@@ -1562,7 +1558,7 @@ def databrowser_schema_summary_view(request):
         403: core.api.v1.serializers.ErrorSerializer,
     },
 )
-@authentication_classes([SessionAuthentication, BasicAuthentication])
+@authentication_classes(API_AUTHENTICATION_CLASSES)
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def use_case_data_summary_view(request):
@@ -1600,7 +1596,7 @@ def use_case_data_summary_view(request):
         403: core.api.v1.serializers.ErrorSerializer,
     },
 )
-@authentication_classes([SessionAuthentication, BasicAuthentication])
+@authentication_classes(API_AUTHENTICATION_CLASSES)
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def use_case_isolate_explorer_view(request):
@@ -1692,7 +1688,7 @@ def use_case_isolate_explorer_view(request):
 )
 @authentication_classes([])
 @api_view(["GET"])
-@permission_classes([AllowAny])
+@permission_classes([AllowConfiguredPublicReadOnly])
 def variant_search_view(request):
     serializer = core.api.v1.serializers.VariantSearchQuerySerializer(
         data=request.query_params
@@ -1747,7 +1743,7 @@ def variant_search_view(request):
 )
 @authentication_classes([])
 @api_view(["GET"])
-@permission_classes([AllowAny])
+@permission_classes([AllowConfiguredPublicReadOnly])
 def variant_summary_view(request):
     serializer = core.api.v1.serializers.VariantFilterQuerySerializer(
         data=request.query_params
@@ -1778,7 +1774,7 @@ def variant_summary_view(request):
 )
 @authentication_classes([])
 @api_view(["GET"])
-@permission_classes([AllowAny])
+@permission_classes([AllowConfiguredPublicReadOnly])
 def variant_reference_genomes_view(request):
     serializer = core.api.v1.serializers.VariantFilterQuerySerializer(
         data=request.query_params
@@ -1809,7 +1805,7 @@ def variant_reference_genomes_view(request):
 )
 @authentication_classes([])
 @api_view(["GET"])
-@permission_classes([AllowAny])
+@permission_classes([AllowConfiguredPublicReadOnly])
 def variant_filter_options_view(request):
     serializer = core.api.v1.serializers.VariantFilterQuerySerializer(
         data=request.query_params
@@ -1902,7 +1898,7 @@ def variant_filter_options_view(request):
         ),
     ],
 )
-@authentication_classes([SessionAuthentication, BasicAuthentication])
+@authentication_classes(API_AUTHENTICATION_CLASSES)
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
 def variant_ingest_view(request):
