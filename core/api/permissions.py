@@ -1,4 +1,6 @@
+from django.conf import settings
 from rest_framework.permissions import BasePermission
+from rest_framework.permissions import SAFE_METHODS
 
 from core.api.utils import access_control
 
@@ -11,6 +13,16 @@ class HasProjectAccess(BasePermission):
         if not project_id:
             return False
         return access_control.has_project_access(request.user, project_id)
+
+
+class AllowConfiguredPublicReadOnly(BasePermission):
+    message = "Public read endpoints are disabled"
+
+    def has_permission(self, request, view):
+        return bool(
+            request.method in SAFE_METHODS
+            and getattr(settings, "PATHOCORE_ENABLE_PUBLIC_READ_ENDPOINTS", True)
+        )
 
 
 def _project_from_view(request, view):

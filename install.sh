@@ -102,6 +102,21 @@ write_runtime_env_file() {
         write_runtime_env_var \
             "PATHOCORE_ENABLE_LEGACY_BASIC_AUTH" \
             "${PATHOCORE_ENABLE_LEGACY_BASIC_AUTH:-true}"
+        write_runtime_env_var \
+            "PATHOCORE_ENABLE_PUBLIC_READ_ENDPOINTS" \
+            "${PATHOCORE_ENABLE_PUBLIC_READ_ENDPOINTS:-true}"
+        write_runtime_env_var \
+            "PATHOCORE_CREATE_DEFAULT_SUPERUSER" \
+            "${PATHOCORE_CREATE_DEFAULT_SUPERUSER:-false}"
+        write_runtime_env_var \
+            "DJANGO_SUPERUSER_USERNAME" \
+            "${DJANGO_SUPERUSER_USERNAME:-admin}"
+        write_runtime_env_var \
+            "DJANGO_SUPERUSER_EMAIL" \
+            "${DJANGO_SUPERUSER_EMAIL:-admin@example.org}"
+        write_runtime_env_var \
+            "DJANGO_SUPERUSER_PASSWORD" \
+            "${DJANGO_SUPERUSER_PASSWORD:-admin_pass}"
         for env_key in $(compgen -A variable KEYCLOAK_ | sort); do
             write_runtime_env_var "$env_key" "${!env_key}"
         done
@@ -162,6 +177,18 @@ install_includes_app() {
         return
     fi
     return 1
+}
+
+ensure_default_superuser() {
+    case "${PATHOCORE_CREATE_DEFAULT_SUPERUSER:-false}" in
+        true|True|TRUE|1|yes|Yes|YES|on|On|ON)
+            echo "Ensuring default Django superuser exists"
+            python manage.py ensure_default_superuser \
+                --username "${DJANGO_SUPERUSER_USERNAME:-admin}" \
+                --email "${DJANGO_SUPERUSER_EMAIL:-admin@example.org}" \
+                --password "${DJANGO_SUPERUSER_PASSWORD:-admin_pass}"
+            ;;
+    esac
 }
 
 python_check(){
@@ -599,6 +626,8 @@ if [ $upgrade == true ]; then
             echo "Done loading pre-filled tables..."
         fi
 
+        ensure_default_superuser
+
         if [ $run_script ]; then
             for val in "${migration_script[@]}"; do
                 echo "Running migration script: $val"
@@ -845,6 +874,8 @@ if [ $install == true ]; then
                 python manage.py loaddata conf/first_install_tables.json
             fi
 
+            ensure_default_superuser
+
             echo "Updating Apache configuration"
             if [[ $linux_distribution == "Ubuntu" ]]; then
                 cp conf/pathocore_apache_ubuntu.conf /etc/apache2/sites-available/000-default.conf
@@ -853,9 +884,6 @@ if [ $install == true ]; then
             if [[ $linux_distribution == "CentOS" || $linux_distribution == "RedHatEnterprise" ]]; then
                 cp conf/pathocore_apache_centos_redhat.conf /etc/httpd/conf.d/pathocore-api.conf
             fi
-
-            echo "Creating super user "
-            python manage.py createsuperuser --username admin
         fi
 
         # copy static files 

@@ -110,7 +110,9 @@ AUTH_PASSWORD_VALIDATORS = [
 
 REST_FRAMEWORK = {
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
+    "EXCEPTION_HANDLER": "core.api.exceptions.pathocore_exception_handler",
     "DEFAULT_AUTHENTICATION_CLASSES": [
+        "core.api.authentication.AdminBasicOrSessionAuthentication",
         "core.api.authentication.KeycloakJWTAuthentication",
     ]
     + (
@@ -126,6 +128,9 @@ REST_FRAMEWORK = {
 
 PATHOCORE_ENABLE_LEGACY_BASIC_AUTH = os.environ.get(
     "PATHOCORE_ENABLE_LEGACY_BASIC_AUTH", "true"
+).lower() in ("1", "true", "yes", "on")
+PATHOCORE_ENABLE_PUBLIC_READ_ENDPOINTS = os.environ.get(
+    "PATHOCORE_ENABLE_PUBLIC_READ_ENDPOINTS", "true"
 ).lower() in ("1", "true", "yes", "on")
 
 # Keycloak setup
@@ -146,7 +151,8 @@ SPECTACULAR_SETTINGS = {
         "PathoCore API for schema management, sample ingestion, metadata ingestion, "
         "and search/discovery endpoints used by multiple client projects "
         "(e.g. mepram, relecov, redlabra).\n\n"
-        "Authentication: Bearer JWT issued by Keycloak.\n"
+        "Authentication: Bearer JWT issued by Keycloak, or Django admin "
+        "credentials for API administrators.\n"
         "Authorization: project scope is derived from the standard `groups` claim "
         "using Keycloak group paths such as "
         "`/use-cases/<use-case>/labs/<lab>/<view|admin>`.\n"
@@ -162,7 +168,7 @@ SPECTACULAR_SETTINGS = {
     "GENERIC_ADDITIONAL_PROPERTIES": "dict",
     "COMPONENT_SPLIT_REQUEST": True,
     "SORT_OPERATIONS": False,
-    "SECURITY": [{"bearerAuth": []}]
+    "SECURITY": [{"bearerAuth": []}, {"adminBasicAuth": []}]
     + ([{"basicAuth": []}] if PATHOCORE_ENABLE_LEGACY_BASIC_AUTH else []),
     # Keep /v1 in real URLs but hide it in Swagger paths for readability.
     "SCHEMA_PATH_PREFIX": "/v1",
@@ -223,6 +229,7 @@ ASGI_APPLICATION = "pathocore_api.asgi.application"
 # Swagger settings
 SWAGGER_SETTINGS = {
     "SECURITY_DEFINITIONS": {
+        "adminBasicAuth": {"type": "basic"},
         "basic": {"type": "basic"},
         "bearerAuth": {"type": "apiKey", "name": "Authorization", "in": "header"},
     }

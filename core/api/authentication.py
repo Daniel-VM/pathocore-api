@@ -148,14 +148,37 @@ class LegacyBasicOrSessionAuthentication:
         return self.basic_auth.authenticate_header(request)
 
 
+class AdminBasicOrSessionAuthentication:
+    def __init__(self):
+        self.session_auth = SessionAuthentication()
+        self.basic_auth = BasicAuthentication()
+
+    def authenticate(self, request):
+        user_auth_tuple = self.session_auth.authenticate(request)
+        if user_auth_tuple is not None:
+            return user_auth_tuple if _is_admin_user(user_auth_tuple[0]) else None
+
+        user_auth_tuple = self.basic_auth.authenticate(request)
+        if user_auth_tuple is not None:
+            return user_auth_tuple if _is_admin_user(user_auth_tuple[0]) else None
+        return None
+
+    def authenticate_header(self, request):
+        return self.basic_auth.authenticate_header(request)
+
+
 def build_api_authentication_classes():
-    classes = [KeycloakJWTAuthentication]
+    classes = [AdminBasicOrSessionAuthentication, KeycloakJWTAuthentication]
     if getattr(settings, "PATHOCORE_ENABLE_LEGACY_BASIC_AUTH", True):
         classes.append(LegacyBasicOrSessionAuthentication)
     return classes
 
 
 API_AUTHENTICATION_CLASSES = build_api_authentication_classes()
+DOCS_AUTHENTICATION_CLASSES = [
+    AdminBasicOrSessionAuthentication,
+    KeycloakJWTAuthentication,
+]
 
 
 def decode_and_validate_keycloak_token(token):
@@ -241,6 +264,13 @@ def _normalize_groups(groups):
     if not isinstance(groups, list):
         return []
     return [str(group).strip() for group in groups if str(group).strip()]
+
+
+def _is_admin_user(user):
+    return bool(
+        getattr(user, "is_active", False)
+        and (getattr(user, "is_staff", False) or getattr(user, "is_superuser", False))
+    )
 
 
 def _get_keycloak_settings():

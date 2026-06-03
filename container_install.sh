@@ -253,6 +253,12 @@ if [ "$load_tables" = true ]; then
       "cd '$APP_INSTALL_PATH' && source virtualenv/bin/activate && python manage.py loaddata conf/first_install_tables.json"
 fi
 
+if [ "${PATHOCORE_CREATE_DEFAULT_SUPERUSER:-false}" = "true" ]; then
+    echo "Ensuring default Django superuser exists"
+    compose_exec -f "$compose_file" exec -T "$APP_SERVICE" bash -lc \
+      "cd '$APP_INSTALL_PATH' && source virtualenv/bin/activate && python manage.py ensure_default_superuser"
+fi
+
 echo "Marking installation as ready"
 compose_exec -f "$compose_file" exec -T "$APP_SERVICE" bash -lc "touch '$APP_READY_FILE'"
 
