@@ -120,6 +120,14 @@ write_runtime_env_file() {
         write_runtime_env_var \
             "PATHOCORE_ACCESS_REQUEST_ADMIN_EMAILS" \
             "${PATHOCORE_ACCESS_REQUEST_ADMIN_EMAILS:-}"
+        write_runtime_env_var "EMAIL_HOST" "${EMAIL_HOST:-${EMAIL_HOST_SERVER:-}}"
+        write_runtime_env_var "EMAIL_PORT" "${EMAIL_PORT:-587}"
+        write_runtime_env_var "EMAIL_HOST_USER" "${EMAIL_HOST_USER:-}"
+        write_runtime_env_var "EMAIL_HOST_PASSWORD" "${EMAIL_HOST_PASSWORD:-}"
+        write_runtime_env_var "EMAIL_USE_TLS" "${EMAIL_USE_TLS:-true}"
+        write_runtime_env_var \
+            "DEFAULT_FROM_EMAIL" \
+            "${DEFAULT_FROM_EMAIL:-no-reply@pathocore.local}"
         for env_key in $(compgen -A variable KEYCLOAK_ | sort); do
             write_runtime_env_var "$env_key" "${!env_key}"
         done

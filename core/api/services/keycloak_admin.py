@@ -33,6 +33,22 @@ def provision_approved_user(access_request, group_path):
     return {"user_id": user_id, "group_id": group["id"], "group_path": group_path}
 
 
+def revoke_approved_user_access(access_request, group_path):
+    token = _get_admin_token()
+    user_id = access_request.keycloak_user_id
+    if not user_id:
+        user = _find_user(token, access_request.username, access_request.email)
+        if user is None:
+            raise KeycloakAdminError(
+                "Unable to revoke access because the Keycloak user was not found"
+            )
+        user_id = user["id"]
+
+    group = _get_group_by_path(token, group_path)
+    _leave_group(token, user_id, group["id"])
+    return {"user_id": user_id, "group_id": group["id"], "group_path": group_path}
+
+
 def _get_admin_token():
     config = _get_config()
     token_url = (
@@ -155,6 +171,17 @@ def _get_group_by_path(token, group_path):
 def _join_group(token, user_id, group_id):
     _request(
         "PUT",
+        _admin_url(
+            f"users/{quote(user_id, safe='')}/groups/{quote(group_id, safe='')}"
+        ),
+        token=token,
+        expected_statuses=(204,),
+    )
+
+
+def _leave_group(token, user_id, group_id):
+    _request(
+        "DELETE",
         _admin_url(
             f"users/{quote(user_id, safe='')}/groups/{quote(group_id, safe='')}"
         ),

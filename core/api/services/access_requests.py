@@ -182,6 +182,51 @@ def reject_access_request(access_request, reviewed_by, review_note=""):
     return locked_request
 
 
+def revoke_access_request(access_request, reviewed_by, review_note=""):
+    if access_request.status != core.models.AccessRequest.STATUS_APPROVED:
+        raise serializers.ValidationError(
+            {"status": "Only approved requests can be revoked"}
+        )
+    if not access_request.approved_group:
+        raise serializers.ValidationError(
+            {"approved_group": "Approved group is missing for this request"}
+        )
+
+    keycloak_result = keycloak_admin.revoke_approved_user_access(
+        access_request,
+        access_request.approved_group,
+    )
+
+    with transaction.atomic():
+        locked_request = core.models.AccessRequest.objects.select_for_update().get(
+            pk=access_request.pk
+        )
+        if locked_request.status != core.models.AccessRequest.STATUS_APPROVED:
+            raise serializers.ValidationError(
+                {"status": "Only approved requests can be revoked"}
+            )
+        locked_request.status = core.models.AccessRequest.STATUS_REVOKED
+        locked_request.reviewed_at = timezone.now()
+        locked_request.reviewed_by = _local_reviewer_or_none(reviewed_by)
+        locked_request.reviewed_by_identity = _reviewer_identity(reviewed_by)
+        locked_request.review_note = review_note or ""
+        locked_request.keycloak_user_id = (
+            keycloak_result.get("user_id") or locked_request.keycloak_user_id
+        )
+        locked_request.save(
+            update_fields=[
+                "status",
+                "reviewed_at",
+                "reviewed_by",
+                "reviewed_by_identity",
+                "review_note",
+                "keycloak_user_id",
+            ]
+        )
+    notify_access_request_revoked(locked_request)
+    return locked_request
+
+
 def build_group_path(access_request):
     base_path = f"/use-cases/{access_request.requested_use_case}"
     if access_request.requested_lab:
@@ -193,6 +238,21 @@ def build_group_path(access_request):
 
 
 def notify_access_request_created(access_request):
+    send_mail(
+        subject="PathoCore access request received",
+        message=(
+            f"Hello {access_request.first_name},\n\n"
+            "We have received your PathoCore access request and it is pending "
+            "administrator review.\n\n"
+            f"Requested access: {build_group_path(access_request)}\n"
+            "You will receive another notification once the request has been "
+            "reviewed.\n"
+        ),
+        from_email=getattr(settings, "DEFAULT_FROM_EMAIL", None),
+        recipient_list=[access_request.email],
+        fail_silently=True,
+    )
+
     recipients = getattr(settings, "PATHOCORE_ACCESS_REQUEST_ADMIN_EMAILS", [])
     if not recipients:
         return
@@ -210,11 +270,40 @@ def notify_access_request_created(access_request):
 
 
 def notify_access_request_reviewed(access_request):
+    if access_request.status == core.models.AccessRequest.STATUS_APPROVED:
+        status_message = (
+            "Your PathoCore access request has been approved. "
+            "If this is your first access, you will receive a Keycloak email "
+            "to verify your email and set your password."
+        )
+    elif access_request.status == core.models.AccessRequest.STATUS_REJECTED:
+        status_message = "Your PathoCore access request has been rejected."
+    else:
+        status_message = (
+            f"Your PathoCore access request status changed to "
+            f"{access_request.status}."
+        )
+
     send_mail(
         subject=f"PathoCore access request {access_request.status}",
         message=(
-            f"Your PathoCore access request for "
-            f"{build_group_path(access_request)} was {access_request.status}."
+            f"{status_message}\n\n"
+            f"Requested access: {build_group_path(access_request)}\n"
+            f"Review note: {access_request.review_note or '-'}\n"
+        ),
+        from_email=getattr(settings, "DEFAULT_FROM_EMAIL", None),
+        recipient_list=[access_request.email],
+        fail_silently=True,
+    )
+
+
+def notify_access_request_revoked(access_request):
+    send_mail(
+        subject="PathoCore access revoked",
+        message=(
+            "Your PathoCore access has been revoked.\n\n"
+            f"Revoked access: {access_request.approved_group or build_group_path(access_request)}\n"
+            f"Review note: {access_request.review_note or '-'}\n"
         ),
         from_email=getattr(settings, "DEFAULT_FROM_EMAIL", None),
         recipient_list=[access_request.email],

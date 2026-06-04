@@ -31,10 +31,12 @@ class AccessRequest(models.Model):
     STATUS_PENDING = "pending"
     STATUS_APPROVED = "approved"
     STATUS_REJECTED = "rejected"
+    STATUS_REVOKED = "revoked"
     STATUS_CHOICES = (
         (STATUS_PENDING, "Pending"),
         (STATUS_APPROVED, "Approved"),
         (STATUS_REJECTED, "Rejected"),
+        (STATUS_REVOKED, "Revoked"),
     )
 
     ROLE_VIEW = "view"

@@ -216,7 +216,7 @@ class AccessRequestReviewSerializer(serializers.Serializer):
 
 class AccessRequestListQuerySerializer(serializers.Serializer):
     status = serializers.ChoiceField(
-        choices=["pending", "approved", "rejected"],
+        choices=["pending", "approved", "rejected", "revoked"],
         required=False,
     )
 

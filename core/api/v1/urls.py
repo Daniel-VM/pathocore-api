@@ -29,6 +29,11 @@ urlpatterns = [
         core.api.v1.views.access_request_reject_view,
         name="access_request_reject",
     ),
+    path(
+        "access-requests/<int:request_id>/revoke",
+        core.api.v1.views.access_request_revoke_view,
+        name="access_request_revoke",
+    ),
     path("schema", core.api.v1.views.schema, name="schema"),
     path(
         "schema/project_name=<str:project_name>",
