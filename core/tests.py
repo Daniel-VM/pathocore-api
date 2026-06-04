@@ -3,6 +3,7 @@ from datetime import date
 from unittest.mock import patch
 
 from django.contrib.auth.models import User
+from django.core import mail
 from django.core.exceptions import PermissionDenied
 from django.core.management import call_command
 from django.test import SimpleTestCase, TestCase
@@ -1422,10 +1423,13 @@ class AccessRequestWorkflowTests(TestCase):
         self.assertEqual(response.data["status"], "pending")
         self.assertEqual(response.data["requested_use_case"], "mepram")
         self.assertIsNone(response.data["requested_lab"])
-        self.assertEqual(core.models.AccessRequest.objects.count(), 1)
+        self.assertEqual(models.AccessRequest.objects.count(), 1)
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertEqual(mail.outbox[0].to, ["new.user@example.org"])
+        self.assertIn("received", mail.outbox[0].subject.lower())
 
     def test_admin_can_list_pending_access_requests(self):
-        core.models.AccessRequest.objects.create(**self._request_payload())
+        models.AccessRequest.objects.create(**self._request_payload())
 
         anonymous_response = self.client.get("/v1/access-requests?status=pending")
         self.assertIn(anonymous_response.status_code, (401, 403))
@@ -1441,7 +1445,7 @@ class AccessRequestWorkflowTests(TestCase):
 
     @patch("core.api.services.keycloak_admin.provision_approved_user")
     def test_admin_can_approve_access_request(self, provision_mock):
-        access_request = core.models.AccessRequest.objects.create(
+        access_request = models.AccessRequest.objects.create(
             **self._request_payload()
         )
         provision_mock.return_value = {
@@ -1467,7 +1471,7 @@ class AccessRequestWorkflowTests(TestCase):
         provision_mock.assert_called_once()
 
     def test_admin_can_reject_access_request(self):
-        access_request = core.models.AccessRequest.objects.create(
+        access_request = models.AccessRequest.objects.create(
             **self._request_payload()
         )
 
@@ -1484,6 +1488,38 @@ class AccessRequestWorkflowTests(TestCase):
             response.data["review_note"],
             "Missing project justification",
         )
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertEqual(mail.outbox[0].to, ["new.user@example.org"])
+        self.assertIn("rejected", mail.outbox[0].subject.lower())
+
+    @patch("core.api.services.keycloak_admin.revoke_approved_user_access")
+    def test_admin_can_revoke_approved_access_request(self, revoke_mock):
+        access_request = models.AccessRequest.objects.create(
+            **self._request_payload(),
+            status=models.AccessRequest.STATUS_APPROVED,
+            approved_group="/use-cases/mepram/view",
+            keycloak_user_id="keycloak-user-1",
+        )
+        revoke_mock.return_value = {
+            "user_id": "keycloak-user-1",
+            "group_id": "group-1",
+            "group_path": "/use-cases/mepram/view",
+        }
+
+        response = self.client.post(
+            f"/v1/access-requests/{access_request.pk}/revoke",
+            data={"review_note": "Access no longer required"},
+            format="json",
+            HTTP_AUTHORIZATION=self._basic_auth("admin", "admin-pass"),
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["status"], "revoked")
+        self.assertEqual(response.data["approved_group"], "/use-cases/mepram/view")
+        revoke_mock.assert_called_once()
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertEqual(mail.outbox[0].to, ["new.user@example.org"])
+        self.assertIn("revoked", mail.outbox[0].subject.lower())
 
     @staticmethod
     def _request_payload():

@@ -30,6 +30,8 @@ services:
     depends_on:
       db:
         condition: service_healthy
+      mailpit:
+        condition: service_started
     environment:
       APP_PORT: 8000
       APP_INSTALL_PATH: /opt/pathocore-api
@@ -57,6 +59,12 @@ services:
       KEYCLOAK_ADMIN_SEND_ACTION_EMAILS: ${KEYCLOAK_ADMIN_SEND_ACTION_EMAILS:-false}
       KEYCLOAK_ADMIN_ACTION_EMAIL_REDIRECT_URI: ${KEYCLOAK_ADMIN_ACTION_EMAIL_REDIRECT_URI:-}
       PATHOCORE_ACCESS_REQUEST_ADMIN_EMAILS: ${PATHOCORE_ACCESS_REQUEST_ADMIN_EMAILS:-}
+      EMAIL_HOST: ${EMAIL_HOST:-mailpit}
+      EMAIL_PORT: ${EMAIL_PORT:-1025}
+      EMAIL_HOST_USER: ${EMAIL_HOST_USER:-}
+      EMAIL_HOST_PASSWORD: ${EMAIL_HOST_PASSWORD:-}
+      EMAIL_USE_TLS: ${EMAIL_USE_TLS:-false}
+      DEFAULT_FROM_EMAIL: ${DEFAULT_FROM_EMAIL:-no-reply@pathocore.local}
       DATABROWSER_CACHE_SCHEDULER_ENABLED: ${DATABROWSER_CACHE_SCHEDULER_ENABLED:-true}
       # Python weekday: Monday=0, Friday=4.
       DATABROWSER_CACHE_REFRESH_WEEKDAY: ${DATABROWSER_CACHE_REFRESH_WEEKDAY:-4}
@@ -71,6 +79,13 @@ services:
       - pathocore_api_documents:/opt/pathocore-api/documents
       - pathocore_api_logs:/opt/pathocore-api/logs
       - pathocore_api_static:/opt/pathocore-api/static
+
+  mailpit:
+    image: axllent/mailpit:v1.27
+    restart: unless-stopped
+    ports:
+      - "${MAILPIT_SMTP_PORT:-1025}:1025"
+      - "${MAILPIT_WEB_PORT:-8025}:8025"
 
 volumes:
   pathocore_api_db_data:

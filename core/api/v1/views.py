@@ -314,6 +314,46 @@ def access_request_reject_view(request, request_id):
     return Response(response_serializer.data, status=status.HTTP_200_OK)
 
 
+@extend_schema(
+    tags=[TAG_ACCESS_REQUESTS],
+    summary="Revoke approved access request",
+    description=(
+        "Admin-only endpoint to revoke a previously approved PathoCore access "
+        "request. The API removes the approved Keycloak group and notifies the user."
+    ),
+    request=core.api.v1.serializers.AccessRequestReviewSerializer,
+    responses={
+        200: core.api.v1.serializers.AccessRequestSerializer,
+        400: core.api.v1.serializers.ErrorSerializer,
+        401: core.api.v1.serializers.ErrorSerializer,
+        403: core.api.v1.serializers.ErrorSerializer,
+        404: core.api.v1.serializers.ErrorSerializer,
+        502: core.api.v1.serializers.ErrorSerializer,
+    },
+)
+@authentication_classes(API_AUTHENTICATION_CLASSES)
+@api_view(["POST"])
+@permission_classes([IsAuthenticated, IsPathoCoreAdmin])
+def access_request_revoke_view(request, request_id):
+    access_request = _get_access_request_or_404(request_id)
+    serializer = core.api.v1.serializers.AccessRequestReviewSerializer(
+        data=request.data
+    )
+    serializer.is_valid(raise_exception=True)
+    try:
+        revoked_request = access_requests.revoke_access_request(
+            access_request,
+            reviewed_by=request.user,
+            review_note=serializer.validated_data.get("review_note") or "",
+        )
+    except keycloak_admin.KeycloakAdminError as exc:
+        return Response({"error": str(exc)}, status=status.HTTP_502_BAD_GATEWAY)
+    response_serializer = core.api.v1.serializers.AccessRequestSerializer(
+        revoked_request
+    )
+    return Response(response_serializer.data, status=status.HTTP_200_OK)
+
+
 def _get_access_request_or_404(request_id):
     try:
         return core.models.AccessRequest.objects.get(pk=request_id)

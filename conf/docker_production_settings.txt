@@ -41,6 +41,15 @@ KEYCLOAK_ADMIN_SEND_ACTION_EMAILS="true"
 KEYCLOAK_ADMIN_ACTION_EMAIL_REDIRECT_URI=""
 PATHOCORE_ACCESS_REQUEST_ADMIN_EMAILS=""
 
+### Email notifications
+EMAIL_HOST_SERVER="change_me_smtp_host"
+EMAIL_HOST="change_me_smtp_host"
+EMAIL_PORT=587
+EMAIL_HOST_USER=""
+EMAIL_HOST_PASSWORD=""
+EMAIL_USE_TLS="true"
+DEFAULT_FROM_EMAIL="no-reply@pathocore.local"
+
 ### Logs settings
 LOG_TYPE="regular_folder"
 LOG_PATH=""

@@ -274,6 +274,9 @@ curl -sS -X POST http://localhost:8000/v1/access-requests \
   }' | jq
 ```
 
+The user receives an email confirming that the request was received and remains
+pending review.
+
 Admins can review pending requests:
 
 ```bash
@@ -299,6 +302,15 @@ curl -sS -X POST -u admin:admin_pass \
   -d '{"review_note": "Missing project justification."}' | jq
 ```
 
+Revoke a previously approved request:
+
+```bash
+curl -sS -X POST -u admin:admin_pass \
+  http://localhost:8000/v1/access-requests/<request_id>/revoke \
+  -H "Content-Type: application/json" \
+  -d '{"review_note": "Access no longer required."}' | jq
+```
+
 Approval calls the Keycloak Admin REST API to create or enable the user, trigger
 `execute-actions-email` with `UPDATE_PASSWORD` and `VERIFY_EMAIL`, and assign the
 approved group path, for example:
@@ -322,7 +334,26 @@ Do not send temporary passwords by email. Keycloak must have SMTP configured for
 `execute-actions-email`; otherwise approval can fail before permissions are
 granted.
 
-For local Docker testing without SMTP, keep:
+Request received, rejection, and revocation notifications are sent by
+`pathocore-api` through Django email settings:
+
+```text
+EMAIL_HOST=mailpit
+EMAIL_PORT=1025
+EMAIL_USE_TLS=false
+DEFAULT_FROM_EMAIL=no-reply@pathocore.local
+```
+
+In the local Docker test stack these messages are captured by Mailpit:
+
+```text
+http://127.0.0.1:8025
+```
+
+Revocation removes the approved Keycloak group but does not disable the whole
+account.
+
+For local Docker testing without SMTP or Mailpit, keep:
 
 ```text
 KEYCLOAK_ADMIN_SEND_ACTION_EMAILS=false
