@@ -178,6 +178,92 @@ class ErrorSerializer(serializers.Serializer):
     error = serializers.CharField()
 
 
+class AccessRequestCreateSerializer(serializers.Serializer):
+    username = serializers.CharField(max_length=150)
+    email = serializers.EmailField()
+    first_name = serializers.CharField(max_length=150)
+    last_name = serializers.CharField(max_length=150)
+    requested_use_case = serializers.CharField(max_length=80)
+    requested_lab = serializers.CharField(
+        max_length=80,
+        required=False,
+        allow_blank=True,
+        allow_null=True,
+    )
+    requested_role = serializers.ChoiceField(choices=["view", "admin"])
+    message = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        allow_null=True,
+        max_length=2000,
+    )
+
+    def validate(self, attrs):
+        from core.api.services import access_requests
+
+        attrs = access_requests.normalize_request_fields(dict(attrs))
+        return access_requests.validate_requested_scope(attrs)
+
+
+class AccessRequestReviewSerializer(serializers.Serializer):
+    review_note = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        allow_null=True,
+        max_length=2000,
+    )
+
+
+class AccessRequestListQuerySerializer(serializers.Serializer):
+    status = serializers.ChoiceField(
+        choices=["pending", "approved", "rejected"],
+        required=False,
+    )
+
+
+class AccessRequestSerializer(serializers.ModelSerializer):
+    reviewed_by_username = serializers.CharField(
+        source="reviewed_by.username",
+        read_only=True,
+        allow_null=True,
+    )
+
+    class Meta:
+        model = core.models.AccessRequest
+        fields = [
+            "id",
+            "username",
+            "email",
+            "first_name",
+            "last_name",
+            "requested_use_case",
+            "requested_lab",
+            "requested_role",
+            "message",
+            "status",
+            "created_at",
+            "reviewed_at",
+            "reviewed_by",
+            "reviewed_by_username",
+            "reviewed_by_identity",
+            "review_note",
+            "approved_group",
+            "keycloak_user_id",
+        ]
+        read_only_fields = [
+            "id",
+            "status",
+            "created_at",
+            "reviewed_at",
+            "reviewed_by",
+            "reviewed_by_username",
+            "reviewed_by_identity",
+            "review_note",
+            "approved_group",
+            "keycloak_user_id",
+        ]
+
+
 class SchemaIngestSerializer(serializers.Serializer):
     # This serializer validates/normalizes schema payload shape only.
     # Views persist the schema objects; services prepare normalized create data.

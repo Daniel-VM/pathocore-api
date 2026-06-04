@@ -27,6 +27,76 @@ class Profile(models.Model):
         return "%s" % (self.code_id)
 
 
+class AccessRequest(models.Model):
+    STATUS_PENDING = "pending"
+    STATUS_APPROVED = "approved"
+    STATUS_REJECTED = "rejected"
+    STATUS_CHOICES = (
+        (STATUS_PENDING, "Pending"),
+        (STATUS_APPROVED, "Approved"),
+        (STATUS_REJECTED, "Rejected"),
+    )
+
+    ROLE_VIEW = "view"
+    ROLE_ADMIN = "admin"
+    ROLE_CHOICES = (
+        (ROLE_VIEW, "View"),
+        (ROLE_ADMIN, "Admin"),
+    )
+
+    username = models.CharField(max_length=150, db_index=True)
+    email = models.EmailField(db_index=True)
+    first_name = models.CharField(max_length=150)
+    last_name = models.CharField(max_length=150)
+    requested_use_case = models.CharField(max_length=80, db_index=True)
+    requested_lab = models.CharField(max_length=80, null=True, blank=True)
+    requested_role = models.CharField(
+        max_length=20,
+        choices=ROLE_CHOICES,
+        default=ROLE_VIEW,
+    )
+    message = models.TextField(null=True, blank=True)
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default=STATUS_PENDING,
+        db_index=True,
+    )
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+    reviewed_at = models.DateTimeField(null=True, blank=True, db_index=True)
+    reviewed_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="reviewed_access_requests",
+    )
+    reviewed_by_identity = models.CharField(max_length=255, null=True, blank=True)
+    review_note = models.TextField(null=True, blank=True)
+    approved_group = models.CharField(max_length=255, null=True, blank=True)
+    keycloak_user_id = models.CharField(max_length=80, null=True, blank=True)
+
+    class Meta:
+        db_table = "core_access_request"
+        indexes = [
+            models.Index(
+                fields=["status", "created_at"],
+                name="core_access_status_created_idx",
+            ),
+            models.Index(
+                fields=["requested_use_case", "requested_lab"],
+                name="core_access_project_lab_idx",
+            ),
+        ]
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return (
+            f"{self.username} -> {self.requested_use_case}/"
+            f"{self.requested_lab or '*'}:{self.requested_role}"
+        )
+
+
 @receiver(post_save, sender=User)
 def create_or_update_user_profile(sender, instance, created, **kwargs):
     try:

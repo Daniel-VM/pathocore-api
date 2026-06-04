@@ -99,6 +99,29 @@ class DatabrowserSummaryCacheAdmin(admin.ModelAdmin):
     list_filter = ["summary_name", "scope_key", "generated_at"]
 
 
+class AccessRequestAdmin(admin.ModelAdmin):
+    list_display = [
+        "username",
+        "email",
+        "requested_use_case",
+        "requested_lab",
+        "requested_role",
+        "status",
+        "created_at",
+        "reviewed_at",
+        "reviewed_by",
+        "reviewed_by_identity",
+    ]
+    search_fields = ["username", "email", "requested_use_case", "requested_lab"]
+    list_filter = ["status", "requested_use_case", "requested_role", "created_at"]
+    readonly_fields = [
+        "created_at",
+        "reviewed_at",
+        "reviewed_by",
+        "reviewed_by_identity",
+    ]
+
+
 class SchemaAdmin(admin.ModelAdmin):
     list_display = [
         "schema_name",
@@ -161,6 +184,7 @@ admin.site.register(core.models.ConfigSetting, ConfigSettingAdmin)
 admin.site.register(core.models.Sample, SampleAdmin)
 admin.site.register(core.models.SampleIdSequence, SampleIdSequenceAdmin)
 admin.site.register(core.models.DatabrowserSummaryCache, DatabrowserSummaryCacheAdmin)
+admin.site.register(core.models.AccessRequest, AccessRequestAdmin)
 admin.site.register(core.models.SampleState, SampleStateAdmin)
 admin.site.register(core.models.Schema, SchemaAdmin)
 admin.site.register(core.models.SchemaProperties, SchemaPropertiesAdmin)

@@ -25,6 +25,22 @@ class AllowConfiguredPublicReadOnly(BasePermission):
         )
 
 
+class IsPathoCoreAdmin(BasePermission):
+    message = "PathoCore administrator privileges are required"
+
+    def has_permission(self, request, view):
+        return access_control.is_admin_user(request.user)
+
+
+class AllowAccessRequestCreateOrAdmin(BasePermission):
+    message = "PathoCore administrator privileges are required"
+
+    def has_permission(self, request, view):
+        if request.method == "POST":
+            return True
+        return access_control.is_admin_user(request.user)
+
+
 def _project_from_view(request, view):
     view_kwargs = getattr(view, "kwargs", None) or {}
     parser_kwargs = getattr(request, "parser_context", {}).get("kwargs", {})
