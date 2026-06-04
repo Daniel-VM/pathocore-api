@@ -2,7 +2,6 @@ from rest_framework.exceptions import AuthenticationFailed
 from rest_framework.exceptions import NotAuthenticated
 from rest_framework.views import exception_handler
 
-
 AUTHENTICATION_HELP = {
     "detail": (
         "Authentication is required. Use a Keycloak Bearer token or Django "

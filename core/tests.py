@@ -1445,9 +1445,7 @@ class AccessRequestWorkflowTests(TestCase):
 
     @patch("core.api.services.keycloak_admin.provision_approved_user")
     def test_admin_can_approve_access_request(self, provision_mock):
-        access_request = models.AccessRequest.objects.create(
-            **self._request_payload()
-        )
+        access_request = models.AccessRequest.objects.create(**self._request_payload())
         provision_mock.return_value = {
             "user_id": "keycloak-user-1",
             "group_id": "group-1",
@@ -1471,9 +1469,7 @@ class AccessRequestWorkflowTests(TestCase):
         provision_mock.assert_called_once()
 
     def test_admin_can_reject_access_request(self):
-        access_request = models.AccessRequest.objects.create(
-            **self._request_payload()
-        )
+        access_request = models.AccessRequest.objects.create(**self._request_payload())
 
         response = self.client.post(
             f"/v1/access-requests/{access_request.pk}/reject",

@@ -14,7 +14,6 @@ from drf_spectacular.views import (
 
 from core.api.authentication import DOCS_AUTHENTICATION_CLASSES
 
-
 SECURED_SCHEMA_VIEW_KWARGS = {
     "authentication_classes": DOCS_AUTHENTICATION_CLASSES,
     "permission_classes": [IsAuthenticated],
@@ -51,16 +50,12 @@ urlpatterns = [
     ),
     path(
         "swagger/",
-        SpectacularSwaggerView.as_view(
-            url_name="schema", **SECURED_SCHEMA_VIEW_KWARGS
-        ),
+        SpectacularSwaggerView.as_view(url_name="schema", **SECURED_SCHEMA_VIEW_KWARGS),
         name="swagger-ui",
     ),
     path(
         "swagger/redoc/",
-        SpectacularRedocView.as_view(
-            url_name="schema", **SECURED_SCHEMA_VIEW_KWARGS
-        ),
+        SpectacularRedocView.as_view(url_name="schema", **SECURED_SCHEMA_VIEW_KWARGS),
         name="redoc",
     ),
     # REST FRAMEWORK URLS

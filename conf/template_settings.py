@@ -213,9 +213,7 @@ EMAIL_USE_TLS = os.environ.get("EMAIL_USE_TLS", "emailhosttls").lower() in (
     "yes",
     "on",
 )
-DEFAULT_FROM_EMAIL = os.environ.get(
-    "DEFAULT_FROM_EMAIL", "pathocore-api@localhost"
-)
+DEFAULT_FROM_EMAIL = os.environ.get("DEFAULT_FROM_EMAIL", "pathocore-api@localhost")
 
 SPECTACULAR_SETTINGS = {
     "TITLE": "PathoCore API",

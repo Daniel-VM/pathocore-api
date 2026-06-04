@@ -50,7 +50,9 @@ def normalize_request_fields(attrs):
     attrs["last_name"] = attrs["last_name"].strip()
     attrs["requested_use_case"] = _normalize_identifier(attrs["requested_use_case"])
     requested_lab = attrs.get("requested_lab")
-    attrs["requested_lab"] = _normalize_identifier(requested_lab) if requested_lab else ""
+    attrs["requested_lab"] = (
+        _normalize_identifier(requested_lab) if requested_lab else ""
+    )
     attrs["requested_role"] = _normalize_role(attrs["requested_role"])
     message = attrs.get("message")
     attrs["message"] = message.strip() if isinstance(message, str) else ""
@@ -64,9 +66,7 @@ def validate_requested_scope(attrs):
 
     use_case_config = _get_use_case_config(use_case)
     if not use_case_config:
-        raise serializers.ValidationError(
-            {"requested_use_case": "Unknown use-case"}
-        )
+        raise serializers.ValidationError({"requested_use_case": "Unknown use-case"})
     if role not in SUPPORTED_ROLES:
         raise serializers.ValidationError({"requested_role": "Unknown role"})
 
@@ -117,7 +117,9 @@ def create_access_request(validated_data):
 
 def approve_access_request(access_request, reviewed_by, review_note=""):
     if access_request.status != core.models.AccessRequest.STATUS_PENDING:
-        raise serializers.ValidationError({"status": "Only pending requests can be approved"})
+        raise serializers.ValidationError(
+            {"status": "Only pending requests can be approved"}
+        )
 
     group_path = build_group_path(access_request)
     keycloak_result = keycloak_admin.provision_approved_user(access_request, group_path)
@@ -154,7 +156,9 @@ def approve_access_request(access_request, reviewed_by, review_note=""):
 
 def reject_access_request(access_request, reviewed_by, review_note=""):
     if access_request.status != core.models.AccessRequest.STATUS_PENDING:
-        raise serializers.ValidationError({"status": "Only pending requests can be rejected"})
+        raise serializers.ValidationError(
+            {"status": "Only pending requests can be rejected"}
+        )
 
     with transaction.atomic():
         locked_request = core.models.AccessRequest.objects.select_for_update().get(

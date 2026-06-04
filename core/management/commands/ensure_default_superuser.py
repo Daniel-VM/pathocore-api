@@ -44,6 +44,4 @@ class Command(BaseCommand):
         user.save()
 
         action = "created" if created else "updated"
-        self.stdout.write(
-            self.style.SUCCESS(f"Django superuser {action}: {username}")
-        )
+        self.stdout.write(self.style.SUCCESS(f"Django superuser {action}: {username}"))

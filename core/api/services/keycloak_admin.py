@@ -234,11 +234,13 @@ def _get_config():
         "client_secret": getattr(settings, "KEYCLOAK_ADMIN_CLIENT_SECRET", ""),
         "username": getattr(settings, "KEYCLOAK_ADMIN_USERNAME", ""),
         "password": getattr(settings, "KEYCLOAK_ADMIN_PASSWORD", ""),
-        "timeout": int(
-            getattr(settings, "KEYCLOAK_ADMIN_REQUEST_TIMEOUT_SECONDS", 10)
-        ),
+        "timeout": int(getattr(settings, "KEYCLOAK_ADMIN_REQUEST_TIMEOUT_SECONDS", 10)),
     }
-    missing = [key for key in ("base_url", "realm", "token_realm", "client_id") if not config[key]]
+    missing = [
+        key
+        for key in ("base_url", "realm", "token_realm", "client_id")
+        if not config[key]
+    ]
     if missing:
         raise KeycloakAdminConfigError(
             "Keycloak admin configuration is incomplete: " + ", ".join(missing)
@@ -281,8 +283,7 @@ def _request(
     except HTTPError as exc:
         body = exc.read().decode("utf-8", errors="replace")
         raise KeycloakAdminError(
-            f"Keycloak Admin API {method} {url} failed "
-            f"with HTTP {exc.code}: {body}"
+            f"Keycloak Admin API {method} {url} failed " f"with HTTP {exc.code}: {body}"
         ) from exc
     except OSError as exc:
         raise KeycloakAdminError(
