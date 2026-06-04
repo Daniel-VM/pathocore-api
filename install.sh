@@ -117,6 +117,9 @@ write_runtime_env_file() {
         write_runtime_env_var \
             "DJANGO_SUPERUSER_PASSWORD" \
             "${DJANGO_SUPERUSER_PASSWORD:-admin_pass}"
+        write_runtime_env_var \
+            "PATHOCORE_ACCESS_REQUEST_ADMIN_EMAILS" \
+            "${PATHOCORE_ACCESS_REQUEST_ADMIN_EMAILS:-}"
         for env_key in $(compgen -A variable KEYCLOAK_ | sort); do
             write_runtime_env_var "$env_key" "${!env_key}"
         done
@@ -595,14 +598,20 @@ if [ $upgrade == true ]; then
             # check for pending migrations
             if ./manage.py showmigrations | grep '\[ \]'; then
                 echo "There are pending migrations"
-                read -p "Do you want to update database with the pending migrations? (Y/N) " -n 1 -r
-                echo    #  move to a new line
-                if [[ ! $REPLY =~ ^[Yy]$ ]] ; then
-                    echo "Continue running script without running migrate command."
-                else
-                    echo "Running migrate..."
-                    python manage.py migrate
+                if [ "$docker" = true ]; then
+                    echo "Running migrate in Docker mode..."
+                    python manage.py migrate --noinput
                     echo "Done migrate command."
+                else
+                    read -p "Do you want to update database with the pending migrations? (Y/N) " -n 1 -r
+                    echo    #  move to a new line
+                    if [[ ! $REPLY =~ ^[Yy]$ ]] ; then
+                        echo "Continue running script without running migrate command."
+                    else
+                        echo "Running migrate..."
+                        python manage.py migrate
+                        echo "Done migrate command."
+                    fi
                 fi
             else
                 echo "No migration is required"
@@ -617,7 +626,7 @@ if [ $upgrade == true ]; then
         rm -f "$migration_check_log"
 
         echo "Running collect statics..."
-        python manage.py collectstatic
+        python manage.py collectstatic --noinput
         echo "Done collect statics"
 
         if [ $tables == true ] ; then

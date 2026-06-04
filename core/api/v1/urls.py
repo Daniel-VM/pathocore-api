@@ -9,6 +9,26 @@ app_name = "pathocore_api"
 # TODO: keep this in sync with versioned API structure
 urlpatterns = [
     path("auth/me", core.api.v1.views.auth_me_view, name="auth_me"),
+    path(
+        "access-requests",
+        core.api.v1.views.access_requests_view,
+        name="access_requests",
+    ),
+    path(
+        "access-requests/catalog",
+        core.api.v1.views.access_request_catalog_view,
+        name="access_request_catalog",
+    ),
+    path(
+        "access-requests/<int:request_id>/approve",
+        core.api.v1.views.access_request_approve_view,
+        name="access_request_approve",
+    ),
+    path(
+        "access-requests/<int:request_id>/reject",
+        core.api.v1.views.access_request_reject_view,
+        name="access_request_reject",
+    ),
     path("schema", core.api.v1.views.schema, name="schema"),
     path(
         "schema/project_name=<str:project_name>",

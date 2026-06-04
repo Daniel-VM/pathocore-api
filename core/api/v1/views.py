@@ -1,5 +1,5 @@
 # Generic imports
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.decorators import (
     authentication_classes,
     permission_classes,
@@ -24,8 +24,12 @@ import core.models
 import core.api.v1.serializers
 import core.api.utils.common_functions
 from core.api.authentication import API_AUTHENTICATION_CLASSES
+from core.api.permissions import AllowAccessRequestCreateOrAdmin
 from core.api.permissions import AllowConfiguredPublicReadOnly
 from core.api.permissions import HasProjectAccess
+from core.api.permissions import IsPathoCoreAdmin
+from core.api.services import access_requests
+from core.api.services import keycloak_admin
 from core.api.services import sample_ingestion
 from core.api.services import sample_listing
 from core.api.services import sample_detail
@@ -50,6 +54,7 @@ TAG_DATABROWSER = "Databrowser"
 TAG_USE_CASES = "Use Cases"
 TAG_VARIANTS = "Variants"
 TAG_AUTH = "Authentication"
+TAG_ACCESS_REQUESTS = "Access Requests"
 
 
 # API-side agination for /samples list endpoint.
@@ -155,6 +160,165 @@ def auth_me_view(request):
         },
         status=status.HTTP_200_OK,
     )
+
+
+@extend_schema(
+    methods=["GET"],
+    tags=[TAG_ACCESS_REQUESTS],
+    summary="List access requests",
+    description="Admin-only endpoint to list PathoCore access requests.",
+    parameters=[core.api.v1.serializers.AccessRequestListQuerySerializer],
+    responses={
+        200: core.api.v1.serializers.AccessRequestSerializer(many=True),
+        401: core.api.v1.serializers.ErrorSerializer,
+        403: core.api.v1.serializers.ErrorSerializer,
+    },
+)
+@extend_schema(
+    methods=["POST"],
+    tags=[TAG_ACCESS_REQUESTS],
+    summary="Create access request",
+    description=(
+        "Public endpoint used by the web registration/request-access form. "
+        "The request remains pending until a PathoCore administrator reviews it."
+    ),
+    request=core.api.v1.serializers.AccessRequestCreateSerializer,
+    responses={
+        201: core.api.v1.serializers.AccessRequestSerializer,
+        400: core.api.v1.serializers.ErrorSerializer,
+        409: core.api.v1.serializers.ErrorSerializer,
+    },
+)
+@authentication_classes(API_AUTHENTICATION_CLASSES)
+@api_view(["GET", "POST"])
+@permission_classes([AllowAccessRequestCreateOrAdmin])
+def access_requests_view(request):
+    if request.method == "GET":
+        serializer = core.api.v1.serializers.AccessRequestListQuerySerializer(
+            data=request.query_params
+        )
+        serializer.is_valid(raise_exception=True)
+        queryset = core.models.AccessRequest.objects.all()
+        request_status = serializer.validated_data.get("status")
+        if request_status:
+            queryset = queryset.filter(status=request_status)
+        response_serializer = core.api.v1.serializers.AccessRequestSerializer(
+            queryset,
+            many=True,
+        )
+        return Response(response_serializer.data, status=status.HTTP_200_OK)
+
+    serializer = core.api.v1.serializers.AccessRequestCreateSerializer(
+        data=request.data
+    )
+    serializer.is_valid(raise_exception=True)
+    try:
+        access_request = access_requests.create_access_request(
+            serializer.validated_data
+        )
+    except access_requests.DuplicatePendingAccessRequest as exc:
+        return Response(exc.detail, status=status.HTTP_409_CONFLICT)
+    response_serializer = core.api.v1.serializers.AccessRequestSerializer(
+        access_request
+    )
+    return Response(response_serializer.data, status=status.HTTP_201_CREATED)
+
+
+@extend_schema(
+    tags=[TAG_ACCESS_REQUESTS],
+    summary="Access request catalog",
+    description=(
+        "Return use-cases, laboratories, and roles that can be requested "
+        "from the web registration form."
+    ),
+    responses={200: serializers.ListField(child=serializers.DictField())},
+)
+@authentication_classes([])
+@api_view(["GET"])
+@permission_classes([AllowAny])
+def access_request_catalog_view(request):
+    return Response(access_requests.access_request_catalog(), status=status.HTTP_200_OK)
+
+
+@extend_schema(
+    tags=[TAG_ACCESS_REQUESTS],
+    summary="Approve access request",
+    description=(
+        "Admin-only endpoint. On approval, PathoCore API creates/enables the "
+        "Keycloak user if needed, triggers UPDATE_PASSWORD and VERIFY_EMAIL, "
+        "assigns the approved group, and marks the request approved."
+    ),
+    request=core.api.v1.serializers.AccessRequestReviewSerializer,
+    responses={
+        200: core.api.v1.serializers.AccessRequestSerializer,
+        400: core.api.v1.serializers.ErrorSerializer,
+        401: core.api.v1.serializers.ErrorSerializer,
+        403: core.api.v1.serializers.ErrorSerializer,
+        404: core.api.v1.serializers.ErrorSerializer,
+        502: core.api.v1.serializers.ErrorSerializer,
+    },
+)
+@authentication_classes(API_AUTHENTICATION_CLASSES)
+@api_view(["POST"])
+@permission_classes([IsAuthenticated, IsPathoCoreAdmin])
+def access_request_approve_view(request, request_id):
+    access_request = _get_access_request_or_404(request_id)
+    serializer = core.api.v1.serializers.AccessRequestReviewSerializer(
+        data=request.data
+    )
+    serializer.is_valid(raise_exception=True)
+    try:
+        approved_request = access_requests.approve_access_request(
+            access_request,
+            reviewed_by=request.user,
+            review_note=serializer.validated_data.get("review_note") or "",
+        )
+    except keycloak_admin.KeycloakAdminError as exc:
+        return Response({"error": str(exc)}, status=status.HTTP_502_BAD_GATEWAY)
+    response_serializer = core.api.v1.serializers.AccessRequestSerializer(
+        approved_request
+    )
+    return Response(response_serializer.data, status=status.HTTP_200_OK)
+
+
+@extend_schema(
+    tags=[TAG_ACCESS_REQUESTS],
+    summary="Reject access request",
+    description="Admin-only endpoint to reject a pending PathoCore access request.",
+    request=core.api.v1.serializers.AccessRequestReviewSerializer,
+    responses={
+        200: core.api.v1.serializers.AccessRequestSerializer,
+        400: core.api.v1.serializers.ErrorSerializer,
+        401: core.api.v1.serializers.ErrorSerializer,
+        403: core.api.v1.serializers.ErrorSerializer,
+        404: core.api.v1.serializers.ErrorSerializer,
+    },
+)
+@authentication_classes(API_AUTHENTICATION_CLASSES)
+@api_view(["POST"])
+@permission_classes([IsAuthenticated, IsPathoCoreAdmin])
+def access_request_reject_view(request, request_id):
+    access_request = _get_access_request_or_404(request_id)
+    serializer = core.api.v1.serializers.AccessRequestReviewSerializer(
+        data=request.data
+    )
+    serializer.is_valid(raise_exception=True)
+    rejected_request = access_requests.reject_access_request(
+        access_request,
+        reviewed_by=request.user,
+        review_note=serializer.validated_data.get("review_note") or "",
+    )
+    response_serializer = core.api.v1.serializers.AccessRequestSerializer(
+        rejected_request
+    )
+    return Response(response_serializer.data, status=status.HTTP_200_OK)
+
+
+def _get_access_request_or_404(request_id):
+    try:
+        return core.models.AccessRequest.objects.get(pk=request_id)
+    except core.models.AccessRequest.DoesNotExist as exc:
+        raise NotFound("Access request not found") from exc
 
 
 # FIXME: Sample ingest rejects json containing fields not defined in SampleIngestSerializer

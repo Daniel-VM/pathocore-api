@@ -1391,3 +1391,114 @@ class DefaultSuperuserCommandTests(TestCase):
 
         user.refresh_from_db()
         self.assertTrue(user.check_password("new_pass"))
+
+
+@override_settings(
+    ROOT_URLCONF="conf.urls",
+    ALLOWED_HOSTS=["testserver", "localhost"],
+    PATHOCORE_ACCESS_REQUEST_USE_CASES=[
+        {"name": "mepram", "label": "MEPRAM", "labs": []},
+        {"name": "redlabra", "label": "RedLaBRA", "labs": []},
+    ],
+    PATHOCORE_ACCESS_REQUEST_ADMIN_EMAILS=[],
+)
+class AccessRequestWorkflowTests(TestCase):
+    def setUp(self):
+        self.client = APIClient()
+        self.admin_user = User.objects.create_superuser(
+            username="admin",
+            email="admin@example.org",
+            password="admin-pass",
+        )
+
+    def test_public_user_can_create_pending_access_request(self):
+        response = self.client.post(
+            "/v1/access-requests",
+            data=self._request_payload(),
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(response.data["status"], "pending")
+        self.assertEqual(response.data["requested_use_case"], "mepram")
+        self.assertIsNone(response.data["requested_lab"])
+        self.assertEqual(core.models.AccessRequest.objects.count(), 1)
+
+    def test_admin_can_list_pending_access_requests(self):
+        core.models.AccessRequest.objects.create(**self._request_payload())
+
+        anonymous_response = self.client.get("/v1/access-requests?status=pending")
+        self.assertIn(anonymous_response.status_code, (401, 403))
+
+        response = self.client.get(
+            "/v1/access-requests?status=pending",
+            HTTP_AUTHORIZATION=self._basic_auth("admin", "admin-pass"),
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]["status"], "pending")
+
+    @patch("core.api.services.keycloak_admin.provision_approved_user")
+    def test_admin_can_approve_access_request(self, provision_mock):
+        access_request = core.models.AccessRequest.objects.create(
+            **self._request_payload()
+        )
+        provision_mock.return_value = {
+            "user_id": "keycloak-user-1",
+            "group_id": "group-1",
+            "group_path": "/use-cases/mepram/view",
+        }
+
+        response = self.client.post(
+            f"/v1/access-requests/{access_request.pk}/approve",
+            data={"review_note": "Approved"},
+            format="json",
+            HTTP_AUTHORIZATION=self._basic_auth("admin", "admin-pass"),
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["status"], "approved")
+        self.assertEqual(
+            response.data["approved_group"],
+            "/use-cases/mepram/view",
+        )
+        self.assertEqual(response.data["keycloak_user_id"], "keycloak-user-1")
+        provision_mock.assert_called_once()
+
+    def test_admin_can_reject_access_request(self):
+        access_request = core.models.AccessRequest.objects.create(
+            **self._request_payload()
+        )
+
+        response = self.client.post(
+            f"/v1/access-requests/{access_request.pk}/reject",
+            data={"review_note": "Missing project justification"},
+            format="json",
+            HTTP_AUTHORIZATION=self._basic_auth("admin", "admin-pass"),
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["status"], "rejected")
+        self.assertEqual(
+            response.data["review_note"],
+            "Missing project justification",
+        )
+
+    @staticmethod
+    def _request_payload():
+        return {
+            "username": "new_user",
+            "email": "new.user@example.org",
+            "first_name": "New",
+            "last_name": "User",
+            "requested_use_case": "mepram",
+            "requested_role": "view",
+            "message": "I collaborate with the MEPRAM laboratory network.",
+        }
+
+    @staticmethod
+    def _basic_auth(username, password):
+        raw_credentials = f"{username}:{password}".encode("utf-8")
+        encoded = base64.b64encode(raw_credentials).decode("ascii")
+        return f"Basic {encoded}"

@@ -253,6 +253,81 @@ Django superuser credentials:
 admin / admin_pass
 ```
 
+## Access Request Workflow
+
+PathoCore keeps pending registration and approval state in its own database.
+Keycloak remains the final identity and group store only after approval.
+
+Public users can create requests:
+
+```bash
+curl -sS -X POST http://localhost:8000/v1/access-requests \
+  -H "Content-Type: application/json" \
+  -d '{
+    "username": "new_user",
+    "email": "new.user@example.org",
+    "first_name": "New",
+    "last_name": "User",
+    "requested_use_case": "mepram",
+    "requested_role": "view",
+    "message": "I collaborate with the MEPRAM laboratory network."
+  }' | jq
+```
+
+Admins can review pending requests:
+
+```bash
+curl -sS -u admin:admin_pass \
+  "http://localhost:8000/v1/access-requests?status=pending" | jq
+```
+
+Approve a request:
+
+```bash
+curl -sS -X POST -u admin:admin_pass \
+  http://localhost:8000/v1/access-requests/<request_id>/approve \
+  -H "Content-Type: application/json" \
+  -d '{"review_note": "Approved for MEPRAM view access."}' | jq
+```
+
+Reject a request:
+
+```bash
+curl -sS -X POST -u admin:admin_pass \
+  http://localhost:8000/v1/access-requests/<request_id>/reject \
+  -H "Content-Type: application/json" \
+  -d '{"review_note": "Missing project justification."}' | jq
+```
+
+Approval calls the Keycloak Admin REST API to create or enable the user, trigger
+`execute-actions-email` with `UPDATE_PASSWORD` and `VERIFY_EMAIL`, and assign the
+approved group path, for example:
+
+```text
+/use-cases/mepram/view
+```
+
+Configure these values for approval:
+
+```text
+KEYCLOAK_ADMIN_BASE_URL=http://keycloak:8080
+KEYCLOAK_REALM=ciberisciii_datahub
+KEYCLOAK_ADMIN_TOKEN_REALM=master
+KEYCLOAK_ADMIN_CLIENT_ID=admin-cli
+KEYCLOAK_ADMIN_USERNAME=admin
+KEYCLOAK_ADMIN_PASSWORD=admin
+```
+
+Do not send temporary passwords by email. Keycloak must have SMTP configured for
+`execute-actions-email`; otherwise approval can fail before permissions are
+granted.
+
+For local Docker testing without SMTP, keep:
+
+```text
+KEYCLOAK_ADMIN_SEND_ACTION_EMAILS=false
+```
+
 The generic databrowser and variant read endpoints are intentionally public for
 the no-login web experience. They are read-only, query-limited where applicable,
 and can be disabled globally with:
