@@ -27,7 +27,7 @@ from core.api.authentication import API_AUTHENTICATION_CLASSES
 from core.api.permissions import AllowAccessRequestCreateOrAdmin
 from core.api.permissions import AllowConfiguredPublicReadOnly
 from core.api.permissions import HasProjectAccess
-from core.api.permissions import IsPathoCoreAdmin
+from core.api.permissions import IsAccessRequestReviewer
 from core.api.services import access_requests
 from core.api.services import keycloak_admin
 from core.api.services import sample_ingestion
@@ -127,8 +127,10 @@ def auth_me_view(request):
     is_keycloak_user = access_control.is_keycloak_user(request.user)
     if is_keycloak_user:
         user_projects = access_control.get_user_project_permissions(request.user)
+        user_groups = list(getattr(request.user, "groups", []))
     else:
-        user_projects = access_control.get_user_projects(request.user)
+        user_projects = []
+        user_groups = []
 
     if not user_projects and not is_keycloak_user:
         try:
@@ -153,7 +155,7 @@ def auth_me_view(request):
             "user": {
                 "id": str(getattr(request.user, "id", "")),
                 "username": str(getattr(request.user, "username", "")),
-                "groups": list(getattr(request.user, "groups", [])),
+                "groups": user_groups,
                 "projects": user_projects,
             },
             "token": request.auth if isinstance(request.auth, dict) else {},
@@ -198,7 +200,10 @@ def access_requests_view(request):
             data=request.query_params
         )
         serializer.is_valid(raise_exception=True)
-        queryset = core.models.AccessRequest.objects.all()
+        queryset = access_control.apply_access_request_review_scope(
+            core.models.AccessRequest.objects.all(),
+            request.user,
+        )
         request_status = serializer.validated_data.get("status")
         if request_status:
             queryset = queryset.filter(status=request_status)
@@ -260,9 +265,10 @@ def access_request_catalog_view(request):
 )
 @authentication_classes(API_AUTHENTICATION_CLASSES)
 @api_view(["POST"])
-@permission_classes([IsAuthenticated, IsPathoCoreAdmin])
+@permission_classes([IsAuthenticated, IsAccessRequestReviewer])
 def access_request_approve_view(request, request_id):
     access_request = _get_access_request_or_404(request_id)
+    _ensure_access_request_review_access(request.user, access_request)
     serializer = core.api.v1.serializers.AccessRequestReviewSerializer(
         data=request.data
     )
@@ -296,9 +302,10 @@ def access_request_approve_view(request, request_id):
 )
 @authentication_classes(API_AUTHENTICATION_CLASSES)
 @api_view(["POST"])
-@permission_classes([IsAuthenticated, IsPathoCoreAdmin])
+@permission_classes([IsAuthenticated, IsAccessRequestReviewer])
 def access_request_reject_view(request, request_id):
     access_request = _get_access_request_or_404(request_id)
+    _ensure_access_request_review_access(request.user, access_request)
     serializer = core.api.v1.serializers.AccessRequestReviewSerializer(
         data=request.data
     )
@@ -333,9 +340,10 @@ def access_request_reject_view(request, request_id):
 )
 @authentication_classes(API_AUTHENTICATION_CLASSES)
 @api_view(["POST"])
-@permission_classes([IsAuthenticated, IsPathoCoreAdmin])
+@permission_classes([IsAuthenticated, IsAccessRequestReviewer])
 def access_request_revoke_view(request, request_id):
     access_request = _get_access_request_or_404(request_id)
+    _ensure_access_request_review_access(request.user, access_request)
     serializer = core.api.v1.serializers.AccessRequestReviewSerializer(
         data=request.data
     )
@@ -359,6 +367,13 @@ def _get_access_request_or_404(request_id):
         return core.models.AccessRequest.objects.get(pk=request_id)
     except core.models.AccessRequest.DoesNotExist as exc:
         raise NotFound("Access request not found") from exc
+
+
+def _ensure_access_request_review_access(user, access_request):
+    if not access_control.can_review_access_request(user, access_request):
+        raise PermissionDenied(
+            "You are not allowed to review access requests for this use-case"
+        )
 
 
 # FIXME: Sample ingest rejects json containing fields not defined in SampleIngestSerializer
