@@ -27,6 +27,39 @@ def is_admin_user(user):
     return bool(user.is_authenticated and (user.is_staff or user.is_superuser))
 
 
+def is_access_request_reviewer(user):
+    if is_admin_user(user):
+        return True
+    if user is None or not getattr(user, "is_authenticated", False):
+        return False
+    try:
+        return _access_request_review_scope_query(user) is not None
+    except PermissionDenied:
+        return False
+
+
+def can_review_access_request(user, access_request):
+    if is_admin_user(user):
+        return True
+    if access_request is None:
+        return False
+
+    project_id = _normalize_project_code(
+        getattr(access_request, "requested_use_case", None)
+    )
+    if not project_id:
+        return False
+
+    lab_id = _normalize_project_code(getattr(access_request, "requested_lab", None))
+    if lab_id:
+        return user_can(user, project_id, lab_id=lab_id, role=ROLE_ADMIN)
+
+    return authorization.role_allows(
+        get_effective_project_role(user, project_id),
+        ROLE_ADMIN,
+    )
+
+
 def is_keycloak_user(user):
     return bool(getattr(user, "auth_provider", None) == "keycloak")
 
@@ -292,6 +325,16 @@ def apply_project_labs_scope(queryset, user, project_id, field_name):
     return queryset.filter(**{f"{field_name}__in": labs})
 
 
+def apply_access_request_review_scope(queryset, user):
+    if is_admin_user(user):
+        return queryset
+
+    scope_query = _access_request_review_scope_query(user)
+    if scope_query is None:
+        return queryset.none()
+    return queryset.filter(scope_query)
+
+
 def get_user_project_codes(user):
     if is_admin_user(user):
         return []
@@ -309,6 +352,54 @@ def _project_scope_query(field_name, project_codes):
     for project_code in project_codes:
         project_query |= Q(**{f"{field_name}__iexact": project_code})
     return project_query
+
+
+def _access_request_review_scope_query(user):
+    if user is None or not getattr(user, "is_authenticated", False):
+        return None
+
+    project_query = Q()
+    has_scope = False
+    for project in get_user_projects(user):
+        project_id = _normalize_project_code(project.get("id"))
+        if not project_id:
+            continue
+
+        project_role = _normalize_role(project.get("project_role"))
+        effective_role = _normalize_role(project.get("effective_role"))
+        lab_roles = project.get("lab_roles") or []
+        admin_labs = [
+            lab_role["lab"]
+            for lab_role in lab_roles
+            if _normalize_role(lab_role.get("role")) == ROLE_ADMIN
+        ]
+
+        if authorization.role_allows(project_role, ROLE_ADMIN):
+            project_query |= Q(requested_use_case__iexact=project_id)
+            has_scope = True
+            continue
+
+        if admin_labs:
+            project_query |= Q(
+                requested_use_case__iexact=project_id,
+                requested_lab__in=admin_labs,
+            )
+            project_query |= Q(
+                requested_use_case__iexact=project_id,
+                requested_lab__isnull=True,
+            )
+            project_query |= Q(
+                requested_use_case__iexact=project_id,
+                requested_lab="",
+            )
+            has_scope = True
+            continue
+
+        if authorization.role_allows(effective_role, ROLE_ADMIN):
+            project_query |= Q(requested_use_case__iexact=project_id)
+            has_scope = True
+
+    return project_query if has_scope else None
 
 
 def ensure_sample_access(sample_obj, user):
