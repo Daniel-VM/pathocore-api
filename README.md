@@ -253,6 +253,13 @@ Django superuser credentials:
 admin / admin_pass
 ```
 
+### API rate limiting
+
+PathoCore API includes configurable server-side rate limits with
+`django-ratelimit`. Thresholds are controlled through
+`PATHOCORE_RATELIMIT_*` environment variables and requests over the limit return
+`429 Too Many Requests`.
+
 ## Access Request Workflow
 
 PathoCore keeps pending registration and approval state in its own database.
