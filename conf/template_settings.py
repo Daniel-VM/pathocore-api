@@ -46,6 +46,17 @@ def _int_env(name, default):
             return 25
 
 
+def _bool_env(name, default=False):
+    raw_value = os.environ.get(name)
+    if raw_value is None:
+        return bool(default)
+    return raw_value.strip().lower() in ("1", "true", "yes", "on")
+
+
+def _rate_env(name, default):
+    return os.environ.get(name, default).strip()
+
+
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/3.2/howto/deployment/checklist/
 
@@ -79,6 +90,7 @@ MIDDLEWARE = [
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
+    "core.api.ratelimit.PathoCoreRatelimitMiddleware",
 ]
 
 ROOT_URLCONF = "pathocore_api.urls"
@@ -154,6 +166,20 @@ PATHOCORE_ENABLE_LEGACY_BASIC_AUTH = os.environ.get(
 PATHOCORE_ENABLE_PUBLIC_READ_ENDPOINTS = os.environ.get(
     "PATHOCORE_ENABLE_PUBLIC_READ_ENDPOINTS", "true"
 ).lower() in ("1", "true", "yes", "on")
+
+# API rate limiting. Values use django-ratelimit syntax, for example:
+# "100/m", "1000/h", or "0"/"off" to disable one category.
+PATHOCORE_RATELIMIT_ENABLED = _bool_env("PATHOCORE_RATELIMIT_ENABLED", True)
+PATHOCORE_RATELIMIT_RATES = {
+    "public": _rate_env("PATHOCORE_RATELIMIT_PUBLIC_RATE", "100/m"),
+    "authenticated": _rate_env("PATHOCORE_RATELIMIT_AUTHENTICATED_RATE", "300/m"),
+    "expensive": _rate_env("PATHOCORE_RATELIMIT_EXPENSIVE_RATE", "60/m"),
+    "write": _rate_env("PATHOCORE_RATELIMIT_WRITE_RATE", "20/m"),
+}
+PATHOCORE_RATELIMIT_IP_META_KEY = os.environ.get(
+    "PATHOCORE_RATELIMIT_IP_META_KEY", ""
+).strip()
+RATELIMIT_USE_CACHE = os.environ.get("PATHOCORE_RATELIMIT_CACHE", "default").strip()
 
 # Keycloak setup
 KEYCLOAK_ISSUER = os.environ.get("KEYCLOAK_ISSUER", "").strip()

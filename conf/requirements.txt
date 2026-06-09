@@ -5,3 +5,4 @@ mysqlclient==2.2.4
 mod_wsgi==5.0.0
 gunicorn==21.2.0
 PyJWT[crypto]==2.9.0
+django-ratelimit==4.1.0
