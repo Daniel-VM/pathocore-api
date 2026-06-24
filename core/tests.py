@@ -1411,6 +1411,7 @@ class PublicAPIRateThrottleTests(SimpleTestCase):
         self.assertEqual(second.status_code, 200)
         self.assertEqual(third.status_code, 429)
         self.assertIn("detail", third.data)
+        self.assertIn("Request was throttled.", str(third.data["detail"]))
 
     @patch("core.api.v1.views.databrowser.overview_summary")
     def test_public_throttle_is_scoped_by_client_ip(self, overview_summary):
