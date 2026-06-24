@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### `Added`
 
 - [#14](https://github.com/BIPLAT-CIBERINFEC/pathocore-api/pull/14) Add configurable rate limits to protect API endpoints.
+- [BIPLAT-CIBERINFEC/pathocore-api#16](https://github.com/BIPLAT-CIBERINFEC/pathocore-api/pull/16) Add DRF throttling for public API endpoints.
 
 ### `Fixed`
 
