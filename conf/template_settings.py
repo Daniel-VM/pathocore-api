@@ -158,6 +158,9 @@ REST_FRAMEWORK = {
     "DEFAULT_PERMISSION_CLASSES": [
         "rest_framework.permissions.IsAuthenticated",
     ],
+    "DEFAULT_THROTTLE_RATES": {
+        "public_api": _rate_env("PUBLIC_API_THROTTLE_RATE", "500/hour"),
+    },
 }
 
 PATHOCORE_ENABLE_LEGACY_BASIC_AUTH = os.environ.get(
@@ -171,7 +174,6 @@ PATHOCORE_ENABLE_PUBLIC_READ_ENDPOINTS = os.environ.get(
 # "100/m", "1000/h", or "0"/"off" to disable one category.
 PATHOCORE_RATELIMIT_ENABLED = _bool_env("PATHOCORE_RATELIMIT_ENABLED", True)
 PATHOCORE_RATELIMIT_RATES = {
-    "public": _rate_env("PATHOCORE_RATELIMIT_PUBLIC_RATE", "100/m"),
     "authenticated": _rate_env("PATHOCORE_RATELIMIT_AUTHENTICATED_RATE", "300/m"),
     "expensive": _rate_env("PATHOCORE_RATELIMIT_EXPENSIVE_RATE", "60/m"),
     "write": _rate_env("PATHOCORE_RATELIMIT_WRITE_RATE", "20/m"),

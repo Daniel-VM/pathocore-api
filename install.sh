@@ -109,6 +109,9 @@ write_runtime_env_file() {
             write_runtime_env_var "$env_key" "${!env_key}"
         done
         write_runtime_env_var \
+            "PUBLIC_API_THROTTLE_RATE" \
+            "${PUBLIC_API_THROTTLE_RATE:-500/hour}"
+        write_runtime_env_var \
             "PATHOCORE_CREATE_DEFAULT_SUPERUSER" \
             "${PATHOCORE_CREATE_DEFAULT_SUPERUSER:-false}"
         write_runtime_env_var \

@@ -4,6 +4,7 @@ from unittest.mock import patch
 
 from django.contrib.auth.models import User
 from django.core import mail
+from django.core.cache import cache
 from django.core.exceptions import PermissionDenied
 from django.core.management import call_command
 from django.test import SimpleTestCase, TestCase
@@ -1367,6 +1368,105 @@ class PublicReadEndpointSettingsTests(TestCase):
         response = self.client.get("/v1/databrowser/overview-summary")
 
         self.assertEqual(response.status_code, 403)
+
+
+@override_settings(
+    ROOT_URLCONF="conf.urls",
+    ALLOWED_HOSTS=["testserver", "localhost"],
+    PATHOCORE_ENABLE_PUBLIC_READ_ENDPOINTS=True,
+    REST_FRAMEWORK={
+        "DEFAULT_THROTTLE_RATES": {
+            "public_api": "2/minute",
+        },
+    },
+)
+class PublicAPIRateThrottleTests(SimpleTestCase):
+    def setUp(self):
+        cache.clear()
+        self.client = APIClient()
+
+    def tearDown(self):
+        cache.clear()
+
+    @patch("core.api.v1.views.databrowser.overview_summary")
+    def test_public_endpoint_works_below_rate_limit_without_authentication(
+        self, overview_summary
+    ):
+        overview_summary.return_value = self._overview_payload()
+
+        response = self.client.get("/v1/databrowser/overview-summary")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertNotIn("HTTP_AUTHORIZATION", response.wsgi_request.META)
+
+    @patch("core.api.v1.views.databrowser.overview_summary")
+    def test_public_endpoint_returns_429_after_rate_limit(self, overview_summary):
+        overview_summary.return_value = self._overview_payload()
+
+        first = self.client.get("/v1/databrowser/overview-summary")
+        second = self.client.get("/v1/databrowser/overview-summary")
+        third = self.client.get("/v1/databrowser/overview-summary")
+
+        self.assertEqual(first.status_code, 200)
+        self.assertEqual(second.status_code, 200)
+        self.assertEqual(third.status_code, 429)
+        self.assertIn("detail", third.data)
+
+    @patch("core.api.v1.views.databrowser.overview_summary")
+    def test_public_throttle_is_scoped_by_client_ip(self, overview_summary):
+        overview_summary.return_value = self._overview_payload()
+
+        self.client.get("/v1/databrowser/overview-summary", REMOTE_ADDR="10.0.0.1")
+        self.client.get("/v1/databrowser/overview-summary", REMOTE_ADDR="10.0.0.1")
+        limited_response = self.client.get(
+            "/v1/databrowser/overview-summary",
+            REMOTE_ADDR="10.0.0.1",
+        )
+        other_ip_response = self.client.get(
+            "/v1/databrowser/overview-summary",
+            REMOTE_ADDR="10.0.0.2",
+        )
+
+        self.assertEqual(limited_response.status_code, 429)
+        self.assertEqual(other_ip_response.status_code, 200)
+
+    @patch("core.api.v1.views.databrowser.overview_summary")
+    def test_public_endpoint_does_not_require_authorization_header(
+        self, overview_summary
+    ):
+        overview_summary.return_value = self._overview_payload()
+
+        response = self.client.get("/v1/databrowser/overview-summary")
+
+        self.assertEqual(response.status_code, 200)
+
+    @patch("core.api.v1.views.databrowser.overview_summary")
+    def test_private_auth_endpoint_is_not_limited_by_public_throttle(
+        self, overview_summary
+    ):
+        overview_summary.return_value = self._overview_payload()
+
+        self.client.get("/v1/databrowser/overview-summary")
+        self.client.get("/v1/databrowser/overview-summary")
+        throttled_public_response = self.client.get("/v1/databrowser/overview-summary")
+        auth_response = self.client.get("/v1/auth/me")
+
+        self.assertEqual(throttled_public_response.status_code, 429)
+        self.assertIn(auth_response.status_code, (401, 403))
+
+    @staticmethod
+    def _overview_payload():
+        return {
+            "kpis": [],
+            "sample_growth": [],
+            "pathogens": [],
+            "geography": [],
+            "schema_mix": [],
+            "projects": [],
+            "notes": [],
+            "coverage_notes": [],
+            "metrics": {},
+        }
 
 
 class DefaultSuperuserCommandTests(TestCase):

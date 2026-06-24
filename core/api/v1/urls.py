@@ -9,6 +9,8 @@ app_name = "pathocore_api"
 
 
 def api_path(route, view, *, name, ratelimit_category="authenticated"):
+    if ratelimit_category is None:
+        return path(route, view, name=name)
     return path(
         route,
         apply_api_ratelimit(view, category=ratelimit_category),
@@ -29,7 +31,7 @@ urlpatterns = [
         "access-requests/catalog",
         core.api.v1.views.access_request_catalog_view,
         name="access_request_catalog",
-        ratelimit_category="public",
+        ratelimit_category=None,
     ),
     api_path(
         "access-requests/<int:request_id>/approve",
@@ -106,25 +108,25 @@ urlpatterns = [
         "databrowser/overview-summary",
         core.api.v1.views.databrowser_overview_summary_view,
         name="databrowser_overview_summary",
-        ratelimit_category="public",
+        ratelimit_category=None,
     ),
     api_path(
         "databrowser/metadata-summary",
         core.api.v1.views.databrowser_metadata_summary_view,
         name="databrowser_metadata_summary",
-        ratelimit_category="public",
+        ratelimit_category=None,
     ),
     api_path(
         "databrowser/metadata/property-distribution",
         core.api.v1.views.databrowser_metadata_property_distribution_view,
         name="databrowser_metadata_property_distribution",
-        ratelimit_category="expensive",
+        ratelimit_category=None,
     ),
     api_path(
         "databrowser/schema-summary",
         core.api.v1.views.databrowser_schema_summary_view,
         name="databrowser_schema_summary",
-        ratelimit_category="public",
+        ratelimit_category=None,
     ),
     api_path(
         "use-cases/data-summary",
@@ -142,25 +144,25 @@ urlpatterns = [
         "variants/search",
         core.api.v1.views.variant_search_view,
         name="variant_search",
-        ratelimit_category="expensive",
+        ratelimit_category=None,
     ),
     api_path(
         "variants/summary",
         core.api.v1.views.variant_summary_view,
         name="variant_summary",
-        ratelimit_category="expensive",
+        ratelimit_category=None,
     ),
     api_path(
         "variants/reference-genomes",
         core.api.v1.views.variant_reference_genomes_view,
         name="variant_reference_genomes",
-        ratelimit_category="public",
+        ratelimit_category=None,
     ),
     api_path(
         "variants/filter-options",
         core.api.v1.views.variant_filter_options_view,
         name="variant_filter_options",
-        ratelimit_category="public",
+        ratelimit_category=None,
     ),
     api_path(
         "variants/ingest",
