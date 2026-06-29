@@ -755,23 +755,23 @@ def _analyzed_sample_count(sample_ids):
 def _kpis(*, total_samples, analyzed_samples, region_count, center_count):
     return [
         {
-            "label": "Muestras disponibles",
-            "note": "Muestras visibles del caso de uso",
+            "label": "Available samples",
+            "note": "Samples visible in this use case",
             "value": _format_integer(total_samples),
         },
         {
-            "label": "Muestras analizadas",
-            "note": "Muestras con evidencia de procesamiento bioinformatico",
+            "label": "Analyzed samples",
+            "note": "Samples with bioinformatics processing evidence",
             "value": _format_integer(analyzed_samples),
         },
         {
-            "label": "CCAA participantes",
-            "note": "Comunidades autonomas detectadas en la capa visible",
+            "label": "Participating regions",
+            "note": "Autonomous communities represented in the visible dataset",
             "value": _format_integer(region_count),
         },
         {
-            "label": "Centros implicados",
-            "note": "Hospitales o centros con al menos una muestra",
+            "label": "Participating centers",
+            "note": "Hospitals or centers with at least one sample",
             "value": _format_integer(center_count),
         },
     ]
@@ -793,16 +793,16 @@ def _missing_operational_fields(overview):
 def _summary_notes(sample_count):
     notes = [
         (
-            "Los agregados se calculan en backend para evitar una llamada de "
-            "metadata por muestra."
+            "Aggregates are computed server-side from project-scoped sample "
+            "and metadata records."
         ),
         (
-            "Las fechas priorizan sample_collection_date y caen a "
-            "sequencing_date/created_at si no existe metadata de coleccion."
+            "Timeline values prioritize sample_collection_date and fall back "
+            "to sequencing_date or created_at when collection metadata is unavailable."
         ),
     ]
     if sample_count == 0:
-        notes.append("No hay muestras registradas para este caso de uso.")
+        notes.append("No samples are registered for this use case.")
     return notes
 
 
