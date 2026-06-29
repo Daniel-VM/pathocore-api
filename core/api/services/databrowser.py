@@ -94,22 +94,22 @@ def _overview_summary_live(filters=None, request_user=None):
         "kpis": [
             {
                 "label": "Samples",
-                "note": "Muestras incluidas en el snapshot global",
+                "note": "Samples included in the global snapshot",
                 "value": _format_integer(sample_count),
             },
             {
                 "label": "Projects",
-                "note": "Proyectos representados en los schemas activos",
+                "note": "Projects represented by active schemas",
                 "value": _format_integer(project_count),
             },
             {
                 "label": "Schemas",
-                "note": "Schemas activos incluidos en el snapshot global",
+                "note": "Active schemas included in the global snapshot",
                 "value": _format_integer(active_schema_count),
             },
             {
                 "label": "Metadata properties",
-                "note": "Propiedades distintas con valores observados",
+                "note": "Distinct metadata properties with observed values",
                 "value": _format_integer(visible_metadata_properties),
             },
         ],
@@ -118,13 +118,8 @@ def _overview_summary_live(filters=None, request_user=None):
         "geography": geography,
         "schema_mix": schema_mix,
         "projects": _projects_distribution(samples),
-        "notes": [
-            "El crecimiento temporal prioriza sample_collection_date y cae a created_at cuando esa metadata no existe.",
-            "La distribucion de patogenos depende de la parte de metadata plana expuesta por la API.",
-        ],
-        "coverage_notes": [
-            "Los agregados se calculan en backend para evitar una llamada de metadata por muestra."
-        ],
+        "notes": [],
+        "coverage_notes": [],
         "metrics": {
             "sample_count": sample_count,
             "project_count": project_count,
@@ -216,22 +211,22 @@ def _schema_summary_live(filters=None, request_user=None):
         "stats": [
             {
                 "label": "Active schemas",
-                "note": "Schemas marcados en uso en el backend",
+                "note": "Schemas currently marked as active",
                 "value": _format_integer(active_schema_count),
             },
             {
                 "label": "Projects",
-                "note": "Projects incluidos en /schema",
+                "note": "Projects represented by registered schemas",
                 "value": _format_integer(project_count),
             },
             {
                 "label": "Samples",
-                "note": "Muestras agregadas para la vista estructural",
+                "note": "Samples represented in the schema view",
                 "value": _format_integer(samples.count()),
             },
             {
                 "label": "Classification types",
-                "note": "Clasificaciones distintas presentes en schemas activos",
+                "note": "Distinct classification types in active schemas",
                 "value": _format_integer(len(classification_counts)),
             },
         ],
@@ -239,10 +234,7 @@ def _schema_summary_live(filters=None, request_user=None):
         "classification_distribution": classification_distribution,
         "schema_cards": schema_cards,
         "schema_options": _schema_options(schemas, sample_count_by_schema),
-        "notes": [
-            "La distribucion por classification usa las definiciones registradas en core_metadata_schema_properties.",
-            "La exploracion de bloques Schema ya no requiere descargar cada JSON schema completo en el navegador.",
-        ],
+        "notes": [],
     }
 
 
@@ -278,29 +270,26 @@ def _metadata_summary_live(filters=None, request_user=None):
         ],
         "schema_scopes": [],
         "sections": sections,
-        "notes": [
-            "La vista agrega resultados desde endpoints backend agregados; ya no descarga metadata muestra a muestra.",
-            "La metadata compleja agrupada dentro de arrays/objetos se resume por propiedad plana registrada.",
-        ],
+        "notes": [],
         "stats": [
             {
                 "label": "Sections",
-                "note": "Bloques principales del entregable",
+                "note": "Main metadata sections",
                 "value": "3",
             },
             {
                 "label": "Priority properties with data",
-                "note": "Propiedades priorizadas con al menos una muestra",
+                "note": "Priority properties observed in at least one sample",
                 "value": _format_integer(populated_priority_properties),
             },
             {
                 "label": "Samples with metadata",
-                "note": "Muestras del snapshot con al menos una entrada",
+                "note": "Samples with at least one metadata entry",
                 "value": _format_integer(metadata_samples),
             },
             {
                 "label": "Visible metadata properties",
-                "note": "Propiedades distintas pobladas en el dataset actual",
+                "note": "Distinct populated metadata properties",
                 "value": _format_integer(visible_metadata_properties),
             },
         ],
@@ -1066,7 +1055,7 @@ def _property_card(spec, definitions, total_samples, priority_index):
         "description": (
             definition["description"]
             if definition
-            else "La API no expone todavía una descripción formal para esta propiedad."
+            else "No formal description is available for this property."
         ),
         "display_name": spec["display_name"],
         "is_fallback": (
@@ -1109,7 +1098,7 @@ def _summary_charts(section_id, priority_index):
         return [
             {
                 "title": "Geographic coverage",
-                "description": "Muestras por region visible",
+                "description": "Samples by visible region",
                 "kind": "bar",
                 "values": _distribution_from_index(
                     priority_index,
@@ -1123,7 +1112,7 @@ def _summary_charts(section_id, priority_index):
             },
             {
                 "title": "Collection timeline",
-                "description": "Muestras por periodo de recogida",
+                "description": "Samples by collection period",
                 "kind": "line",
                 "values": _distribution_from_index(
                     priority_index, ["sample_collection_date"], "date"
@@ -1134,7 +1123,7 @@ def _summary_charts(section_id, priority_index):
         return [
             {
                 "title": "Sequencing technology",
-                "description": "Muestras por plataforma de secuenciacion",
+                "description": "Samples by sequencing platform",
                 "kind": "pie",
                 "values": _distribution_from_index(
                     priority_index, ["sequencing_instrument_platform"], "categorical"
@@ -1142,7 +1131,7 @@ def _summary_charts(section_id, priority_index):
             },
             {
                 "title": "Analysis software",
-                "description": "Muestras por software principal de analisis",
+                "description": "Samples by primary analysis software",
                 "kind": "bar",
                 "values": _distribution_from_index(
                     priority_index,
@@ -1154,7 +1143,7 @@ def _summary_charts(section_id, priority_index):
     return [
         {
             "title": "Host distribution",
-            "description": "Muestras por host common name",
+            "description": "Samples by host common name",
             "kind": "pie",
             "values": _distribution_from_index(
                 priority_index, ["host_common_name"], "categorical"
@@ -1162,7 +1151,7 @@ def _summary_charts(section_id, priority_index):
         },
         {
             "title": "Infection profile",
-            "description": "Muestras por tipo de infeccion",
+            "description": "Samples by infection type",
             "kind": "bar",
             "values": _distribution_from_index(
                 priority_index, ["infection_type"], "categorical"
@@ -1234,7 +1223,7 @@ def _property_definitions(schemas):
                 "classification": row["classificationID__classification_name"]
                 or "Unclassified",
                 "description": row["description"]
-                or "La API no expone todavía una descripción formal para esta propiedad.",
+                or "No formal description is available for this property.",
                 "label": row["label"] or _humanize(row["property"]),
             }
     return definitions

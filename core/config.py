@@ -181,27 +181,24 @@ DATABROWSER_SECTION_META = {
     "sample-metadata": {
         "title": "Sample metadata",
         "description": (
-            "Cobertura agregada de recoleccion y procesado de muestras basada "
-            "en consultas agregadas de backend."
+            "Aggregated sample collection and processing coverage based on "
+            "backend summary queries."
         ),
-        "notes": [
-            "La distribucion geografica utiliza fallbacks sobre geo_loc_state cuando el dataset real emplea campos equivalentes por institucion.",
-            "Los graficos temporales se representan como linea para mantener legibilidad al crecer el numero de muestras.",
-        ],
+        "notes": [],
     },
     "sample-bioinfo": {
         "title": "Sample bioinfo",
         "description": (
-            "Panel superior con agregados bioinformaticos y propiedades "
-            "priorizadas para tecnologia, software y volumen de datos."
+            "Bioinformatics aggregates and priority properties for sequencing "
+            "technology, analysis software, and data volume."
         ),
         "notes": [],
     },
     "host-information": {
         "title": "Host information",
         "description": (
-            "Perfil cientifico del host con foco en identidad del hospedador, "
-            "infeccion y exposicion visible en la metadata retornada."
+            "Host profile focused on host identity, infection context, and "
+            "exposure metadata."
         ),
         "notes": [],
     },
