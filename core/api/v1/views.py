@@ -3,7 +3,6 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.decorators import (
     authentication_classes,
     permission_classes,
-    throttle_classes,
     api_view,
 )
 from rest_framework import status
@@ -44,7 +43,6 @@ from core.api.services import use_case_data
 from core.api.services import use_case_isolates
 from core.api.services import variant_ingestion
 from core.api.services import variant_search
-from core.api.throttling import PublicAPIRateThrottle
 from core.api.utils import access_control
 
 # Documentation TAGs for drf-spectacular
@@ -242,7 +240,6 @@ def access_requests_view(request):
 )
 @authentication_classes([])
 @api_view(["GET"])
-@throttle_classes([PublicAPIRateThrottle])
 @permission_classes([AllowAny])
 def access_request_catalog_view(request):
     return Response(access_requests.access_request_catalog(), status=status.HTTP_200_OK)
@@ -1641,7 +1638,6 @@ def sample_metadata_view(request, sample_unique_id):
 )
 @authentication_classes([])
 @api_view(["GET"])
-@throttle_classes([PublicAPIRateThrottle])
 @permission_classes([AllowConfiguredPublicReadOnly])
 def databrowser_overview_summary_view(request):
     query_params_error = _reject_generic_databrowser_query_params(
@@ -1673,7 +1669,6 @@ def databrowser_overview_summary_view(request):
 )
 @authentication_classes([])
 @api_view(["GET"])
-@throttle_classes([PublicAPIRateThrottle])
 @permission_classes([AllowConfiguredPublicReadOnly])
 def databrowser_metadata_summary_view(request):
     query_params_error = _reject_generic_databrowser_query_params(
@@ -1708,7 +1703,6 @@ def databrowser_metadata_summary_view(request):
 )
 @authentication_classes([])
 @api_view(["GET"])
-@throttle_classes([PublicAPIRateThrottle])
 @permission_classes([AllowConfiguredPublicReadOnly])
 def databrowser_metadata_property_distribution_view(request):
     query_params_error = _reject_generic_databrowser_query_params(
@@ -1754,7 +1748,6 @@ def databrowser_metadata_property_distribution_view(request):
 )
 @authentication_classes([])
 @api_view(["GET"])
-@throttle_classes([PublicAPIRateThrottle])
 @permission_classes([AllowConfiguredPublicReadOnly])
 def databrowser_schema_summary_view(request):
     query_params_error = _reject_generic_databrowser_query_params(
@@ -1914,7 +1907,6 @@ def use_case_isolate_explorer_view(request):
 )
 @authentication_classes([])
 @api_view(["GET"])
-@throttle_classes([PublicAPIRateThrottle])
 @permission_classes([AllowConfiguredPublicReadOnly])
 def variant_search_view(request):
     serializer = core.api.v1.serializers.VariantSearchQuerySerializer(
@@ -1970,7 +1962,6 @@ def variant_search_view(request):
 )
 @authentication_classes([])
 @api_view(["GET"])
-@throttle_classes([PublicAPIRateThrottle])
 @permission_classes([AllowConfiguredPublicReadOnly])
 def variant_summary_view(request):
     serializer = core.api.v1.serializers.VariantFilterQuerySerializer(
@@ -2002,7 +1993,6 @@ def variant_summary_view(request):
 )
 @authentication_classes([])
 @api_view(["GET"])
-@throttle_classes([PublicAPIRateThrottle])
 @permission_classes([AllowConfiguredPublicReadOnly])
 def variant_reference_genomes_view(request):
     serializer = core.api.v1.serializers.VariantFilterQuerySerializer(
@@ -2034,7 +2024,6 @@ def variant_reference_genomes_view(request):
 )
 @authentication_classes([])
 @api_view(["GET"])
-@throttle_classes([PublicAPIRateThrottle])
 @permission_classes([AllowConfiguredPublicReadOnly])
 def variant_filter_options_view(request):
     serializer = core.api.v1.serializers.VariantFilterQuerySerializer(

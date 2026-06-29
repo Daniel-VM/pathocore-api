@@ -105,9 +105,6 @@ write_runtime_env_file() {
         write_runtime_env_var \
             "PATHOCORE_ENABLE_PUBLIC_READ_ENDPOINTS" \
             "${PATHOCORE_ENABLE_PUBLIC_READ_ENDPOINTS:-true}"
-        for env_key in $(compgen -A variable PATHOCORE_RATELIMIT_ | sort); do
-            write_runtime_env_var "$env_key" "${!env_key}"
-        done
         write_runtime_env_var \
             "PUBLIC_API_THROTTLE_RATE" \
             "${PUBLIC_API_THROTTLE_RATE:-500/hour}"

@@ -1375,12 +1375,17 @@ class PublicReadEndpointSettingsTests(TestCase):
     ALLOWED_HOSTS=["testserver", "localhost"],
     PATHOCORE_ENABLE_PUBLIC_READ_ENDPOINTS=True,
     REST_FRAMEWORK={
+        "DEFAULT_THROTTLE_CLASSES": [
+            "rest_framework.throttling.AnonRateThrottle",
+            "rest_framework.throttling.UserRateThrottle",
+        ],
         "DEFAULT_THROTTLE_RATES": {
-            "public_api": "2/minute",
+            "anon": "2/minute",
+            "user": "2/minute",
         },
     },
 )
-class PublicAPIRateThrottleTests(SimpleTestCase):
+class DRFRateThrottleTests(SimpleTestCase):
     def setUp(self):
         cache.clear()
         self.client = APIClient()
@@ -1442,17 +1447,13 @@ class PublicAPIRateThrottleTests(SimpleTestCase):
         self.assertEqual(response.status_code, 200)
 
     @patch("core.api.v1.views.databrowser.overview_summary")
-    def test_private_auth_endpoint_is_not_limited_by_public_throttle(
+    def test_private_auth_endpoint_still_uses_authentication_flow(
         self, overview_summary
     ):
         overview_summary.return_value = self._overview_payload()
 
-        self.client.get("/v1/databrowser/overview-summary")
-        self.client.get("/v1/databrowser/overview-summary")
-        throttled_public_response = self.client.get("/v1/databrowser/overview-summary")
         auth_response = self.client.get("/v1/auth/me")
 
-        self.assertEqual(throttled_public_response.status_code, 429)
         self.assertIn(auth_response.status_code, (401, 403))
 
     @staticmethod

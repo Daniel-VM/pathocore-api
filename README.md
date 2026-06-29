@@ -256,8 +256,9 @@ admin / admin_pass
 ### API rate limiting
 
 Public databrowser/read endpoints remain unauthenticated for the web public
-area, but use Django REST Framework IP-based throttling as basic overuse
-protection. Configure the shared public rate with:
+area, while the API uses Django REST Framework `AnonRateThrottle` and
+`UserRateThrottle` as basic overuse protection. Public endpoints use the
+anonymous throttle path. Configure the shared rate with:
 
 ```text
 PUBLIC_API_THROTTLE_RATE=500/hour
@@ -267,8 +268,7 @@ Requests over the public limit return the standard DRF `429 Too Many Requests`
 response. This is operational protection for repeated public API calls, not a
 replacement for production reverse-proxy or DoS controls.
 
-Other non-public API limits are still controlled through the existing
-`PATHOCORE_RATELIMIT_*` settings.
+The same configured DRF rate is used for anonymous and authenticated requests.
 
 ## Access Request Workflow
 
@@ -378,8 +378,8 @@ KEYCLOAK_ADMIN_SEND_ACTION_EMAILS=false
 
 The generic databrowser and variant read endpoints are intentionally public for
 the no-login web experience. They are read-only, query-limited where applicable,
-rate-limited by IP through `PUBLIC_API_THROTTLE_RATE`, and can be disabled
-globally with:
+rate-limited through `PUBLIC_API_THROTTLE_RATE`, and can be disabled globally
+with:
 
 ```text
 PATHOCORE_ENABLE_PUBLIC_READ_ENDPOINTS=false
