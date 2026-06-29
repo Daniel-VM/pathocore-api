@@ -1530,6 +1530,48 @@ class AccessRequestWorkflowTests(TestCase):
         self.assertEqual(mail.outbox[0].to, ["new.user@example.org"])
         self.assertIn("received", mail.outbox[0].subject.lower())
 
+    @patch("core.api.services.keycloak_admin.list_group_member_emails")
+    def test_access_request_notifies_keycloak_use_case_admins(self, emails_mock):
+        emails_mock.return_value = [
+            "mepram.admin@example.org",
+            "mepram.admin@example.org",
+            "other.admin@example.org",
+        ]
+
+        response = self.client.post(
+            "/v1/access-requests",
+            data=self._request_payload(),
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 201)
+        emails_mock.assert_called_once_with("/use-cases/mepram/admin")
+        self.assertEqual(len(mail.outbox), 2)
+        self.assertEqual(
+            mail.outbox[1].to,
+            ["mepram.admin@example.org", "other.admin@example.org"],
+        )
+        self.assertIn("pending", mail.outbox[1].subject.lower())
+
+    @override_settings(PATHOCORE_ACCESS_REQUEST_ADMIN_EMAILS=["fallback@example.org"])
+    @patch("core.api.services.keycloak_admin.list_group_member_emails")
+    def test_access_request_uses_fallback_admin_email_when_keycloak_fails(
+        self, emails_mock
+    ):
+        from core.api.services import keycloak_admin
+
+        emails_mock.side_effect = keycloak_admin.KeycloakAdminError("unavailable")
+
+        response = self.client.post(
+            "/v1/access-requests",
+            data=self._request_payload(),
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(len(mail.outbox), 2)
+        self.assertEqual(mail.outbox[1].to, ["fallback@example.org"])
+
     def test_admin_can_list_pending_access_requests(self):
         models.AccessRequest.objects.create(**self._request_payload())
 

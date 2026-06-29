@@ -49,6 +49,27 @@ def revoke_approved_user_access(access_request, group_path):
     return {"user_id": user_id, "group_id": group["id"], "group_path": group_path}
 
 
+def list_group_member_emails(group_path):
+    token = _get_admin_token()
+    group = _get_group_by_path(token, group_path)
+    users = _request_json(
+        "GET",
+        _admin_url(f"groups/{quote(group['id'], safe='')}/members"),
+        token=token,
+        expected_statuses=(200,),
+    )
+    emails = []
+    seen = set()
+    for user in users:
+        if not user.get("enabled", True):
+            continue
+        email = str(user.get("email", "")).strip().lower()
+        if email and email not in seen:
+            emails.append(email)
+            seen.add(email)
+    return emails
+
+
 def _get_admin_token():
     config = _get_config()
     token_url = (

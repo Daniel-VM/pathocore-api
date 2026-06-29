@@ -361,6 +361,10 @@ EMAIL_USE_TLS=false
 DEFAULT_FROM_EMAIL=no-reply@pathocore.local
 ```
 
+New pending requests are notified to enabled Keycloak users with email in the
+matching use-case admin group, for example `/use-cases/mepram/admin`. Configure
+`PATHOCORE_ACCESS_REQUEST_ADMIN_EMAILS` only as a fallback or general copy.
+
 In the local Docker test stack these messages are captured by Mailpit:
 
 ```text

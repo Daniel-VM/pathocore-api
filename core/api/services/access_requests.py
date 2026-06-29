@@ -257,7 +257,7 @@ def notify_access_request_created(access_request):
         fail_silently=True,
     )
 
-    recipients = getattr(settings, "PATHOCORE_ACCESS_REQUEST_ADMIN_EMAILS", [])
+    recipients = _access_request_admin_recipients(access_request)
     if not recipients:
         return
     send_mail(
@@ -271,6 +271,29 @@ def notify_access_request_created(access_request):
         recipient_list=recipients,
         fail_silently=True,
     )
+
+
+def _access_request_admin_recipients(access_request):
+    recipients = []
+    admin_group_path = f"/use-cases/{access_request.requested_use_case}/admin"
+    try:
+        recipients.extend(keycloak_admin.list_group_member_emails(admin_group_path))
+    except keycloak_admin.KeycloakAdminError:
+        pass
+
+    recipients.extend(getattr(settings, "PATHOCORE_ACCESS_REQUEST_ADMIN_EMAILS", []))
+    return _unique_emails(recipients)
+
+
+def _unique_emails(emails):
+    unique = []
+    seen = set()
+    for email in emails:
+        normalized = str(email).strip().lower()
+        if normalized and normalized not in seen:
+            unique.append(normalized)
+            seen.add(normalized)
+    return unique
 
 
 def notify_access_request_reviewed(access_request):
