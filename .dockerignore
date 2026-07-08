@@ -11,5 +11,8 @@ __pycache__/
 *.sqlite3
 node_modules/
 .env
+.env.*
+.tmp_docker_install_conf*
+.runtime_install_conf*
 install_*.txt
 *.log

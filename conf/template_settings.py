@@ -65,7 +65,7 @@ SECRET_KEY = "PLACEHOLDER"
 
 
 # SECURITY WARNING: don"t run with debug turned on in production!
-DEBUG = True
+DEBUG = _bool_env("DJANGO_DEBUG", True)
 
 ALLOWED_HOSTS = ["localhost", "127.0.0.1", "localserverip", "dns_url"]
 
