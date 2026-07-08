@@ -290,8 +290,9 @@ update_system_deps() {
 
     if [[ $linux_distribution == "Ubuntu" ]]; then
         echo "Software installation for Ubuntu"
-        apt-get update && apt-get upgrade -y
-        apt-get install -y \
+        apt-get update
+
+        apt_packages=(
             apt-utils wget \
             build-essential \
             pkg-config \
@@ -299,8 +300,15 @@ update_system_deps() {
             python3-venv  \
             libpq-dev \
             python3-dev python3-pip python3-wheel \
-            apache2-dev\
-            gnuplot
+            apache2-dev
+        )
+
+        if [ "$docker" != true ]; then
+            apt-get upgrade -y
+            apt_packages+=(gnuplot)
+        fi
+
+        apt-get install -y --no-install-recommends "${apt_packages[@]}"
     fi
 
     if [[ $linux_distribution == "CentOS" || $linux_distribution == "RedHatEnterprise" ]]; then
