@@ -162,6 +162,62 @@ docker compose -f docker-compose.test.yml down -v
 
 Use `down -v` only when you want to discard the local test database completely.
 
+## Docker Production Installation
+
+`docker-compose.prod.yml` is intended for controlled server deployments behind a
+reverse proxy. By default, the API binds only to `127.0.0.1` on the host:
+
+```text
+PATHOCORE_API_BIND_HOST=127.0.0.1
+PATHOCORE_API_PORT=8000
+PATHOCORE_HOST_LOG_DIR=/var/log/local/pathocore-api/apps
+```
+
+Prepare a non-committed production install file on the server, based on
+`conf/docker_production_settings.txt`. It can live outside the repository, for
+example under `/srv/containers/bind/pathocore-api/production_settings.txt`.
+Do not commit credentials.
+
+The production install file is consumed by `install.sh` inside the running
+container to generate the installed Django settings and `/opt/pathocore-api/.env`.
+`container_install.sh` also writes `.env.prod.file` in the repository root for
+Docker Compose interpolation. That generated file contains runtime metadata such
+as ports, paths and Gunicorn tuning, not database/SMTP/Keycloak secrets.
+
+Start or upgrade the production container with `container_install.sh` so the
+Django installation, migrations and runtime `.env` are applied consistently:
+
+```bash
+bash container_install.sh \
+  --install_conf /srv/containers/bind/pathocore-api/production_settings.txt \
+  --git_revision current
+```
+
+For upgrades:
+
+```bash
+bash container_install.sh \
+  --install_conf /srv/containers/bind/pathocore-api/production_settings.txt \
+  --action upgrade \
+  --git_revision current
+```
+
+To repair production bind-mount permissions without rebuilding or bootstrapping:
+
+```bash
+bash container_install.sh \
+  --install_conf /srv/containers/bind/pathocore-api/production_settings.txt \
+  --action fix-permissions
+```
+
+Validate from the server itself:
+
+```bash
+curl -I http://127.0.0.1:8000/openapi/
+curl -I http://127.0.0.1:8000/swagger/
+curl -I http://127.0.0.1:8000/v1/databrowser/overview-summary
+```
+
 ### Databrowser summary cache
 
 The databrowser summary endpoints use precomputed global summaries for the

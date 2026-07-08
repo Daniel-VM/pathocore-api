@@ -6,6 +6,9 @@ APP_REPO_PATH="${APP_REPO_PATH:-/srv/pathocore-api}"
 APP_PORT="${APP_PORT:-8000}"
 APP_READY_FILE="${APP_READY_FILE:-${APP_DIR}/.container_install_ready}"
 APP_MODE="${APP_MODE:-prod}"
+GUNICORN_THREADS="${GUNICORN_THREADS:-2}"
+GUNICORN_TIMEOUT="${GUNICORN_TIMEOUT:-120}"
+GUNICORN_KEEPALIVE="${GUNICORN_KEEPALIVE:-5}"
 
 echo "PathoCore API container started."
 echo "Waiting for installation marker at: ${APP_READY_FILE}"
@@ -25,12 +28,23 @@ if [ "${APP_MODE}" = "dev" ]; then
     exec python "${APP_DIR}/manage.py" runserver 0.0.0.0:"${APP_PORT}"
 fi
 
-# TEMPORTARy, just unfreezing the container logs since gunicorn is not capturing them properly 
+if [ -n "${WEB_CONCURRENCY:-}" ]; then
+    GUNICORN_WORKERS="${WEB_CONCURRENCY}"
+else
+    cpu_count="$(getconf _NPROCESSORS_ONLN 2>/dev/null || nproc 2>/dev/null || echo 1)"
+    if [ "${cpu_count}" -le 2 ]; then
+        GUNICORN_WORKERS=2
+    else
+        GUNICORN_WORKERS=4
+    fi
+fi
+
 exec gunicorn pathocore_api.wsgi:application \
     --bind 0.0.0.0:"${APP_PORT}" \
-    --workers 2 \
-    --threads 2 \
-    --timeout 120 \
+    --workers "${GUNICORN_WORKERS}" \
+    --threads "${GUNICORN_THREADS}" \
+    --timeout "${GUNICORN_TIMEOUT}" \
+    --keep-alive "${GUNICORN_KEEPALIVE}" \
     --access-logfile - \
     --error-logfile - \
     --capture-output \

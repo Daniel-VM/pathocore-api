@@ -54,3 +54,14 @@ DEFAULT_FROM_EMAIL="no-reply@pathocore.local"
 ### Logs settings
 LOG_TYPE="regular_folder"
 LOG_PATH=""
+
+### Docker production host bindings
+APP_PORT=8000
+PATHOCORE_API_BIND_HOST="127.0.0.1"
+PATHOCORE_API_PORT=8000
+PATHOCORE_HOST_LOG_DIR="/var/log/local/pathocore-api/apps"
+DJANGO_DEBUG="false"
+WEB_CONCURRENCY=2
+GUNICORN_THREADS=2
+GUNICORN_TIMEOUT=120
+GUNICORN_KEEPALIVE=5
