@@ -18,6 +18,7 @@ SECURED_SCHEMA_VIEW_KWARGS = {
     "authentication_classes": DOCS_AUTHENTICATION_CLASSES,
     "permission_classes": [IsAuthenticated],
 }
+API_V1_URLS = ("core.api.v1.urls", "pathocore_api")
 
 """
 class BothHttpAndHttpsSchemaGenerator(OpenAPISchemaGenerator):
@@ -59,7 +60,9 @@ urlpatterns = [
         name="redoc",
     ),
     # REST FRAMEWORK URLS
-    path("v1/", include("core.api.v1.urls")),
+    path("api/v1/", include(API_V1_URLS, namespace="pathocore_api_v1")),
+    # Backward-compatible alias kept while clients migrate to /api/v1.
+    path("v1/", include(API_V1_URLS, namespace="pathocore_api_v1_legacy")),
     # user accounts
     path("accounts/", include("django.contrib.auth.urls")),
     # path('markdownx/', include('markdownx.urls')),
