@@ -306,8 +306,7 @@ def build_group_path_from_scope(scope):
     base_path = f"/use-cases/{scope['requested_use_case']}"
     if scope.get("requested_lab"):
         return (
-            f"{base_path}/labs/"
-            f"{scope['requested_lab']}/{scope['requested_role']}"
+            f"{base_path}/labs/" f"{scope['requested_lab']}/{scope['requested_role']}"
         )
     return f"{base_path}/{scope['requested_role']}"
 
