@@ -12,6 +12,7 @@ from core.api.services import keycloak_admin
 ROLE_VIEW = "view"
 ROLE_ADMIN = "admin"
 SUPPORTED_ROLES = {ROLE_VIEW, ROLE_ADMIN}
+ROLE_ALIASES = {"viewer": ROLE_VIEW, ROLE_VIEW: ROLE_VIEW, ROLE_ADMIN: ROLE_ADMIN}
 
 
 class DuplicatePendingAccessRequest(serializers.ValidationError):
@@ -44,16 +45,23 @@ def access_request_catalog():
 
 
 def normalize_request_fields(attrs):
-    attrs["username"] = attrs["username"].strip()
-    attrs["email"] = attrs["email"].strip().lower()
-    attrs["first_name"] = attrs["first_name"].strip()
-    attrs["last_name"] = attrs["last_name"].strip()
-    attrs["requested_use_case"] = _normalize_identifier(attrs["requested_use_case"])
-    requested_lab = attrs.get("requested_lab")
-    attrs["requested_lab"] = (
-        _normalize_identifier(requested_lab) if requested_lab else ""
-    )
-    attrs["requested_role"] = _normalize_role(attrs["requested_role"])
+    if "username" in attrs:
+        attrs["username"] = attrs["username"].strip()
+    if "email" in attrs:
+        attrs["email"] = attrs["email"].strip().lower()
+    if "first_name" in attrs:
+        attrs["first_name"] = attrs["first_name"].strip()
+    if "last_name" in attrs:
+        attrs["last_name"] = attrs["last_name"].strip()
+    if "requested_use_case" in attrs:
+        attrs["requested_use_case"] = _normalize_identifier(attrs["requested_use_case"])
+    if "requested_lab" in attrs:
+        requested_lab = attrs.get("requested_lab")
+        attrs["requested_lab"] = (
+            _normalize_identifier(requested_lab) if requested_lab else ""
+        )
+    if "requested_role" in attrs:
+        attrs["requested_role"] = _normalize_role(attrs["requested_role"])
     message = attrs.get("message")
     attrs["message"] = message.strip() if isinstance(message, str) else ""
     return attrs
@@ -87,32 +95,85 @@ def validate_requested_scope(attrs):
     return attrs
 
 
-def create_access_request(validated_data):
-    data = normalize_request_fields(dict(validated_data))
-    validate_requested_scope(data)
-    duplicate = core.models.AccessRequest.objects.filter(
-        status=core.models.AccessRequest.STATUS_PENDING,
-        requested_use_case=data["requested_use_case"],
-        requested_lab=data["requested_lab"] or None,
-        requested_role=data["requested_role"],
-    ).filter(Q(username=data["username"]) | Q(email=data["email"]))
-    if duplicate.exists():
-        raise DuplicatePendingAccessRequest(
-            {"error": "An equivalent pending access request already exists"}
+def validate_unique_request_scopes(request_scopes):
+    seen = set()
+    unique_scopes = []
+    for scope in request_scopes:
+        key = (
+            scope.get("requested_use_case"),
+            scope.get("requested_lab") or "",
+            scope.get("requested_role"),
         )
+        if key in seen:
+            raise serializers.ValidationError(
+                {
+                    "requests": (
+                        "Duplicate use-case/role entries are not allowed in "
+                        "the same access request payload"
+                    )
+                }
+            )
+        seen.add(key)
+        unique_scopes.append(scope)
+    return unique_scopes
 
-    access_request = core.models.AccessRequest.objects.create(
-        username=data["username"],
-        email=data["email"],
-        first_name=data["first_name"],
-        last_name=data["last_name"],
-        requested_use_case=data["requested_use_case"],
-        requested_lab=data["requested_lab"] or None,
-        requested_role=data["requested_role"],
-        message=data.get("message") or "",
+
+def create_access_request(validated_data):
+    return create_access_requests(validated_data)[0]
+
+
+def create_access_requests(validated_data):
+    data = normalize_request_fields(dict(validated_data))
+    request_scopes = data.get("requests") or [
+        {
+            "requested_use_case": data["requested_use_case"],
+            "requested_lab": data.get("requested_lab"),
+            "requested_role": data["requested_role"],
+        }
+    ]
+    request_scopes = validate_unique_request_scopes(
+        [
+            validate_requested_scope(normalize_request_fields(dict(scope)))
+            for scope in request_scopes
+        ]
     )
-    notify_access_request_created(access_request)
-    return access_request
+
+    for scope in request_scopes:
+        duplicate = core.models.AccessRequest.objects.filter(
+            status=core.models.AccessRequest.STATUS_PENDING,
+            requested_use_case=scope["requested_use_case"],
+            requested_lab=scope["requested_lab"] or None,
+            requested_role=scope["requested_role"],
+        ).filter(Q(username=data["username"]) | Q(email=data["email"]))
+        if duplicate.exists():
+            raise DuplicatePendingAccessRequest(
+                {
+                    "error": (
+                        "An equivalent pending access request already exists "
+                        f"for {build_group_path_from_scope(scope)}"
+                    )
+                }
+            )
+
+    created_requests = []
+    with transaction.atomic():
+        for scope in request_scopes:
+            created_requests.append(
+                core.models.AccessRequest.objects.create(
+                    username=data["username"],
+                    email=data["email"],
+                    first_name=data["first_name"],
+                    last_name=data["last_name"],
+                    requested_use_case=scope["requested_use_case"],
+                    requested_lab=scope["requested_lab"] or None,
+                    requested_role=scope["requested_role"],
+                    message=data.get("message") or "",
+                )
+            )
+
+    for access_request in created_requests:
+        notify_access_request_created(access_request)
+    return created_requests
 
 
 def approve_access_request(access_request, reviewed_by, review_note=""):
@@ -232,13 +293,23 @@ def revoke_access_request(access_request, reviewed_by, review_note=""):
 
 
 def build_group_path(access_request):
-    base_path = f"/use-cases/{access_request.requested_use_case}"
-    if access_request.requested_lab:
+    return build_group_path_from_scope(
+        {
+            "requested_use_case": access_request.requested_use_case,
+            "requested_lab": access_request.requested_lab,
+            "requested_role": access_request.requested_role,
+        }
+    )
+
+
+def build_group_path_from_scope(scope):
+    base_path = f"/use-cases/{scope['requested_use_case']}"
+    if scope.get("requested_lab"):
         return (
             f"{base_path}/labs/"
-            f"{access_request.requested_lab}/{access_request.requested_role}"
+            f"{scope['requested_lab']}/{scope['requested_role']}"
         )
-    return f"{base_path}/{access_request.requested_role}"
+    return f"{base_path}/{scope['requested_role']}"
 
 
 def notify_access_request_created(access_request):
@@ -374,4 +445,4 @@ def _normalize_role(value):
     if not isinstance(value, str):
         return None
     role = value.strip().lower()
-    return role if role in SUPPORTED_ROLES else None
+    return ROLE_ALIASES.get(role)

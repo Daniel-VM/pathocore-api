@@ -215,7 +215,7 @@ Validate from the server itself:
 ```bash
 curl -I http://127.0.0.1:8000/openapi/
 curl -I http://127.0.0.1:8000/swagger/
-curl -I http://127.0.0.1:8000/v1/databrowser/overview-summary
+curl -I http://127.0.0.1:8000/api/v1/databrowser/overview-summary
 ```
 
 ### Databrowser summary cache
@@ -223,9 +223,9 @@ curl -I http://127.0.0.1:8000/v1/databrowser/overview-summary
 The databrowser summary endpoints use precomputed global summaries for the
 default unfiltered view:
 
-* `/v1/databrowser/overview-summary`
-* `/v1/databrowser/metadata-summary`
-* `/v1/databrowser/schema-summary`
+* `/api/v1/databrowser/overview-summary`
+* `/api/v1/databrowser/metadata-summary`
+* `/api/v1/databrowser/schema-summary`
 
 Refresh the cache manually after large sample or metadata ingests:
 
@@ -271,8 +271,7 @@ DJANGO_SUPERUSER_PASSWORD=
 ```
 
 Authorization is derived from the JWT `groups` claim. Supported group paths are
-`/use-cases/<project>/<view|admin>`,
-`/use-cases/<project>/labs/<lab>/<view|admin>`, and `/superusers`.
+`/use-cases/<project>/<view|admin>` and `/superusers`.
 The older `viewer` role is accepted as `view` during migration.
 
 Configuration flow:
@@ -334,18 +333,23 @@ Keycloak remains the final identity and group store only after approval.
 Public users can create requests:
 
 ```bash
-curl -sS -X POST http://localhost:8000/v1/access-requests \
+curl -sS -X POST http://localhost:8000/api/v1/access-requests \
   -H "Content-Type: application/json" \
   -d '{
     "username": "new_user",
     "email": "new.user@example.org",
     "first_name": "New",
     "last_name": "User",
-    "requested_use_case": "mepram",
-    "requested_role": "view",
-    "message": "I collaborate with the MEPRAM laboratory network."
+    "message": "I collaborate with the MEPRAM and RELECOV networks.",
+    "requests": [
+      {"use_case": "mepram", "role": "view"},
+      {"use_case": "relecov", "role": "view"}
+    ]
   }' | jq
 ```
+
+The canonical API prefix is `/api/v1`. The legacy `/v1` prefix remains available
+temporarily while clients migrate.
 
 The user receives an email confirming that the request was received and remains
 pending review.
@@ -354,14 +358,14 @@ Admins can review pending requests:
 
 ```bash
 curl -sS -u admin:admin_pass \
-  "http://localhost:8000/v1/access-requests?status=pending" | jq
+  "http://localhost:8000/api/v1/access-requests?status=pending" | jq
 ```
 
 Approve a request:
 
 ```bash
 curl -sS -X POST -u admin:admin_pass \
-  http://localhost:8000/v1/access-requests/<request_id>/approve \
+  http://localhost:8000/api/v1/access-requests/<request_id>/approve \
   -H "Content-Type: application/json" \
   -d '{"review_note": "Approved for MEPRAM view access."}' | jq
 ```
@@ -370,7 +374,7 @@ Reject a request:
 
 ```bash
 curl -sS -X POST -u admin:admin_pass \
-  http://localhost:8000/v1/access-requests/<request_id>/reject \
+  http://localhost:8000/api/v1/access-requests/<request_id>/reject \
   -H "Content-Type: application/json" \
   -d '{"review_note": "Missing project justification."}' | jq
 ```
@@ -379,7 +383,7 @@ Revoke a previously approved request:
 
 ```bash
 curl -sS -X POST -u admin:admin_pass \
-  http://localhost:8000/v1/access-requests/<request_id>/revoke \
+  http://localhost:8000/api/v1/access-requests/<request_id>/revoke \
   -H "Content-Type: application/json" \
   -d '{"review_note": "Access no longer required."}' | jq
 ```

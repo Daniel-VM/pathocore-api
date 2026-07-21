@@ -218,13 +218,21 @@ def access_requests_view(request):
     )
     serializer.is_valid(raise_exception=True)
     try:
-        access_request = access_requests.create_access_request(
+        created_requests = access_requests.create_access_requests(
             serializer.validated_data
         )
     except access_requests.DuplicatePendingAccessRequest as exc:
         return Response(exc.detail, status=status.HTTP_409_CONFLICT)
+
+    if serializer.validated_data.get("_bulk_format"):
+        response_serializer = core.api.v1.serializers.AccessRequestSerializer(
+            created_requests,
+            many=True,
+        )
+        return Response(response_serializer.data, status=status.HTTP_201_CREATED)
+
     response_serializer = core.api.v1.serializers.AccessRequestSerializer(
-        access_request
+        created_requests[0]
     )
     return Response(response_serializer.data, status=status.HTTP_201_CREATED)
 
@@ -475,7 +483,7 @@ def _ensure_access_request_review_access(user, access_request):
             "SampleListBySchema",
             value={
                 "count": 21317,
-                "next": "http://localhost:8000/v1/samples?page=2&page_size=500",
+                "next": "http://localhost:8000/api/v1/samples?page=2&page_size=500",
                 "previous": None,
                 "results": [
                     {

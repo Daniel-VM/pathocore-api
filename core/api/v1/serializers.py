@@ -178,19 +178,66 @@ class ErrorSerializer(serializers.Serializer):
     error = serializers.CharField()
 
 
-class AccessRequestCreateSerializer(serializers.Serializer):
-    username = serializers.CharField(max_length=150)
-    email = serializers.EmailField()
-    first_name = serializers.CharField(max_length=150)
-    last_name = serializers.CharField(max_length=150)
-    requested_use_case = serializers.CharField(max_length=80)
+class AccessRequestScopeSerializer(serializers.Serializer):
+    use_case = serializers.CharField(max_length=80, required=False)
+    role = serializers.ChoiceField(choices=["view", "viewer", "admin"], required=False)
+    requested_use_case = serializers.CharField(
+        max_length=80,
+        required=False,
+        write_only=True,
+    )
+    requested_role = serializers.ChoiceField(
+        choices=["view", "viewer", "admin"],
+        required=False,
+        write_only=True,
+    )
     requested_lab = serializers.CharField(
         max_length=80,
         required=False,
         allow_blank=True,
         allow_null=True,
     )
-    requested_role = serializers.ChoiceField(choices=["view", "admin"])
+
+    def validate(self, attrs):
+        from core.api.services import access_requests
+
+        use_case = attrs.get("use_case") or attrs.get("requested_use_case")
+        role = attrs.get("role") or attrs.get("requested_role")
+        errors = {}
+        if not use_case:
+            errors["use_case"] = "This field is required."
+        if not role:
+            errors["role"] = "This field is required."
+        if errors:
+            raise serializers.ValidationError(errors)
+
+        scope = access_requests.normalize_request_fields(
+            {
+                "requested_use_case": use_case,
+                "requested_lab": attrs.get("requested_lab"),
+                "requested_role": role,
+            }
+        )
+        return access_requests.validate_requested_scope(scope)
+
+
+class AccessRequestCreateSerializer(serializers.Serializer):
+    username = serializers.CharField(max_length=150)
+    email = serializers.EmailField()
+    first_name = serializers.CharField(max_length=150)
+    last_name = serializers.CharField(max_length=150)
+    requests = AccessRequestScopeSerializer(many=True, required=False)
+    requested_use_case = serializers.CharField(max_length=80, required=False)
+    requested_lab = serializers.CharField(
+        max_length=80,
+        required=False,
+        allow_blank=True,
+        allow_null=True,
+    )
+    requested_role = serializers.ChoiceField(
+        choices=["view", "viewer", "admin"],
+        required=False,
+    )
     message = serializers.CharField(
         required=False,
         allow_blank=True,
@@ -202,7 +249,55 @@ class AccessRequestCreateSerializer(serializers.Serializer):
         from core.api.services import access_requests
 
         attrs = access_requests.normalize_request_fields(dict(attrs))
-        return access_requests.validate_requested_scope(attrs)
+        bulk_requests = attrs.get("requests")
+        has_legacy_scope = any(
+            field in attrs
+            for field in ("requested_use_case", "requested_lab", "requested_role")
+        )
+        if bulk_requests and has_legacy_scope:
+            raise serializers.ValidationError(
+                {
+                    "requests": (
+                        "Use either requests[] or the legacy requested_use_case/"
+                        "requested_role fields, not both."
+                    )
+                }
+            )
+
+        if bulk_requests:
+            request_scopes = [
+                access_requests.validate_requested_scope(
+                    access_requests.normalize_request_fields(dict(scope))
+                )
+                for scope in bulk_requests
+            ]
+            attrs["requests"] = access_requests.validate_unique_request_scopes(
+                request_scopes
+            )
+            attrs["_bulk_format"] = True
+            return attrs
+
+        if "requested_use_case" not in attrs:
+            raise serializers.ValidationError(
+                {"requested_use_case": "This field is required."}
+            )
+        if "requested_role" not in attrs:
+            raise serializers.ValidationError(
+                {"requested_role": "This field is required."}
+            )
+
+        scope = access_requests.validate_requested_scope(
+            access_requests.normalize_request_fields(
+                {
+                    "requested_use_case": attrs["requested_use_case"],
+                    "requested_lab": attrs.get("requested_lab"),
+                    "requested_role": attrs["requested_role"],
+                }
+            )
+        )
+        attrs["requests"] = [scope]
+        attrs["_bulk_format"] = False
+        return attrs
 
 
 class AccessRequestReviewSerializer(serializers.Serializer):

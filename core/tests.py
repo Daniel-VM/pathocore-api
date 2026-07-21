@@ -1516,7 +1516,7 @@ class AccessRequestWorkflowTests(TestCase):
 
     def test_public_user_can_create_pending_access_request(self):
         response = self.client.post(
-            "/v1/access-requests",
+            "/api/v1/access-requests",
             data=self._request_payload(),
             format="json",
         )
@@ -1529,6 +1529,70 @@ class AccessRequestWorkflowTests(TestCase):
         self.assertEqual(len(mail.outbox), 1)
         self.assertEqual(mail.outbox[0].to, ["new.user@example.org"])
         self.assertIn("received", mail.outbox[0].subject.lower())
+
+    def test_legacy_v1_alias_still_accepts_access_request(self):
+        response = self.client.post(
+            "/v1/access-requests",
+            data=self._request_payload(),
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(response.data["status"], "pending")
+        self.assertEqual(models.AccessRequest.objects.count(), 1)
+
+    def test_public_user_can_create_multiple_pending_access_requests(self):
+        payload = {
+            "username": "new_user",
+            "email": "new.user@example.org",
+            "first_name": "New",
+            "last_name": "User",
+            "message": "I collaborate with MEPRAM and RedLaBRA.",
+            "requests": [
+                {"use_case": "mepram", "role": "view"},
+                {"use_case": "redlabra", "role": "admin"},
+            ],
+        }
+
+        response = self.client.post(
+            "/api/v1/access-requests",
+            data=payload,
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(len(response.data), 2)
+        self.assertEqual(models.AccessRequest.objects.count(), 2)
+        self.assertEqual(
+            [item["requested_use_case"] for item in response.data],
+            ["mepram", "redlabra"],
+        )
+        self.assertEqual(
+            [item["requested_role"] for item in response.data],
+            ["view", "admin"],
+        )
+        self.assertEqual(len(mail.outbox), 2)
+
+    def test_multiple_access_request_rejects_duplicate_scope_entries(self):
+        payload = {
+            "username": "new_user",
+            "email": "new.user@example.org",
+            "first_name": "New",
+            "last_name": "User",
+            "requests": [
+                {"use_case": "mepram", "role": "view"},
+                {"use_case": "mepram", "role": "viewer"},
+            ],
+        }
+
+        response = self.client.post(
+            "/api/v1/access-requests",
+            data=payload,
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(models.AccessRequest.objects.count(), 0)
 
     @patch("core.api.services.keycloak_admin.list_group_member_emails")
     def test_access_request_notifies_keycloak_use_case_admins(self, emails_mock):
