@@ -203,15 +203,10 @@ DATABROWSER_CACHE_REFRESH_ON_START="$(config_value_or_default DATABROWSER_CACHE_
 
 if [ "$mode" = "production" ]; then
     build_install_conf_container="${PATHOCORE_BUILD_INSTALL_CONF:-conf/docker_production_settings.txt}"
-    runtime_install_conf_container="${APP_REPO_PATH}/.runtime_install_conf.txt"
 else
-    if [[ "$install_conf" = "$repo_root/"* ]]; then
-        runtime_install_conf_container="${install_conf#$repo_root/}"
-    else
-        runtime_install_conf_container="$install_conf"
-    fi
-    build_install_conf_container="$runtime_install_conf_container"
+    build_install_conf_container="${PATHOCORE_BUILD_INSTALL_CONF:-conf/docker_test_settings.txt}"
 fi
+runtime_install_conf_container="${APP_REPO_PATH}/.runtime_install_conf.txt"
 
 compose_env_file="$repo_root/.env.prod.file"
 
@@ -317,17 +312,13 @@ prepare_host_bind_mount_permissions() {
 }
 
 copy_runtime_install_conf() {
-    if [ "$mode" != "production" ]; then
-        return 0
-    fi
-
     local container_id
     container_id="$(service_container_id "$APP_SERVICE")"
     if [ -z "$container_id" ]; then
         echo "Unable to resolve app container for copying runtime install config."
         exit 1
     fi
-    echo "Copying production install config into the running container."
+    echo "Copying runtime install config into the running container."
     engine_exec cp "$host_install_conf_path" "${container_id}:${runtime_install_conf_container}"
 }
 
