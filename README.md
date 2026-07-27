@@ -69,6 +69,19 @@ This command will:
 * install the Django project inside the container
 * run database migrations
 
+To install the isolated API stack and import a provided PathoCore API SQL dump
+in the same flow:
+
+```bash
+bash container_install.sh --test --git_revision current \
+  --pathocore_api_sql ../pathocore_api_testing_seed.sql.gz
+```
+
+The SQL dump can be `.sql` or `.sql.gz`. This option is intended for the
+Compose-managed test database. Production deployments with external databases
+should import dumps through the database administration flow agreed for that
+environment.
+
 ### 3. Check that the containers are running
 
 ```bash
@@ -121,18 +134,15 @@ disabled by default.
 ### 7. Optional: load a small non-sensitive test dataset
 
 This public repository does not include production data or large internal datasets.
-If maintainers provide a small test dump separately, it can be imported into the
-local Docker database with a command like this:
+If maintainers provide a small test dump separately, pass it to the installer:
 
 ```bash
-gunzip -c /path/to/pathocore_api_test_dump.sql.gz | \
-docker compose -f docker-compose.test.yml exec -T db \
-  mysql -u<db_user> -p<db_password> pathocore_api
+bash container_install.sh --test --git_revision current \
+  --pathocore_api_sql /path/to/pathocore_api_test_dump.sql.gz
 ```
 
-Replace `<db_user>` and `<db_password>` with the values defined for your local test stack.
-For the Docker test installation, these testing credentials are defined in
-`conf/docker_test_settings.txt`.
+The installer reads database settings from `conf/docker_test_settings.txt` and
+imports the dump into the local Compose `db` service.
 
 ### Useful commands
 

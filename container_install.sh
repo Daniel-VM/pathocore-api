@@ -8,7 +8,7 @@ cat << EOF
 This script installs and upgrades PathoCore API in containers.
 
 Usage:
-  $0 [--test] [--git_revision <branch|tag|sha|current>] [--compose_file <path>] [--install_conf <path>] [--engine docker|podman] [--action install|upgrade|fix-permissions] [--tables]
+  $0 [--test] [--git_revision <branch|tag|sha|current>] [--compose_file <path>] [--install_conf <path>] [--engine docker|podman] [--action install|upgrade|fix-permissions] [--tables] [--pathocore_api_sql <path>]
 
 Options:
   --test           Use docker-compose.test.yml and conf/docker_test_settings.txt
@@ -18,11 +18,15 @@ Options:
   --engine         docker (default) or podman
   --action         install (default), upgrade, or fix-permissions
   --tables         Load conf/first_install_tables.json after migrate
+  --pathocore_api_sql
+                   Import a PathoCore API MySQL seed dump after migrations (.sql or .sql.gz).
+                   This requires a Compose-managed db service, as in test mode.
   --help           Show this help
   --version        Show script version
 
 Examples:
   bash $0 --test --git_revision current
+  bash $0 --test --git_revision current --pathocore_api_sql ../pathocore_api_testing_seed.sql.gz
   bash $0 --install_conf /srv/containers/bind/pathocore-api/production_settings.txt --git_revision main
   bash $0 --install_conf /srv/containers/bind/pathocore-api/production_settings.txt --action upgrade --git_revision main
 EOF
@@ -42,6 +46,7 @@ for arg in "$@"; do
         --engine) set -- "$@" -e ;;
         --action) set -- "$@" -a ;;
         --tables) set -- "$@" -l ;;
+        --pathocore_api_sql) set -- "$@" -p ;;
         --help) set -- "$@" -h ;;
         --version) set -- "$@" -v ;;
         *) set -- "$@" "$arg" ;;
@@ -55,8 +60,9 @@ install_conf=""
 engine="docker"
 action="install"
 load_tables=false
+pathocore_api_sql=""
 
-while getopts ":tg:c:s:e:a:lhv" opt; do
+while getopts ":tg:c:s:e:a:lp:hv" opt; do
     case "$opt" in
         t) mode="test" ;;
         g) git_revision="$OPTARG" ;;
@@ -77,6 +83,7 @@ while getopts ":tg:c:s:e:a:lhv" opt; do
             fi
             ;;
         l) load_tables=true ;;
+        p) pathocore_api_sql="$OPTARG" ;;
         h)
             usage
             exit 0
@@ -119,6 +126,11 @@ fi
 
 if [ ! -f "$install_conf" ]; then
     echo "Install settings file not found: $install_conf"
+    exit 1
+fi
+
+if [ -n "$pathocore_api_sql" ] && [ ! -f "$pathocore_api_sql" ]; then
+    echo "PathoCore API SQL file not found: $pathocore_api_sql"
     exit 1
 fi
 
@@ -252,6 +264,11 @@ service_container_id() {
     compose_with_env_exec -f "$compose_file" ps -q "$1" | head -n 1
 }
 
+compose_has_service() {
+    local service="$1"
+    compose_with_env_exec -f "$compose_file" config --services | grep -Fxq "$service"
+}
+
 wait_for_running() {
     local service="$1"
     local container_id=""
@@ -300,6 +317,53 @@ wait_for_healthy() {
         engine_exec logs "$container_id" || true
     fi
     exit 1
+}
+
+import_pathocore_api_sql() {
+    local sql_path="$1"
+    local db_user db_password db_name
+
+    if ! compose_has_service "db"; then
+        echo "Cannot import --pathocore_api_sql because compose file '$compose_file' has no 'db' service."
+        echo "Use this option with the isolated test stack, or import the dump manually into the external production database."
+        exit 1
+    fi
+
+    db_user="$(config_value_or_default DB_USER django)"
+    db_password="$(config_value_or_default DB_PASSWORD djangopass)"
+    db_name="$(config_value_or_default DB_NAME pathocore_api)"
+
+    echo "Importing PathoCore API SQL into service db database '$db_name'"
+    if [[ "$sql_path" == *.gz ]]; then
+        gzip -dc "$sql_path" | compose_with_env_exec -f "$compose_file" exec -T db \
+          mysql -u"$db_user" -p"$db_password" "$db_name"
+    else
+        compose_with_env_exec -f "$compose_file" exec -T db \
+          mysql -u"$db_user" -p"$db_password" "$db_name" < "$sql_path"
+    fi
+}
+
+ensure_seed_migration_state() {
+    local db_user db_password db_name
+
+    if ! compose_has_service "db"; then
+        return 0
+    fi
+
+    db_user="$(config_value_or_default DB_USER django)"
+    db_password="$(config_value_or_default DB_PASSWORD djangopass)"
+    db_name="$(config_value_or_default DB_NAME pathocore_api)"
+
+    echo "Ensuring PathoCore API seed migration state"
+    compose_with_env_exec -f "$compose_file" exec -T db \
+      mysql -u"$db_user" -p"$db_password" "$db_name" -e "
+        INSERT IGNORE INTO django_migrations (app, name, applied)
+        VALUES
+            ('core', '0009_alter_schema_user_name_nullable', NOW()),
+            ('core', '0010_remove_unused_metadata_models', NOW()),
+            ('core', '0011_access_request', NOW()),
+            ('core', '0012_access_request_revoked_status', NOW());
+    "
 }
 
 prepare_host_bind_mount_permissions() {
@@ -396,6 +460,13 @@ fi
 echo "Running database migrations"
 compose_with_env_exec -f "$compose_file" exec -T "$APP_SERVICE" bash -lc \
   "cd '$APP_INSTALL_PATH' && source virtualenv/bin/activate && python manage.py migrate --noinput"
+
+if [ -n "$pathocore_api_sql" ]; then
+    import_pathocore_api_sql "$pathocore_api_sql"
+    ensure_seed_migration_state
+else
+    echo "Skipping PathoCore API SQL import"
+fi
 
 if [ "$load_tables" = true ]; then
     echo "Loading initial tables"
