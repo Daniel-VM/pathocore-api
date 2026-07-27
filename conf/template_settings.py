@@ -259,12 +259,12 @@ SPECTACULAR_SETTINGS = {
     "SORT_OPERATIONS": False,
     "SECURITY": [{"bearerAuth": []}, {"adminBasicAuth": []}]
     + ([{"basicAuth": []}] if PATHOCORE_ENABLE_LEGACY_BASIC_AUTH else []),
-    # Keep /api/v1 in real URLs but hide it in Swagger paths for readability.
-    "SCHEMA_PATH_PREFIX": "/api/v1",
+    # Keep /v1 in real URLs but hide it in Swagger paths for readability.
+    "SCHEMA_PATH_PREFIX": "/v1",
     "SCHEMA_PATH_PREFIX_TRIM": True,
     # Important for Swagger "Try it out": trimmed paths like "/schema"
-    # must be executed against the "/api/v1" server base.
-    "SERVERS": [{"url": "/api/v1", "description": "PathoCore API v1"}],
+    # must be executed against the "/v1" server base.
+    "SERVERS": [{"url": "/v1", "description": "PathoCore API v1"}],
     "TAGS": [
         {
             "name": "Schemas",

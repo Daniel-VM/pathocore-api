@@ -8,7 +8,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### `Changed`
 
 - [#19](https://github.com/BIPLAT-CIBERINFEC/pathocore-api/pull/19) Refactor production Docker install workflow
-- [#21](https://github.com/BIPLAT-CIBERINFEC/pathocore-api/pull/21) Align API v1 routes under `/api/v1` and support multi-use-case access requests.
+- [#21](https://github.com/BIPLAT-CIBERINFEC/pathocore-api/pull/21) Support multi-use-case access requests and keep API v1 route compatibility.
+- Restore `/v1` as the canonical API prefix while keeping `/api/v1` as a compatibility alias.
 
 ### `Added`
 

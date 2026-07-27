@@ -215,7 +215,7 @@ Validate from the server itself:
 ```bash
 curl -I http://127.0.0.1:8000/openapi/
 curl -I http://127.0.0.1:8000/swagger/
-curl -I http://127.0.0.1:8000/api/v1/databrowser/overview-summary
+curl -I http://127.0.0.1:8000/v1/databrowser/overview-summary
 ```
 
 ### Databrowser summary cache
@@ -223,9 +223,9 @@ curl -I http://127.0.0.1:8000/api/v1/databrowser/overview-summary
 The databrowser summary endpoints use precomputed global summaries for the
 default unfiltered view:
 
-* `/api/v1/databrowser/overview-summary`
-* `/api/v1/databrowser/metadata-summary`
-* `/api/v1/databrowser/schema-summary`
+* `/v1/databrowser/overview-summary`
+* `/v1/databrowser/metadata-summary`
+* `/v1/databrowser/schema-summary`
 
 Refresh the cache manually after large sample or metadata ingests:
 
@@ -333,7 +333,7 @@ Keycloak remains the final identity and group store only after approval.
 Public users can create requests:
 
 ```bash
-curl -sS -X POST http://localhost:8000/api/v1/access-requests \
+curl -sS -X POST http://localhost:8000/v1/access-requests \
   -H "Content-Type: application/json" \
   -d '{
     "username": "new_user",
@@ -348,8 +348,7 @@ curl -sS -X POST http://localhost:8000/api/v1/access-requests \
   }' | jq
 ```
 
-The canonical API prefix is `/api/v1`. The legacy `/v1` prefix remains available
-temporarily while clients migrate.
+The canonical API prefix is `/v1`. The legacy `/api/v1` prefix remains available temporarily while clients migrate back to `/v1`.
 
 The user receives an email confirming that the request was received and remains
 pending review.
@@ -358,14 +357,14 @@ Admins can review pending requests:
 
 ```bash
 curl -sS -u admin:admin_pass \
-  "http://localhost:8000/api/v1/access-requests?status=pending" | jq
+  "http://localhost:8000/v1/access-requests?status=pending" | jq
 ```
 
 Approve a request:
 
 ```bash
 curl -sS -X POST -u admin:admin_pass \
-  http://localhost:8000/api/v1/access-requests/<request_id>/approve \
+  http://localhost:8000/v1/access-requests/<request_id>/approve \
   -H "Content-Type: application/json" \
   -d '{"review_note": "Approved for MEPRAM view access."}' | jq
 ```
@@ -374,7 +373,7 @@ Reject a request:
 
 ```bash
 curl -sS -X POST -u admin:admin_pass \
-  http://localhost:8000/api/v1/access-requests/<request_id>/reject \
+  http://localhost:8000/v1/access-requests/<request_id>/reject \
   -H "Content-Type: application/json" \
   -d '{"review_note": "Missing project justification."}' | jq
 ```
@@ -383,7 +382,7 @@ Revoke a previously approved request:
 
 ```bash
 curl -sS -X POST -u admin:admin_pass \
-  http://localhost:8000/api/v1/access-requests/<request_id>/revoke \
+  http://localhost:8000/v1/access-requests/<request_id>/revoke \
   -H "Content-Type: application/json" \
   -d '{"review_note": "Access no longer required."}' | jq
 ```

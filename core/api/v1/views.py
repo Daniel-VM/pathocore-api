@@ -483,7 +483,7 @@ def _ensure_access_request_review_access(user, access_request):
             "SampleListBySchema",
             value={
                 "count": 21317,
-                "next": "http://localhost:8000/api/v1/samples?page=2&page_size=500",
+                "next": "http://localhost:8000/v1/samples?page=2&page_size=500",
                 "previous": None,
                 "results": [
                     {

@@ -60,9 +60,9 @@ urlpatterns = [
         name="redoc",
     ),
     # REST FRAMEWORK URLS
-    path("api/v1/", include(API_V1_URLS, namespace="pathocore_api_v1")),
-    # Backward-compatible alias kept while clients migrate to /api/v1.
-    path("v1/", include(API_V1_URLS, namespace="pathocore_api_v1_legacy")),
+    path("v1/", include(API_V1_URLS, namespace="pathocore_api_v1")),
+    # Backward-compatible alias kept while clients migrate back to /v1.
+    path("api/v1/", include(API_V1_URLS, namespace="pathocore_api_v1_legacy")),
     # user accounts
     path("accounts/", include("django.contrib.auth.urls")),
     # path('markdownx/', include('markdownx.urls')),
