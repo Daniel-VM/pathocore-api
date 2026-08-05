@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - [#21](https://github.com/BIPLAT-CIBERINFEC/pathocore-api/pull/21) Support multi-use-case access requests and keep API v1 route compatibility.
 - Restore `/v1` as the canonical API prefix while keeping `/api/v1` as a compatibility alias.
 - [#22](https://github.com/BIPLAT-CIBERINFEC/pathocore-api/pull/22) change base url and add param to provide input sql database to docker installation
+- [#23](https://github.com/BIPLAT-CIBERINFEC/pathocore-api/pull/23) Improve access request notification emails
 
 ### `Added`
 
