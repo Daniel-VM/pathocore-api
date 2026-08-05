@@ -13,6 +13,20 @@ ROLE_VIEW = "view"
 ROLE_ADMIN = "admin"
 SUPPORTED_ROLES = {ROLE_VIEW, ROLE_ADMIN}
 ROLE_ALIASES = {"viewer": ROLE_VIEW, ROLE_VIEW: ROLE_VIEW, ROLE_ADMIN: ROLE_ADMIN}
+PATHOCORE_DATAHUB_BASE_URL = "https://mepram-datahub.ciberisciii.es"
+EMAIL_FOOTER = """
+
+Best regards,
+
+PathoCore / MEPRAM DataHub
+
+Technical platforms:
+BIPLAT-CIBERINFEC
+https://github.com/BIPLAT-CIBERINFEC/
+
+BU-ISCIII
+https://github.com/BU-ISCIII
+"""
 
 
 class DuplicatePendingAccessRequest(serializers.ValidationError):
@@ -312,13 +326,14 @@ def build_group_path_from_scope(scope):
 
 
 def notify_access_request_created(access_request):
+    requested_access = _requested_access_label(access_request)
     send_mail(
         subject="PathoCore access request received",
-        message=(
+        message=_with_email_footer(
             f"Hello {access_request.first_name},\n\n"
             "We have received your PathoCore access request and it is pending "
             "administrator review.\n\n"
-            f"Requested access: {build_group_path(access_request)}\n"
+            f"Requested access: {requested_access}\n"
             "You will receive another notification once the request has been "
             "reviewed.\n"
         ),
@@ -332,9 +347,9 @@ def notify_access_request_created(access_request):
         return
     send_mail(
         subject=f"PathoCore access request pending: {access_request.username}",
-        message=(
+        message=_with_email_footer(
             f"User: {access_request.username} <{access_request.email}>\n"
-            f"Requested: {build_group_path(access_request)}\n"
+            f"Requested: {requested_access}\n"
             f"Message: {access_request.message or '-'}"
         ),
         from_email=getattr(settings, "DEFAULT_FROM_EMAIL", None),
@@ -367,27 +382,47 @@ def _unique_emails(emails):
 
 
 def notify_access_request_reviewed(access_request):
+    requested_access = _requested_access_label(access_request)
+    section_url = _use_case_section_url(access_request)
+    section_line = (
+        f"Web section: {section_url}\n"
+        if section_url
+        else f"Web section: {access_request.requested_use_case}\n"
+    )
+
     if access_request.status == core.models.AccessRequest.STATUS_APPROVED:
         status_message = (
-            "Your PathoCore access request has been approved. "
+            "Your PathoCore access request has been approved.\n\n"
+            f"You requested access to: {requested_access}\n"
+            f"{section_line}"
             "If this is your first access, you will receive a Keycloak email "
             "to verify your email and set your password."
         )
+        message = (
+            f"{status_message}\n\n"
+            f"Review note: {access_request.review_note or '-'}\n"
+        )
     elif access_request.status == core.models.AccessRequest.STATUS_REJECTED:
-        status_message = "Your PathoCore access request has been rejected."
+        status_message = (
+            "Your PathoCore access request has been rejected.\n\n"
+            f"Requested access: {requested_access}\n"
+            f"Reason: {access_request.review_note or '-'}\n"
+            f"{_admin_contact_line(access_request)}"
+        )
+        message = status_message
     else:
         status_message = (
             f"Your PathoCore access request status changed to "
             f"{access_request.status}."
         )
+        message = (
+            f"{status_message}\n\n"
+            f"Review note: {access_request.review_note or '-'}\n"
+        )
 
     send_mail(
         subject=f"PathoCore access request {access_request.status}",
-        message=(
-            f"{status_message}\n\n"
-            f"Requested access: {build_group_path(access_request)}\n"
-            f"Review note: {access_request.review_note or '-'}\n"
-        ),
+        message=_with_email_footer(message),
         from_email=getattr(settings, "DEFAULT_FROM_EMAIL", None),
         recipient_list=[access_request.email],
         fail_silently=True,
@@ -395,17 +430,51 @@ def notify_access_request_reviewed(access_request):
 
 
 def notify_access_request_revoked(access_request):
+    revoked_access = _requested_access_label(access_request)
     send_mail(
         subject="PathoCore access revoked",
-        message=(
+        message=_with_email_footer(
             "Your PathoCore access has been revoked.\n\n"
-            f"Revoked access: {access_request.approved_group or build_group_path(access_request)}\n"
-            f"Review note: {access_request.review_note or '-'}\n"
+            f"Revoked access: {revoked_access}\n"
+            f"Reason: {access_request.review_note or '-'}\n"
+            f"{_admin_contact_line(access_request)}"
         ),
         from_email=getattr(settings, "DEFAULT_FROM_EMAIL", None),
         recipient_list=[access_request.email],
         fail_silently=True,
     )
+
+
+def _with_email_footer(message):
+    return f"{message.rstrip()}{EMAIL_FOOTER}"
+
+
+def _requested_access_label(access_request):
+    use_case_label = _use_case_label(access_request.requested_use_case)
+    role = access_request.requested_role
+    group_path = access_request.approved_group or build_group_path(access_request)
+    return f"{use_case_label} ({role}) [{group_path}]"
+
+
+def _use_case_label(use_case_name):
+    use_case_config = _get_use_case_config(use_case_name)
+    if use_case_config:
+        return use_case_config.get("label") or use_case_name
+    return use_case_name
+
+
+def _use_case_section_url(access_request):
+    return (
+        f"{PATHOCORE_DATAHUB_BASE_URL}/use-cases/"
+        f"{access_request.requested_use_case}"
+    )
+
+
+def _admin_contact_line(access_request):
+    contacts = _access_request_admin_recipients(access_request)
+    if not contacts:
+        return ""
+    return f"If you have questions, contact: {', '.join(contacts)}\n"
 
 
 def _get_use_case_config(use_case_name):

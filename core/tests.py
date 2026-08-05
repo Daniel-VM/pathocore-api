@@ -1611,11 +1611,14 @@ class AccessRequestWorkflowTests(TestCase):
         self.assertEqual(response.status_code, 201)
         emails_mock.assert_called_once_with("/use-cases/mepram/admin")
         self.assertEqual(len(mail.outbox), 2)
+        self.assertIn("Technical platforms:", mail.outbox[0].body)
+        self.assertIn("https://github.com/BIPLAT-CIBERINFEC/", mail.outbox[0].body)
         self.assertEqual(
             mail.outbox[1].to,
             ["mepram.admin@example.org", "other.admin@example.org"],
         )
         self.assertIn("pending", mail.outbox[1].subject.lower())
+        self.assertIn("https://github.com/BU-ISCIII", mail.outbox[1].body)
 
     @override_settings(PATHOCORE_ACCESS_REQUEST_ADMIN_EMAILS=["fallback@example.org"])
     @patch("core.api.services.keycloak_admin.list_group_member_emails")
@@ -1675,8 +1678,18 @@ class AccessRequestWorkflowTests(TestCase):
         )
         self.assertEqual(response.data["keycloak_user_id"], "keycloak-user-1")
         provision_mock.assert_called_once()
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertIn("approved", mail.outbox[0].subject.lower())
+        self.assertIn("MEPRAM (view)", mail.outbox[0].body)
+        self.assertIn(
+            "https://mepram-datahub.ciberisciii.es/use-cases/mepram",
+            mail.outbox[0].body,
+        )
+        self.assertIn("Technical platforms:", mail.outbox[0].body)
 
-    def test_admin_can_reject_access_request(self):
+    @patch("core.api.services.keycloak_admin.list_group_member_emails")
+    def test_admin_can_reject_access_request(self, emails_mock):
+        emails_mock.return_value = ["mepram.admin@example.org"]
         access_request = models.AccessRequest.objects.create(**self._request_payload())
 
         response = self.client.post(
@@ -1695,9 +1708,14 @@ class AccessRequestWorkflowTests(TestCase):
         self.assertEqual(len(mail.outbox), 1)
         self.assertEqual(mail.outbox[0].to, ["new.user@example.org"])
         self.assertIn("rejected", mail.outbox[0].subject.lower())
+        self.assertIn("Reason: Missing project justification", mail.outbox[0].body)
+        self.assertIn("contact: mepram.admin@example.org", mail.outbox[0].body)
+        self.assertIn("Technical platforms:", mail.outbox[0].body)
 
     @patch("core.api.services.keycloak_admin.revoke_approved_user_access")
-    def test_admin_can_revoke_approved_access_request(self, revoke_mock):
+    @patch("core.api.services.keycloak_admin.list_group_member_emails")
+    def test_admin_can_revoke_approved_access_request(self, emails_mock, revoke_mock):
+        emails_mock.return_value = ["mepram.admin@example.org"]
         access_request = models.AccessRequest.objects.create(
             **self._request_payload(),
             status=models.AccessRequest.STATUS_APPROVED,
@@ -1724,6 +1742,9 @@ class AccessRequestWorkflowTests(TestCase):
         self.assertEqual(len(mail.outbox), 1)
         self.assertEqual(mail.outbox[0].to, ["new.user@example.org"])
         self.assertIn("revoked", mail.outbox[0].subject.lower())
+        self.assertIn("Reason: Access no longer required", mail.outbox[0].body)
+        self.assertIn("contact: mepram.admin@example.org", mail.outbox[0].body)
+        self.assertIn("Technical platforms:", mail.outbox[0].body)
 
     @staticmethod
     def _request_payload():

@@ -421,7 +421,8 @@ Do not send temporary passwords by email. Keycloak must have SMTP configured for
 granted.
 
 Request received, rejection, and revocation notifications are sent by
-`pathocore-api` through Django email settings:
+`pathocore-api` through Django email settings. Approval notifications include a
+link to the corresponding use-case section in PathoCore Web:
 
 ```text
 EMAIL_HOST=mailpit
@@ -433,6 +434,10 @@ DEFAULT_FROM_EMAIL=no-reply@pathocore.local
 New pending requests are notified to enabled Keycloak users with email in the
 matching use-case admin group, for example `/use-cases/mepram/admin`. Configure
 `PATHOCORE_ACCESS_REQUEST_ADMIN_EMAILS` only as a fallback or general copy.
+Rejected and revoked notifications include the review note as the reason and
+the available use-case admin contact emails.
+All access request workflow emails include a plain-text footer with PathoCore /
+MEPRAM DataHub and the technical platform links.
 
 In the local Docker test stack these messages are captured by Mailpit:
 
