@@ -15,8 +15,8 @@ DB_SERVER_IP='<IP_db_server>'
 DB_PORT=3306
 
 ### Settings required for accessing pathocore-api
-LOCAL_SERVER_IP='<PathocoreAPI_IP>' # example: 172.0.0.1
-DNS_URL='<PathocoreAPI_url_address>' # example: pathocore-api.isciii.es
+PATHOCORE_API_LOCAL_SERVER_IP='<PathocoreAPI_IP>' # example: 172.0.0.1
+PATHOCORE_API_DNS_URL='<PathocoreAPI_url_address>' # example: pathocore-api.isciii.es
 
 ### Keycloak authentication settings
 ### Runtime environment variables override these installed defaults.

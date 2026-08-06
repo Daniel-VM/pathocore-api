@@ -228,6 +228,81 @@ curl -I http://127.0.0.1:8000/swagger/
 curl -I http://127.0.0.1:8000/v1/databrowser/overview-summary
 ```
 
+## Important Environment Variables
+
+For isolated API deployments, start from `conf/docker_test_settings.txt` for
+local testing or `conf/docker_production_settings.txt` for server deployments.
+Do not commit real production settings.
+
+### Database Settings
+
+| Variable | Example | Purpose |
+|---|---|---|
+| `DB_USER` | `pathocore` | Database user used by Django. |
+| `DB_PASS` | `change_me` | Database password used by Django. |
+| `DB_NAME` | `pathocore_api` | Database name. |
+| `DB_SERVER_IP` | `pathocore_db` or database host/IP | Database host. |
+| `DB_PORT` | `3306` | Database port. |
+
+In the isolated test stack, `DB_SERVER_IP` is the Compose service name. In
+production it should point to the agreed database host.
+
+### Public API Host Settings
+
+| Variable | Example | Purpose |
+|---|---|---|
+| `PATHOCORE_API_LOCAL_SERVER_IP` | `127.0.0.1` | Host/IP inserted into Django `ALLOWED_HOSTS`. |
+| `PATHOCORE_API_DNS_URL` | `mepram-api-pathocore.<domain>` | Public API hostname inserted into Django `ALLOWED_HOSTS`. |
+
+These values configure what hostnames the API considers valid. When the API is
+deployed behind the `pathocore-web` orchestrator, the orchestrator passes these
+values to the API installer.
+
+### Keycloak Settings
+
+| Variable | Example | Purpose |
+|---|---|---|
+| `KEYCLOAK_ISSUER` | `https://keycloak.example.org/realms/ciberisciii_datahub` | Issuer expected in Bearer tokens. |
+| `KEYCLOAK_JWKS_URL` | `http://keycloak:8080/realms/.../certs` | URL used by the API to fetch Keycloak public keys. |
+| `KEYCLOAK_REALM` | `ciberisciii_datahub` | Keycloak realm name. |
+| `KEYCLOAK_AUDIENCE` | `pathocore-api` | Expected token audience. |
+| `KEYCLOAK_CLIENT_ID` | `pathocore-web` | Frontend client ID. |
+| `KEYCLOAK_ADMIN_BASE_URL` | `http://keycloak:8080` | URL used for Keycloak admin API operations. |
+| `KEYCLOAK_ADMIN_USERNAME` | `admin` | Keycloak admin user used for provisioning access requests. |
+| `KEYCLOAK_ADMIN_PASSWORD` | `change_me` | Keycloak admin password. |
+| `KEYCLOAK_ADMIN_SEND_ACTION_EMAILS` | `true` or `false` | Whether Keycloak sends password setup / verification action emails. |
+| `KEYCLOAK_ADMIN_ACTION_EMAIL_REDIRECT_URI` | `https://mepram-datahub.<domain>/signin` | Optional redirect after Keycloak action emails. |
+
+`KEYCLOAK_JWKS_CACHE_TTL_SECONDS` and `KEYCLOAK_JWKS_TIMEOUT_SECONDS` have
+safe defaults and normally do not need to be changed.
+
+### Access Request Email Settings
+
+| Variable | Example | Purpose |
+|---|---|---|
+| `EMAIL_HOST` | `mailpit` or SMTP host | SMTP server used by Django. |
+| `EMAIL_PORT` | `1025` or `587` | SMTP port. |
+| `EMAIL_HOST_USER` | SMTP username | Optional SMTP auth username. |
+| `EMAIL_HOST_PASSWORD` | SMTP password | Optional SMTP auth password. |
+| `EMAIL_USE_TLS` | `false` or `true` | Whether SMTP uses TLS. |
+| `DEFAULT_FROM_EMAIL` | `no-reply@pathocore.local` | Sender shown in PathoCore API emails. |
+| `PATHOCORE_ACCESS_REQUEST_ADMIN_EMAILS` | `admin@example.org` | Optional fallback/copy recipients if Keycloak use-case admins are not found. |
+
+New access requests notify admins from the Keycloak group
+`/use-cases/<use_case>/admin`. `PATHOCORE_ACCESS_REQUEST_ADMIN_EMAILS` should be
+used only as a fallback or general copy list.
+
+### Local Admin and Public Endpoint Settings
+
+| Variable | Purpose |
+|---|---|
+| `PATHOCORE_ENABLE_LEGACY_BASIC_AUTH` | Enables Basic Auth compatibility for local/testing workflows. |
+| `PATHOCORE_ENABLE_PUBLIC_READ_ENDPOINTS` | Allows selected read-only endpoints without Bearer auth. |
+| `PATHOCORE_CREATE_DEFAULT_SUPERUSER` | Creates/updates the configured Django superuser during container startup. |
+| `DJANGO_SUPERUSER_USERNAME` | Optional local Django superuser username. |
+| `DJANGO_SUPERUSER_EMAIL` | Optional local Django superuser email. |
+| `DJANGO_SUPERUSER_PASSWORD` | Optional local Django superuser password. |
+
 ### Databrowser summary cache
 
 The databrowser summary endpoints use precomputed global summaries for the

@@ -14,8 +14,8 @@ DB_SERVER_IP='db'
 DB_PORT=3306
 
 ### PathoCore API host settings
-LOCAL_SERVER_IP='127.0.0.1'
-DNS_URL='localhost'
+PATHOCORE_API_LOCAL_SERVER_IP='127.0.0.1'
+PATHOCORE_API_DNS_URL='localhost'
 
 ### Keycloak authentication settings
 PATHOCORE_ENABLE_LEGACY_BASIC_AUTH="true"
