@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Restore `/v1` as the canonical API prefix while keeping `/api/v1` as a compatibility alias.
 - [#22](https://github.com/BIPLAT-CIBERINFEC/pathocore-api/pull/22) change base url and add param to provide input sql database to docker installation
 - [#23](https://github.com/BIPLAT-CIBERINFEC/pathocore-api/pull/23) Improve access request notification emails
+- [#24](https://github.com/BIPLAT-CIBERINFEC/pathocore-api/pull/24) Prefix PathoCore API host settings
 
 ### `Added`
 
