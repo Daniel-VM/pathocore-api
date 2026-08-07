@@ -258,7 +258,7 @@ update_settings_and_urls(){
     sed -i "s/emailhostpassword/${EMAIL_HOST_PASSWORD}/g" $INSTALL_PATH/$PROJECT_NAME/settings.py
     sed -i "s/emailhosttls/${EMAIL_USE_TLS}/g" $INSTALL_PATH/$PROJECT_NAME/settings.py
     sed -i "s/localserverip/${PATHOCORE_API_LOCAL_SERVER_IP}/g" $INSTALL_PATH/$PROJECT_NAME/settings.py
-    sed -i "s/localhost/${PATHOCORE_API_DNS_URL}/g" $INSTALL_PATH/$PROJECT_NAME/settings.py
+    sed -i "s/dns_url/${PATHOCORE_API_DNS_URL}/g" $INSTALL_PATH/$PROJECT_NAME/settings.py
 
     write_runtime_env_file
 }
