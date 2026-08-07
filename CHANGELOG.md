@@ -23,6 +23,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### `Fixed`
 
+- [#25](https://github.com/BIPLAT-CIBERINFEC/pathocore-api/pull/25) fix install script, now it correctly passes server dns to install settings
+
 ### `Dependencies`
 
 ### `Deprecated`
