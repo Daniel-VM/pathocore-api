@@ -1326,7 +1326,7 @@ class DocumentationAuthenticationTests(TestCase):
         )
 
     def test_openapi_requires_authentication(self):
-        response = self.client.get("/openapi/")
+        response = self.client.get("/v1/openapi/")
 
         self.assertIn(response.status_code, (401, 403))
         self.assertIn("keycloak", response.data)
@@ -1334,7 +1334,7 @@ class DocumentationAuthenticationTests(TestCase):
 
     def test_openapi_allows_django_admin_basic_auth(self):
         response = self.client.get(
-            "/openapi/",
+            "/v1/openapi/",
             HTTP_AUTHORIZATION=self._basic_auth("admin", "admin-pass"),
         )
 
@@ -1342,11 +1342,23 @@ class DocumentationAuthenticationTests(TestCase):
 
     def test_openapi_rejects_non_admin_basic_auth(self):
         response = self.client.get(
-            "/openapi/",
+            "/v1/openapi/",
             HTTP_AUTHORIZATION=self._basic_auth("regular", "regular-pass"),
         )
 
         self.assertIn(response.status_code, (401, 403))
+
+    def test_legacy_openapi_redirects_to_v1(self):
+        response = self.client.get("/openapi/")
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response["Location"], "/v1/openapi/")
+
+    def test_legacy_swagger_redirects_to_v1(self):
+        response = self.client.get("/swagger/")
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response["Location"], "/v1/swagger/")
 
     @staticmethod
     def _basic_auth(username, password):

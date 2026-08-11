@@ -107,13 +107,13 @@ docker compose -f docker-compose.test.yml logs -f db
 Once the stack is up, Swagger UI should be available at:
 
 ```text
-http://localhost:8000/swagger/
+http://localhost:8000/v1/swagger/
 ```
 
 The OpenAPI schema is available at:
 
 ```text
-http://localhost:8000/openapi/
+http://localhost:8000/v1/openapi/
 ```
 
 ### 6. Use the test administrative user
@@ -223,8 +223,8 @@ bash container_install.sh \
 Validate from the server itself:
 
 ```bash
-curl -I http://127.0.0.1:8000/openapi/
-curl -I http://127.0.0.1:8000/swagger/
+curl -I http://127.0.0.1:8000/v1/openapi/
+curl -I http://127.0.0.1:8000/v1/swagger/
 curl -I http://127.0.0.1:8000/v1/databrowser/overview-summary
 ```
 
@@ -585,4 +585,4 @@ bash install.sh --upgrade app --git_revision develop --conf install_settings.txt
 # Documentation
 
 This is an API-only project. Authenticated documentation is served via Swagger UI
-at `/swagger/` and the OpenAPI schema at `/openapi/`.
+at `/v1/swagger/` and the OpenAPI schema at `/v1/openapi/`.
