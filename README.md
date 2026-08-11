@@ -253,10 +253,17 @@ production it should point to the agreed database host.
 |---|---|---|
 | `PATHOCORE_API_LOCAL_SERVER_IP` | `127.0.0.1` | Host/IP inserted into Django `ALLOWED_HOSTS`. |
 | `PATHOCORE_API_DNS_URL` | `mepram-api-pathocore.<domain>` | Public API hostname inserted into Django `ALLOWED_HOSTS`. |
+| `PATHOCORE_API_ALLOWED_HOSTS` | `localhost,127.0.0.1,api.<domain>` | Optional comma-separated override for Django `ALLOWED_HOSTS`. |
+| `PATHOCORE_API_CSRF_TRUSTED_ORIGINS` | `https://api.<domain>` | Public HTTPS origins trusted by Django forms such as admin and Swagger login. |
 
 These values configure what hostnames the API considers valid. When the API is
 deployed behind the `pathocore-web` orchestrator, the orchestrator passes these
 values to the API installer.
+
+When the API is deployed behind Apache or another reverse proxy, set
+`PATHOCORE_API_CSRF_TRUSTED_ORIGINS` to the public API origin. The API trusts the
+proxy-provided `X-Forwarded-Proto` and `X-Forwarded-Host` headers so Django can
+validate HTTPS form submissions correctly.
 
 ### Keycloak Settings
 

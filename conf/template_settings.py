@@ -57,6 +57,13 @@ def _rate_env(name, default):
     return os.environ.get(name, default).strip()
 
 
+def _csv_env(name, default=None):
+    raw_value = os.environ.get(name)
+    if not raw_value:
+        return list(default or [])
+    return [item.strip() for item in raw_value.split(",") if item.strip()]
+
+
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/3.2/howto/deployment/checklist/
 
@@ -67,7 +74,13 @@ SECRET_KEY = "PLACEHOLDER"
 # SECURITY WARNING: don"t run with debug turned on in production!
 DEBUG = _bool_env("DJANGO_DEBUG", True)
 
-ALLOWED_HOSTS = ["localhost", "127.0.0.1", "localserverip", "dns_url"]
+ALLOWED_HOSTS = _csv_env(
+    "PATHOCORE_API_ALLOWED_HOSTS",
+    ["localhost", "127.0.0.1", "localserverip", "dns_url"],
+)
+CSRF_TRUSTED_ORIGINS = _csv_env("PATHOCORE_API_CSRF_TRUSTED_ORIGINS")
+SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+USE_X_FORWARDED_HOST = True
 
 # Application definition
 INSTALLED_APPS = [
