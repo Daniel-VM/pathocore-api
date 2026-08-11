@@ -40,24 +40,37 @@ schema_view = get_schema_view(
 """
 
 urlpatterns = [
-    path("", RedirectView.as_view(pattern_name="swagger-ui", permanent=False)),
+    path("", RedirectView.as_view(pattern_name="v1-swagger-ui", permanent=False)),
     path("admin/", admin.site.urls),
     # API-only project: UI routes removed
     # API REST FULL using drf spectacular
     path(
-        "openapi/",
+        "v1/openapi/",
         SpectacularAPIView.as_view(**SECURED_SCHEMA_VIEW_KWARGS),
-        name="schema",
+        name="v1-schema",
     ),
     path(
+        "v1/swagger/",
+        SpectacularSwaggerView.as_view(
+            url_name="v1-schema", **SECURED_SCHEMA_VIEW_KWARGS
+        ),
+        name="v1-swagger-ui",
+    ),
+    path(
+        "v1/swagger/redoc/",
+        SpectacularRedocView.as_view(
+            url_name="v1-schema", **SECURED_SCHEMA_VIEW_KWARGS
+        ),
+        name="v1-redoc",
+    ),
+    path("openapi/", RedirectView.as_view(pattern_name="v1-schema", permanent=False)),
+    path(
         "swagger/",
-        SpectacularSwaggerView.as_view(url_name="schema", **SECURED_SCHEMA_VIEW_KWARGS),
-        name="swagger-ui",
+        RedirectView.as_view(pattern_name="v1-swagger-ui", permanent=False),
     ),
     path(
         "swagger/redoc/",
-        SpectacularRedocView.as_view(url_name="schema", **SECURED_SCHEMA_VIEW_KWARGS),
-        name="redoc",
+        RedirectView.as_view(pattern_name="v1-redoc", permanent=False),
     ),
     # REST FRAMEWORK URLS
     path("v1/", include(API_V1_URLS, namespace="pathocore_api_v1")),
