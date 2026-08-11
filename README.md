@@ -380,9 +380,10 @@ Configuration flow:
 Missing Keycloak values warn while legacy auth is enabled and fail when legacy
 auth is disabled.
 
-Swagger UI, Redoc and the OpenAPI schema require a Django staff/superuser
-session. Anonymous users are redirected to the Django admin login before
-opening the interactive documentation.
+Swagger UI, Redoc and the OpenAPI schema require authentication. Browser access
+without an `Authorization` header is redirected to the Django admin login and
+requires a staff/superuser session. Requests that provide `Authorization` keep
+the API authentication flow, including valid Keycloak Bearer tokens.
 
 When using Keycloak:
 

@@ -12,29 +12,41 @@ from drf_spectacular.views import (
     SpectacularSwaggerView,
     SpectacularAPIView,
 )
+from rest_framework.permissions import IsAuthenticated
+
+from core.api.authentication import DOCS_AUTHENTICATION_CLASSES
 
 API_V1_URLS = ("core.api.v1.urls", "pathocore_api")
 
 
 class StaffSpectacularAPIView(SpectacularAPIView):
-    authentication_classes = []
-    permission_classes = []
+    authentication_classes = DOCS_AUTHENTICATION_CLASSES
+    permission_classes = [IsAuthenticated]
 
 
 class StaffSpectacularSwaggerView(SpectacularSwaggerView):
-    authentication_classes = []
-    permission_classes = []
+    authentication_classes = DOCS_AUTHENTICATION_CLASSES
+    permission_classes = [IsAuthenticated]
 
 
 class StaffSpectacularRedocView(SpectacularRedocView):
-    authentication_classes = []
-    permission_classes = []
+    authentication_classes = DOCS_AUTHENTICATION_CLASSES
+    permission_classes = [IsAuthenticated]
 
 
 def docs_view(view):
-    if getattr(settings, "PATHOCORE_DOCS_REQUIRE_STAFF", True):
-        return staff_member_required(view)
-    return view
+    if not getattr(settings, "PATHOCORE_DOCS_REQUIRE_STAFF", True):
+        return view
+
+    staff_view = staff_member_required(view)
+
+    def wrapped_view(request, *args, **kwargs):
+        if request.META.get("HTTP_AUTHORIZATION"):
+            return view(request, *args, **kwargs)
+        return staff_view(request, *args, **kwargs)
+
+    return wrapped_view
+
 
 """
 class BothHttpAndHttpsSchemaGenerator(OpenAPISchemaGenerator):

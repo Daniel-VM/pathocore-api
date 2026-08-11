@@ -1337,6 +1337,28 @@ class DocumentationAuthenticationTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
 
+    def test_openapi_allows_django_admin_basic_auth(self):
+        response = self.client.get(
+            "/v1/openapi/",
+            HTTP_AUTHORIZATION=self._basic_auth("admin", "admin-pass"),
+        )
+
+        self.assertEqual(response.status_code, 200)
+
+    @patch("core.api.authentication.decode_and_validate_keycloak_token")
+    def test_openapi_allows_keycloak_bearer_auth(self, decode_mock):
+        decode_mock.return_value = KeycloakClaims(
+            raw_token="token-value",
+            payload={"sub": "keycloak-user", "preferred_username": "keycloak-user"},
+        )
+
+        response = self.client.get(
+            "/v1/openapi/",
+            HTTP_AUTHORIZATION="Bearer token-value",
+        )
+
+        self.assertEqual(response.status_code, 200)
+
     def test_openapi_rejects_non_staff_session(self):
         self.client.force_login(self.regular_user)
         response = self.client.get("/v1/openapi/")
@@ -1367,6 +1389,12 @@ class DocumentationAuthenticationTests(TestCase):
 
         self.assertEqual(response.status_code, 302)
         self.assertEqual(response["Location"], "/v1/swagger/")
+
+    @staticmethod
+    def _basic_auth(username, password):
+        raw_credentials = f"{username}:{password}".encode("utf-8")
+        encoded = base64.b64encode(raw_credentials).decode("ascii")
+        return f"Basic {encoded}"
 
 
 @override_settings(
