@@ -380,9 +380,9 @@ Configuration flow:
 Missing Keycloak values warn while legacy auth is enabled and fail when legacy
 auth is disabled.
 
-Swagger UI, Redoc and the OpenAPI schema require authentication. They can be
-opened with a valid Keycloak Bearer token or with a Django staff/superuser
-session or Basic Auth credentials.
+Swagger UI, Redoc and the OpenAPI schema require a Django staff/superuser
+session. Anonymous users are redirected to the Django admin login before
+opening the interactive documentation.
 
 When using Keycloak:
 
@@ -393,8 +393,8 @@ When using Keycloak:
 4. Send API requests with: Authorization: Bearer <token>
 ```
 
-For local Docker testing, Swagger and admin API access can also use the default
-Django superuser credentials:
+For local Docker testing, Swagger and Django admin access can use the default
+superuser credentials:
 
 ```text
 admin / admin_pass

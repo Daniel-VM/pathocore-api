@@ -114,6 +114,9 @@ write_runtime_env_file() {
         write_runtime_env_var \
             "PATHOCORE_API_CSRF_TRUSTED_ORIGINS" \
             "${PATHOCORE_API_CSRF_TRUSTED_ORIGINS:-}"
+        write_runtime_env_var \
+            "PATHOCORE_DOCS_REQUIRE_STAFF" \
+            "${PATHOCORE_DOCS_REQUIRE_STAFF:-true}"
         write_runtime_env_var "DJANGO_DEBUG" "${DJANGO_DEBUG:-true}"
         write_runtime_env_var \
             "PATHOCORE_CREATE_DEFAULT_SUPERUSER" \

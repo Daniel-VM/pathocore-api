@@ -1,7 +1,8 @@
 from django.contrib import admin
+from django.contrib.admin.views.decorators import staff_member_required
+from django.conf import settings
 from django.urls import path, include
 from django.views.generic import RedirectView
-from rest_framework.permissions import IsAuthenticated
 
 # from drf_yasg.views import get_schema_view
 # from drf_yasg import openapi
@@ -12,13 +13,28 @@ from drf_spectacular.views import (
     SpectacularAPIView,
 )
 
-from core.api.authentication import DOCS_AUTHENTICATION_CLASSES
-
-SECURED_SCHEMA_VIEW_KWARGS = {
-    "authentication_classes": DOCS_AUTHENTICATION_CLASSES,
-    "permission_classes": [IsAuthenticated],
-}
 API_V1_URLS = ("core.api.v1.urls", "pathocore_api")
+
+
+class StaffSpectacularAPIView(SpectacularAPIView):
+    authentication_classes = []
+    permission_classes = []
+
+
+class StaffSpectacularSwaggerView(SpectacularSwaggerView):
+    authentication_classes = []
+    permission_classes = []
+
+
+class StaffSpectacularRedocView(SpectacularRedocView):
+    authentication_classes = []
+    permission_classes = []
+
+
+def docs_view(view):
+    if getattr(settings, "PATHOCORE_DOCS_REQUIRE_STAFF", True):
+        return staff_member_required(view)
+    return view
 
 """
 class BothHttpAndHttpsSchemaGenerator(OpenAPISchemaGenerator):
@@ -46,21 +62,17 @@ urlpatterns = [
     # API REST FULL using drf spectacular
     path(
         "v1/openapi/",
-        SpectacularAPIView.as_view(**SECURED_SCHEMA_VIEW_KWARGS),
+        docs_view(StaffSpectacularAPIView.as_view()),
         name="v1-schema",
     ),
     path(
         "v1/swagger/",
-        SpectacularSwaggerView.as_view(
-            url_name="v1-schema", **SECURED_SCHEMA_VIEW_KWARGS
-        ),
+        docs_view(StaffSpectacularSwaggerView.as_view(url_name="v1-schema")),
         name="v1-swagger-ui",
     ),
     path(
         "v1/swagger/redoc/",
-        SpectacularRedocView.as_view(
-            url_name="v1-schema", **SECURED_SCHEMA_VIEW_KWARGS
-        ),
+        docs_view(StaffSpectacularRedocView.as_view(url_name="v1-schema")),
         name="v1-redoc",
     ),
     path("openapi/", RedirectView.as_view(pattern_name="v1-schema", permanent=False)),
