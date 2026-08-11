@@ -16,6 +16,8 @@ DB_PORT=3306
 ### Public host settings
 PATHOCORE_API_LOCAL_SERVER_IP='change_me_server_ip'
 PATHOCORE_API_DNS_URL='pathocore-api.example.org'
+PATHOCORE_API_ALLOWED_HOSTS=""
+PATHOCORE_API_CSRF_TRUSTED_ORIGINS="https://pathocore-api.example.org"
 
 ### Keycloak authentication settings
 PATHOCORE_ENABLE_LEGACY_BASIC_AUTH="false"

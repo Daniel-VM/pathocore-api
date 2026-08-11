@@ -108,6 +108,12 @@ write_runtime_env_file() {
         write_runtime_env_var \
             "PUBLIC_API_THROTTLE_RATE" \
             "${PUBLIC_API_THROTTLE_RATE:-500/hour}"
+        write_runtime_env_var \
+            "PATHOCORE_API_ALLOWED_HOSTS" \
+            "${PATHOCORE_API_ALLOWED_HOSTS:-}"
+        write_runtime_env_var \
+            "PATHOCORE_API_CSRF_TRUSTED_ORIGINS" \
+            "${PATHOCORE_API_CSRF_TRUSTED_ORIGINS:-}"
         write_runtime_env_var "DJANGO_DEBUG" "${DJANGO_DEBUG:-true}"
         write_runtime_env_var \
             "PATHOCORE_CREATE_DEFAULT_SUPERUSER" \
