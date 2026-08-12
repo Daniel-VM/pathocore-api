@@ -119,8 +119,8 @@ http://localhost:8000/v1/openapi/
 ### 6. Use the test administrative user
 
 The test stack creates an idempotent Django superuser from
-`conf/docker_test_settings.txt` so authenticated Swagger/API administration works
-after a fresh Docker install:
+`conf/docker_test_settings.txt` so Django admin access and protected API calls
+can be tested after a fresh Docker install:
 
 ```text
 admin / admin_pass
@@ -254,7 +254,7 @@ production it should point to the agreed database host.
 | `PATHOCORE_API_LOCAL_SERVER_IP` | `127.0.0.1` | Host/IP inserted into Django `ALLOWED_HOSTS`. |
 | `PATHOCORE_API_DNS_URL` | `mepram-api-pathocore.<domain>` | Public API hostname inserted into Django `ALLOWED_HOSTS`. |
 | `PATHOCORE_API_ALLOWED_HOSTS` | `localhost,127.0.0.1,api.<domain>` | Optional comma-separated override for Django `ALLOWED_HOSTS`. |
-| `PATHOCORE_API_CSRF_TRUSTED_ORIGINS` | `https://api.<domain>` | Public HTTPS origins trusted by Django forms such as admin and Swagger login. |
+| `PATHOCORE_API_CSRF_TRUSTED_ORIGINS` | `https://api.<domain>` | Public HTTPS origins trusted by Django forms such as admin login. |
 
 These values configure what hostnames the API considers valid. When the API is
 deployed behind the `pathocore-web` orchestrator, the orchestrator passes these
@@ -380,10 +380,9 @@ Configuration flow:
 Missing Keycloak values warn while legacy auth is enabled and fail when legacy
 auth is disabled.
 
-Swagger UI, Redoc and the OpenAPI schema require authentication. Browser access
-without an `Authorization` header is redirected to the Django admin login and
-requires a staff/superuser session. Requests that provide `Authorization` keep
-the API authentication flow, including valid Keycloak Bearer tokens.
+Swagger UI, Redoc and the OpenAPI schema are public documentation views.
+Protected API endpoints still require authentication. Use-case endpoints require
+a valid Keycloak Bearer token or an allowed administrative API user.
 
 When using Keycloak:
 
@@ -394,8 +393,8 @@ When using Keycloak:
 4. Send API requests with: Authorization: Bearer <token>
 ```
 
-For local Docker testing, Swagger and Django admin access can use the default
-superuser credentials:
+For local Docker testing, Django admin access and protected API requests can use
+the default superuser credentials:
 
 ```text
 admin / admin_pass
@@ -585,5 +584,5 @@ bash install.sh --upgrade app --git_revision develop --conf install_settings.txt
 
 # Documentation
 
-This is an API-only project. Authenticated documentation is served via Swagger UI
-at `/v1/swagger/` and the OpenAPI schema at `/v1/openapi/`.
+This is an API-only project. Public documentation is served via Swagger UI at
+`/v1/swagger/` and the OpenAPI schema at `/v1/openapi/`.

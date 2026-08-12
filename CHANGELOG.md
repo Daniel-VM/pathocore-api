@@ -13,7 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - [#22](https://github.com/BIPLAT-CIBERINFEC/pathocore-api/pull/22) change base url and add param to provide input sql database to docker installation
 - [#23](https://github.com/BIPLAT-CIBERINFEC/pathocore-api/pull/23) Improve access request notification emails
 - [#24](https://github.com/BIPLAT-CIBERINFEC/pathocore-api/pull/24) Prefix PathoCore API host settings
-- [#27](https://github.com/BIPLAT-CIBERINFEC/pathocore-api/pull/27) Move API documentation under `/v1` and require Django staff login
+- [#27](https://github.com/BIPLAT-CIBERINFEC/pathocore-api/pull/27) Move API documentation under `/v1`
 
 ### `Added`
 
@@ -21,7 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - [#16](https://github.com/BIPLAT-CIBERINFEC/pathocore-api/pull/16) Add DRF throttling for public API endpoints.
 - [#17](https://github.com/BIPLAT-CIBERINFEC/pathocore-api/pull/17) Notify use-case admins of pending access requests
 - [#18](https://github.com/BIPLAT-CIBERINFEC/pathocore-api/pull/18) Use English copy in API response payloads
-- [#26](https://github.com/BIPLAT-CIBERINFEC/pathocore-api/pull/26) Support proxy CSRF settings for admin and Swagger login
+- [#26](https://github.com/BIPLAT-CIBERINFEC/pathocore-api/pull/26) Support proxy CSRF settings for admin forms behind HTTPS reverse proxies
 
 ### `Fixed`
 

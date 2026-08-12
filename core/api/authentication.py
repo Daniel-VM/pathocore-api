@@ -175,10 +175,6 @@ def build_api_authentication_classes():
 
 
 API_AUTHENTICATION_CLASSES = build_api_authentication_classes()
-DOCS_AUTHENTICATION_CLASSES = [
-    AdminBasicOrSessionAuthentication,
-    KeycloakJWTAuthentication,
-]
 
 
 def decode_and_validate_keycloak_token(token):

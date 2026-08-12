@@ -186,7 +186,6 @@ PATHOCORE_ENABLE_LEGACY_BASIC_AUTH = os.environ.get(
 PATHOCORE_ENABLE_PUBLIC_READ_ENDPOINTS = os.environ.get(
     "PATHOCORE_ENABLE_PUBLIC_READ_ENDPOINTS", "true"
 ).lower() in ("1", "true", "yes", "on")
-PATHOCORE_DOCS_REQUIRE_STAFF = _bool_env("PATHOCORE_DOCS_REQUIRE_STAFF", True)
 
 # Keycloak setup
 KEYCLOAK_ISSUER = os.environ.get("KEYCLOAK_ISSUER", "").strip()
