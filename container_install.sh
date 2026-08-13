@@ -487,6 +487,8 @@ compose_with_env_exec -f "$compose_file" exec -T "$APP_SERVICE" bash -lc "touch 
 
 echo
 echo "PathoCore API container installation finished."
+echo "Running services and published ports:"
+compose_with_env_exec -f "$compose_file" ps
 echo "App URL: http://${PATHOCORE_API_BIND_HOST}:${PATHOCORE_API_PORT}/swagger/"
 echo "Useful commands:"
 echo "  ${COMPOSE_CMD[*]} --env-file .env.prod.file -f $compose_file logs -f app"
