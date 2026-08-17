@@ -2,10 +2,17 @@
 
 Django REST API for PathoCore genomic and epidemiological data.
 
-> Application developers: replace this short description with the domain
-> overview, architecture image, user-facing documentation link, and support
-> channel. The installation sections below are rendered by the deployment
-> standard and are ready to use unless explicitly marked for review.
+PathoCore API provides shared schema management, sample and metadata ingestion,
+variant ingestion, sample-history tracking, and search and DataBrowser services
+for projects such as MEPRAM and RELECOV. It exposes versioned REST endpoints and
+OpenAPI documentation, with project and laboratory access derived from
+Keycloak groups. Deployment supports Docker, Podman, and reviewed bare-metal
+installations through the BU-ISCIII deployment standard.
+
+For bugs, deployment problems, or feature requests, open an issue in the
+[PathoCore API issue tracker](https://github.com/BU-ISCIII/pathocore-api/issues).
+Do not include credentials, tokens, patient data, or other sensitive deployment
+information in public issues.
 
 - [Get the code (required)](#get-the-code-required)
 - [Choose your path](#choose-your-path)
