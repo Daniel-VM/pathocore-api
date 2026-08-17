@@ -3,7 +3,7 @@ FROM registry.access.redhat.com/ubi9/ubi-minimal
 
 ARG APP_UID=1212
 ARG APP_GID=1212
-ARG APP_PORT=8001
+ARG APP_PORT=8301
 ARG APP_REPO_PATH=/srv/pathocore-api
 ARG APP_INSTALL_PATH=/opt/pathocore-api
 ARG GIT_REVISION=current

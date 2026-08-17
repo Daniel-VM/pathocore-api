@@ -15,7 +15,7 @@ MIGRATION_MODULES=''
 APP_UID='1212'
 APP_GID='1212'
 APP_SHELL='/bin/bash'
-APP_PORT='8001'
+APP_PORT='8301'
 
 ### Disposable persistence paths
 HOST_LOG_PATH='/tmp/pathocore-api/logs'
@@ -34,7 +34,7 @@ DB_ROOT_PASSWORD='root'
 DJANGO_DEBUG='true'
 DJANGO_SECRET_KEY='test-only-change-me'
 DJANGO_ALLOWED_HOSTS='*'
-DJANGO_CSRF_TRUSTED_ORIGINS='http://localhost:8001,http://127.0.0.1:8001'
+DJANGO_CSRF_TRUSTED_ORIGINS='http://localhost:8301,http://127.0.0.1:8301'
 DB_CONN_MAX_AGE='60'
 
 ### Optional Django API behavior
@@ -47,8 +47,8 @@ API_DOCS_REQUIRE_STAFF='true'
 # Generated because ADDONS.keycloak.CONFIG_SERVICE selects this service.
 # Disabled by default so disposable tests do not require identity bootstrap.
 OIDC_AUTH_REQUIRED='false'
-OIDC_ISSUER='http://127.0.0.1:8081/realms/test'
-OIDC_JWKS_URL='http://127.0.0.1:8081/realms/test/protocol/openid-connect/certs'
+OIDC_ISSUER='http://keycloak.localhost:8380/realms/test'
+OIDC_JWKS_URL='http://keycloak:8080/realms/test/protocol/openid-connect/certs'
 OIDC_AUDIENCE='test-api'
 OIDC_CLIENT_ID='test-client'
 OIDC_JWKS_CACHE_TTL_SECONDS='300'

@@ -14,9 +14,9 @@ APACHE_LOG_PATH='/var/log/local/pathocore-api/apache'
 
 # Public host interface and port. Use 127.0.0.1 when another host reverse proxy
 # is the only component that should reach this Apache container.
-# Examples: APACHE_BIND_HOST='0.0.0.0', APACHE_PORT='8080'.
+# Examples: APACHE_BIND_HOST='0.0.0.0', APACHE_PORT='8380'.
 APACHE_BIND_HOST='0.0.0.0'
-APACHE_PORT='8080'
+APACHE_PORT='8380'
 
 # Public host name handled by the default VirtualHost. Use localhost for a
 # workstation deployment or the externally visible DNS name in production.
@@ -29,7 +29,7 @@ APACHE_SERVER_NAME='CHANGE_ME_DNS_NAME'
 APACHE_UPSTREAM_SERVICE=''
 
 # Internal application port used by ProxyPass. Leave empty to use APP_PORT from
-# the selected service's production settings. Example override: 8001
+# the selected service's production settings. Example override: 8301
 APACHE_UPSTREAM_PORT=''
 
 # Maximum proxy request duration in seconds. Leave empty to use the selected

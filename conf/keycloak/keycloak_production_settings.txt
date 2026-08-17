@@ -12,8 +12,8 @@ KEYCLOAK_DB_ROOT_PASSWORD='CHANGE_ME'
 
 # Exact browser-facing URL routed by Apache. Example: https://auth.example.org
 KEYCLOAK_PUBLIC_URL='https://CHANGE_ME_KEYCLOAK_DNS'
-# Host loopback diagnostic port; Keycloak listens on 8080 in Compose. Example: 8081
-KEYCLOAK_PORT='8081'
+# Host loopback diagnostic port; Keycloak listens on 8080 in Compose. Example: 8381
+KEYCLOAK_PORT='8381'
 
 # Bootstrap administrator created only for an empty database. Example: admin
 KEYCLOAK_ADMIN='admin'
