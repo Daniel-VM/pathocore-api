@@ -1,0 +1,18 @@
+# Keycloak add-on
+# Used only when ADDONS.keycloak selects this application as CONFIG_SERVICE.
+# These values are disposable and must never be reused in production.
+
+KEYCLOAK_DB_NAME='keycloak'
+KEYCLOAK_DB_USER='keycloak'
+KEYCLOAK_DB_PASSWORD='keycloak_password'
+KEYCLOAK_DB_ROOT_PASSWORD='root'
+KEYCLOAK_DB_PORT_HOST='6607'
+
+KEYCLOAK_PUBLIC_URL='http://127.0.0.1:8081'
+KEYCLOAK_PORT='8081'
+KEYCLOAK_ADMIN='admin'
+KEYCLOAK_ADMIN_PASSWORD='admin'
+
+# Repository source is staged into a disposable test bind directory.
+KEYCLOAK_REALM_SOURCE_PATH='./conf/keycloak/realm-import'
+KEYCLOAK_IMPORT_PATH='/tmp/pathocore-api/data/keycloak/realm-import'

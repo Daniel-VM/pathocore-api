@@ -1,40 +1,68 @@
-FROM ubuntu:24.04
+# syntax=docker/dockerfile:1.4
+FROM registry.access.redhat.com/ubi9/ubi-minimal
 
-ENV DEBIAN_FRONTEND=noninteractive
-ENV TZ=Europe/Madrid
-ENV APP_REPO_PATH=/srv/pathocore-api
-ENV APP_INSTALL_PATH=/opt/pathocore-api
-ENV APP_PORT=8000
-ENV APP_READY_FILE=/opt/pathocore-api/.container_install_ready
-
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    ca-certificates \
-    curl \
-    git \
-    lsb-release \
-    python3 \
-    python3-pip \
-    python3-venv \
-    rsync \
-    tzdata \
-    && rm -rf /var/lib/apt/lists/*
-
-WORKDIR /srv/pathocore-api
-
-COPY . /srv/pathocore-api
-
-RUN chmod +x /srv/pathocore-api/install.sh \
-    && chmod +x /srv/pathocore-api/container_install.sh \
-    && chmod +x /srv/pathocore-api/scripts/container_start.sh \
-    && chmod +x /srv/pathocore-api/scripts/databrowser_cache_scheduler.sh
-
-ARG GIT_REVISION=develop
+ARG APP_UID=1212
+ARG APP_GID=1212
+ARG APP_PORT=8001
+ARG APP_REPO_PATH=/srv/pathocore-api
+ARG APP_INSTALL_PATH=/opt/pathocore-api
+ARG GIT_REVISION=current
 ARG INSTALL_CONF=conf/docker_test_settings.txt
+ARG USE_INSTALL_CONF_SECRET=false
+ARG RENDER_DJANGO_SETTINGS=false
 
-# Prepare system/python dependencies in the image. App installation and DB
-# migration are executed later by container_install.sh once containers are up.
-RUN bash install.sh --install dep --git_revision "$GIT_REVISION" --conf "$INSTALL_CONF" --docker
+ENV APP_REPO_PATH=${APP_REPO_PATH} \
+    APP_INSTALL_PATH=${APP_INSTALL_PATH} \
+    INSTALL_PATH=${APP_INSTALL_PATH} \
+    PATH=${APP_INSTALL_PATH}/virtualenv/bin:${PATH} \
+    APP_PORT=${APP_PORT} \
+    PROJECT_MODULE=conf \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    TZ=Europe/Madrid
 
-EXPOSE 8000
+RUN microdnf -y update && \
+    microdnf -y install python3.12 python3.12-pip \
+      tar gcc git rsync wget && \
+    microdnf clean all
 
-CMD ["/srv/pathocore-api/scripts/container_start.sh"]
+ARG SUPERCRONIC_VERSION=v0.2.38
+RUN set -eux; \
+    arch="$(uname -m)"; \
+    case "$arch" in \
+      x86_64) supercronic_arch="amd64" ;; \
+      aarch64) supercronic_arch="arm64" ;; \
+      *) echo "Unsupported architecture for supercronic: $arch" >&2; exit 1 ;; \
+    esac; \
+    wget -q -O /usr/local/bin/supercronic \
+      "https://github.com/aptible/supercronic/releases/download/${SUPERCRONIC_VERSION}/supercronic-linux-${supercronic_arch}"; \
+    chmod 0755 /usr/local/bin/supercronic
+
+WORKDIR ${APP_REPO_PATH}
+COPY . ${APP_REPO_PATH}/
+COPY scripts/container_start.sh /usr/local/bin/container_start.sh
+
+# Production uses an ephemeral build-secret mount: the operator configuration
+# is readable by install.sh but never copied into an image layer. Test builds
+# use the committed safe profile and explicitly render test settings.
+RUN --mount=type=secret,id=install_conf \
+    conf_path="${INSTALL_CONF}"; \
+    if [ "${USE_INSTALL_CONF_SECRET}" = "true" ]; then \
+      conf_path=/run/secrets/install_conf; \
+      test -f "$conf_path" || { echo "Required install_conf build secret is missing" >&2; exit 1; }; \
+    fi; \
+    render_args=""; \
+    if [ "${RENDER_DJANGO_SETTINGS}" = "true" ]; then render_args="--render-settings"; fi; \
+    bash install.sh --stage install \
+      --git_revision "${GIT_REVISION}" --conf "$conf_path" $render_args && \
+    groupadd -g "${APP_GID}" app && \
+    useradd -u "${APP_UID}" -g "${APP_GID}" -s /sbin/nologin app && \
+    chmod 0755 /usr/local/bin/container_start.sh && \
+    chown -R "${APP_UID}:${APP_GID}" "${APP_INSTALL_PATH}" "${APP_REPO_PATH}"
+
+WORKDIR ${APP_INSTALL_PATH}
+USER ${APP_UID}:${APP_GID}
+EXPOSE ${APP_PORT}
+HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
+  CMD python -c "import os, urllib.request; urllib.request.urlopen('http://127.0.0.1:' + os.environ['APP_PORT'] + '/health/', timeout=3)" || exit 1
+CMD ["/usr/local/bin/container_start.sh"]

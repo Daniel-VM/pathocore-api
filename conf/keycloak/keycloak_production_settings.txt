@@ -1,0 +1,27 @@
+# Keycloak add-on
+# Used only when ADDONS.keycloak selects this application as CONFIG_SERVICE.
+
+# Persistent database/schema name. Example: keycloak
+KEYCLOAK_DB_NAME='keycloak'
+# Least-privilege database user. Example: keycloak
+KEYCLOAK_DB_USER='keycloak'
+# Database-user password (secret). Example: a long random password.
+KEYCLOAK_DB_PASSWORD='CHANGE_ME'
+# Database initialization root password (secret). Use a different random value.
+KEYCLOAK_DB_ROOT_PASSWORD='CHANGE_ME'
+
+# Exact browser-facing URL routed by Apache. Example: https://auth.example.org
+KEYCLOAK_PUBLIC_URL='https://CHANGE_ME_KEYCLOAK_DNS'
+# Host loopback diagnostic port; Keycloak listens on 8080 in Compose. Example: 8081
+KEYCLOAK_PORT='8081'
+
+# Bootstrap administrator created only for an empty database. Example: admin
+KEYCLOAK_ADMIN='admin'
+# Bootstrap administrator password (secret). Example: a long random password.
+KEYCLOAK_ADMIN_PASSWORD='CHANGE_ME'
+
+# Repository-owned reproducible realm JSON directory. Example: ./conf/keycloak/realm-import
+KEYCLOAK_REALM_SOURCE_PATH='./conf/keycloak/realm-import'
+# Deployment-owned read-only bind staging. Realm JSON does not replace a
+# database backup. Example: /srv/containers/bind/pathocore-api/keycloak/realm-import
+KEYCLOAK_IMPORT_PATH='/srv/containers/bind/pathocore-api/keycloak/realm-import'

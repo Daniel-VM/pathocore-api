@@ -1,0 +1,29 @@
+{
+  "APP_NAME": "PathoCore API",
+  "APP_SLUG": "pathocore-api",
+  "DESCRIPTION": "Django REST API for PathoCore genomic and epidemiological data.",
+  "REPOSITORY_URL": "https://github.com/BU-ISCIII/pathocore-api.git",
+  "DEFAULT_BRANCH": "develop",
+  "PYTHON_VERSION": "3.12",
+  "TIMEZONE": "Europe/Madrid",
+  "SERVICES": {
+    "app": {
+      "PROFILE": "django",
+      "BUILD_CONTEXT": ".",
+      "DOCKERFILE": "Dockerfile",
+      "IMAGE": "pathocore-api:local",
+      "INSTALL_CONF": "conf/docker_production_settings.txt",
+      "TEST_INSTALL_CONF": "conf/docker_test_settings.txt",
+      "PROJECT_MODULE": "conf",
+      "API": true
+    }
+  },
+  "ADDONS": {
+    "apache": {
+      "CONFIG_SERVICE": "app"
+    },
+    "keycloak": {
+      "CONFIG_SERVICE": "app"
+    }
+  }
+}

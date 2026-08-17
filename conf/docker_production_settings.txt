@@ -1,69 +1,141 @@
-### Installation path
+# Production configuration for this application service.
+# Copy to a protected ignored file, chmod 0600, and replace every CHANGE_ME.
+# The same file drives the ephemeral image build secret, host settings render,
+# Compose environment and temporary bootstrap copy.
+
+### Application layout and Django project
+# Source repository staged in the image. Example: /srv/pathocore-api
+REPO_PATH='/srv/pathocore-api'
+# Final application runtime path. Example: /opt/pathocore-api
 INSTALL_PATH='/opt/pathocore-api'
-PROJECT_NAME='pathocore_api'
-REQUIRED_MODULES='core'
+# Python package containing settings.py, urls.py and wsgi.py. This is generated
+# from project.json and normally should not be changed in this file.
+PROJECT_MODULE='conf'
+# Python executable used to create the application virtual environment.
+# Example: python3.12
+PYTHON_BIN_PATH='python3.12'
 
-### Python executable inside container
-PYTHON_BIN_PATH='python3'
+### Application-specific installation modules
+# Optional space-separated Django applications consumed by installers that
+# support dependency and migration module lists. Leave empty when
+# the application install.sh does not implement the corresponding behavior.
+# Example: REQUIRED_MODULES='core drylab wetlab clinic django_utils'
+REQUIRED_MODULES=''
+# Example: MIGRATION_MODULES='core drylab wetlab clinic django_utils'
+MIGRATION_MODULES=''
 
-### External database settings
-DB_USER='change_me_db_user'
-DB_PASS='change_me_db_password'
-DB_NAME='pathocore_api'
-DB_SERVER_IP='change_me_db_host'
-DB_PORT=3306
+### Container runtime identity
+# UID/GID must own every writable bind mount and named volume. Example: 1212.
+APP_UID='1212'
+APP_GID='1212'
+# Production services should normally use a non-login shell. Example: /sbin/nologin
+APP_SHELL='/sbin/nologin'
+# Internal application port used by Gunicorn and the reverse proxy. Example: 8001
+APP_PORT='8001'
 
-### Public host settings
-PATHOCORE_API_LOCAL_SERVER_IP='change_me_server_ip'
-PATHOCORE_API_DNS_URL='pathocore-api.example.org'
-PATHOCORE_API_ALLOWED_HOSTS=""
-PATHOCORE_API_CSRF_TRUSTED_ORIGINS="https://pathocore-api.example.org"
+### Persistent host sources
+# Documents use the Compose-managed app_documents named volume.
+# Application logs remain on the host and must be creatable by the installer.
+# Example: /var/log/local/pathocore-api/apps
+HOST_LOG_PATH='/var/log/local/pathocore-api/apps'
+# Host bind source rendered before Compose starts. It must be a file path, not
+# a directory; the parent directory is created and protected by the installer.
+# Example: /srv/containers/bind/pathocore-api/settings/conf/settings.py
+DJANGO_SETTINGS_PATH='/srv/containers/bind/pathocore-api/settings/conf/settings.py'
 
-### Keycloak authentication settings
-PATHOCORE_ENABLE_LEGACY_BASIC_AUTH="false"
-PATHOCORE_ENABLE_PUBLIC_READ_ENDPOINTS="true"
-PUBLIC_API_THROTTLE_RATE="500/hour"
-PATHOCORE_CREATE_DEFAULT_SUPERUSER="false"
-DJANGO_SUPERUSER_USERNAME=""
-DJANGO_SUPERUSER_EMAIL=""
-DJANGO_SUPERUSER_PASSWORD=""
-KEYCLOAK_ISSUER=""
-KEYCLOAK_JWKS_URL=""
-KEYCLOAK_REALM=""
-KEYCLOAK_AUDIENCE="pathocore-api"
-KEYCLOAK_CLIENT_ID="pathocore-api"
-KEYCLOAK_JWKS_CACHE_TTL_SECONDS=300
-KEYCLOAK_JWKS_TIMEOUT_SECONDS=5
-KEYCLOAK_ADMIN_BASE_URL=""
-KEYCLOAK_ADMIN_TOKEN_REALM="master"
-KEYCLOAK_ADMIN_CLIENT_ID="admin-cli"
-KEYCLOAK_ADMIN_CLIENT_SECRET=""
-KEYCLOAK_ADMIN_USERNAME=""
-KEYCLOAK_ADMIN_PASSWORD=""
-KEYCLOAK_ADMIN_SEND_ACTION_EMAILS="true"
-KEYCLOAK_ADMIN_ACTION_EMAIL_REDIRECT_URI=""
-PATHOCORE_ACCESS_REQUEST_ADMIN_EMAILS=""
+### External production database
+# Use a host name or IP reachable from inside the application container.
+# For a database running on the container host with either Docker or Podman,
+# use host.docker.internal; the production Compose profile maps that alias.
+# Examples: DB_HOST='host.docker.internal', DB_PORT='3306'.
+DB_HOST='CHANGE_ME'
+DB_PORT='3306'
+# Example: DB_NAME='application_db'.
+DB_NAME='CHANGE_ME'
+# Example: DB_USER='application_user'.
+DB_USER='CHANGE_ME'
+# Secret. Example: a long value from the institutional password manager.
+DB_PASSWORD='CHANGE_ME'
 
-### Email notifications
-EMAIL_HOST_SERVER="change_me_smtp_host"
-EMAIL_HOST="change_me_smtp_host"
-EMAIL_PORT=587
-EMAIL_HOST_USER=""
-EMAIL_HOST_PASSWORD=""
-EMAIL_USE_TLS="true"
-DEFAULT_FROM_EMAIL="no-reply@pathocore.local"
+### Django security and public URLs
+# Production debug must remain disabled.
+DJANGO_DEBUG='false'
+# Preserve this value across upgrades; changing it invalidates signed data.
+# Example: a randomly generated value of at least 50 characters.
+DJANGO_SECRET_KEY='CHANGE_ME'
+# Comma-separated host names accepted by Django, without URL schemes.
+# Example: api.example.org,localhost
+DJANGO_ALLOWED_HOSTS='CHANGE_ME'
+# Comma-separated complete HTTPS origins, including their schemes.
+# Example: https://api.example.org
+DJANGO_CSRF_TRUSTED_ORIGINS='https://CHANGE_ME'
+# Persistent database connection lifetime in seconds. Example: 60
+DB_CONN_MAX_AGE='60'
 
-### Logs settings
-LOG_TYPE="regular_folder"
-LOG_PATH=""
+### Optional Django API behavior
+# Generated because this Django service declares "API": true.
+# Complete browser origins use scheme and host; never use '*' with credentials.
+API_CORS_ALLOWED_ORIGINS='https://CHANGE_ME'
+# DRF-compatible request rate: number/second, number/minute, number/hour or number/day.
+API_THROTTLE_RATE='500/hour'
+# Applications may use this policy to restrict interactive API documentation.
+API_DOCS_REQUIRE_STAFF='true'
 
-### Docker production host bindings
-APP_PORT=8000
-PATHOCORE_API_BIND_HOST="127.0.0.1"
-PATHOCORE_API_PORT=8000
-PATHOCORE_HOST_LOG_DIR="/var/log/local/pathocore-api/apps"
-DJANGO_DEBUG="false"
-WEB_CONCURRENCY=2
-GUNICORN_THREADS=2
-GUNICORN_TIMEOUT=120
-GUNICORN_KEEPALIVE=5
+### OIDC token validation for this application
+# Generated because ADDONS.keycloak.CONFIG_SERVICE selects this service.
+OIDC_AUTH_REQUIRED='true'
+# Issuer must exactly match the token's iss claim. JWKS exposes public signing keys.
+OIDC_ISSUER='https://CHANGE_ME/realms/CHANGE_ME'
+OIDC_JWKS_URL='https://CHANGE_ME/realms/CHANGE_ME/protocol/openid-connect/certs'
+# Audience identifies the protected API; client ID identifies the calling application.
+OIDC_AUDIENCE='CHANGE_ME'
+OIDC_CLIENT_ID='CHANGE_ME'
+OIDC_JWKS_CACHE_TTL_SECONDS='300'
+OIDC_JWKS_TIMEOUT_SECONDS='5'
+
+### Email
+# SMTP endpoint reachable from the application container. Example: smtp.example.org
+EMAIL_HOST='CHANGE_ME'
+# SMTP port. Examples: 25 or 587.
+EMAIL_PORT='25'
+# SMTP login. Example: application@example.org; leave empty if unused.
+EMAIL_HOST_USER='CHANGE_ME'
+# Secret. Example: a value from the institutional password manager.
+EMAIL_HOST_PASSWORD='CHANGE_ME'
+# Python boolean spelling is used because settings rendering writes this value
+# directly into settings.py. Example: True for STARTTLS on port 587.
+EMAIL_USE_TLS='False'
+
+### Initial administrator (bootstrap install only)
+# Opt in only when a fresh installation should create its first Django
+# administrator. Keep the protected production settings file mode at 0600.
+CREATE_INITIAL_SUPERUSER='false'
+# Example: admin
+DJANGO_SUPERUSER_USERNAME='admin'
+# Example: application-admin@example.org; empty is allowed.
+DJANGO_SUPERUSER_EMAIL=''
+# Secret. Example: a one-time random bootstrap password; empty when creation is disabled.
+DJANGO_SUPERUSER_PASSWORD=''
+
+### Gunicorn and startup tuning
+# Worker processes. Example: 2
+WEB_CONCURRENCY='2'
+# Threads per worker. Example: 2
+GUNICORN_THREADS='2'
+# Maximum request duration in seconds. Example: 300
+GUNICORN_TIMEOUT='300'
+# HTTP keep-alive duration in seconds. Example: 5
+GUNICORN_KEEPALIVE='5'
+# Maximum time container_start.sh waits for staged application files. Example: 100
+APP_START_WAIT_TIMEOUT_SECONDS='100'
+
+### Application log policy compatibility
+# regular_folder stores logs below INSTALL_PATH. symbolic_link links that
+# directory to LOG_PATH, which must already exist and be writable.
+# Example: LOG_TYPE='regular_folder'.
+LOG_TYPE='regular_folder'
+# Example for symbolic_link: /var/log/local/pathocore-api/apps; otherwise empty.
+LOG_PATH=''
+
+### Selected infrastructure add-ons
+# Infrastructure add-ons use files below conf/<addon>/.

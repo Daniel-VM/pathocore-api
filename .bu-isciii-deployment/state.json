@@ -1,0 +1,61 @@
+{
+  "config": {
+    "ADDONS": {
+      "apache": {
+        "CONFIG_SERVICE": "app"
+      },
+      "keycloak": {
+        "CONFIG_SERVICE": "app"
+      }
+    },
+    "APP_NAME": "PathoCore API",
+    "APP_SLUG": "pathocore-api",
+    "DEFAULT_BRANCH": "develop",
+    "DESCRIPTION": "Django REST API for PathoCore genomic and epidemiological data.",
+    "PYTHON_VERSION": "3.12",
+    "REPOSITORY_URL": "https://github.com/BU-ISCIII/pathocore-api.git",
+    "SERVICES": {
+      "app": {
+        "API": true,
+        "BUILD_CONTEXT": ".",
+        "DOCKERFILE": "Dockerfile",
+        "IMAGE": "pathocore-api:local",
+        "INSTALL_CONF": "conf/docker_production_settings.txt",
+        "PROFILE": "django",
+        "PROJECT_MODULE": "conf",
+        "TEST_INSTALL_CONF": "conf/docker_test_settings.txt"
+      }
+    },
+    "TIMEZONE": "Europe/Madrid"
+  },
+  "files": {
+    ".dockerignore": "a76e2a974786736d1d3744ed534ae9996514cb15d921328450f3757fafe273d2",
+    ".gitignore": "86a6d029356710031e592d78821b3c5a2ef0bc510fa746703bfcef56ea10fc15",
+    "Dockerfile": "712f0b012f7d99932f979955e779794c3b751caeb9cf2c28e314e0a0dea8d463",
+    "LEAME.md": "52d256ce3de7167d86e15f7009cc9076cf56acc4a2621ba37b776df70197d0a3",
+    "README.md": "fd990bbd1ea3718729ab1ac97b02bf3b224f43477829e36fa392fa049c04288f",
+    "conf/INSTALL_SETTINGS.md": "3748cb666481e053dffc62b571f9733f25fb06fa95929ee2d9f8d3e31473d049",
+    "conf/apache/00-logs.conf": "3c2ab4e693e528d2cad37c0c5bb0bc4511803a7f206b339182de192d4e398092",
+    "conf/apache/01-reverse-proxy.conf": "69e70d5dc2414ff3f7ed83496c795a5178306a2966fb646297883de50146da2f",
+    "conf/apache/02-server-status.conf": "c3b5d26f9b551083faf0d85b188bfa9c577ff0bd3b805f0ec104fe4f7d5101cb",
+    "conf/apache/apache_production_settings.txt": "011380b0e5fbc04af3c46750a1f6e3a67394b767c7fb04d503576c86e0f6d170",
+    "conf/apache/apache_test_settings.txt": "eaf8ea483c197ed0853a291cc2d8436f05ac3130f6c330c323d9eeab362b0b9e",
+    "conf/docker_production_settings.txt": "1ff22a3f845dd88d87fd751946015d3fc372fb1f7b1d037b878e9b7e30139cc4",
+    "conf/docker_test_settings.txt": "a678585ee1a2de195a5e9db531fca9ece8f65884e3911d506264b54922af0268",
+    "conf/keycloak/keycloak_production_settings.txt": "738ced39544d2beb1f9c31a60b8532c451e9716199c73b77b62c45e0e9b7adf5",
+    "conf/keycloak/keycloak_test_settings.txt": "e0bd2b5193421e327eb00bc590ec5ccce117f386f26a874e7f01d1225e091e24",
+    "conf/template_settings.py": "54a94220667ea8b8f168ca4594e29ed0aade129aa41187cba53886f575bb0d4d",
+    "container_install.sh": "cd41d4c4cd4ab0dc731bf73d6b7f2b463d34880ab7eee2606b5f171221af2102",
+    "deployment_health/README.md": "3d7c4295938708813369deeac9edc0eb8fe2153c77d03f9138febf3aed715aa5",
+    "deployment_health/__init__.py": "bedcff132309f8970b1ca72fcea20c7cb38bb727d48f82d96dbf7104922abda0",
+    "deployment_health/urls.py": "8d274b44d326f26d71b05021a34969c742478efbe47691aadd8c3a90ba16f340",
+    "deployment_health/views.py": "d19cc3e8fef8519bae2b7fbdc25d17f6ae7df02479aa8890f4b4d250bb07f2e4",
+    "docker-compose.prod.yml": "ca2288af5ec1bd80225622df1acf5e5fdac48e8740fda9c1aef53f8626cd4710",
+    "docker-compose.test.yml": "1dfb462632f8d5e357b55624a03039a7b5814ca5ed645ce4c6685eb343388984",
+    "install.sh": "6db1a0934e59f6303a2e503e2cdcbd6f1be023a5d457b2fa0b447ebcbc71a2db",
+    "scripts/container_start.sh": "7a27a79cd238c7155319b23cdf5e13baad278f841a7a96b448c65ef22dca7299",
+    "scripts/smoke_test.sh": "2f04e8c7632e6288f4226b34cb5a7737dd186abc2cecaeb14d7c63f0b90748dd"
+  },
+  "source": "BU-ISCIII deployment standards",
+  "standard_version": "0.1.0"
+}

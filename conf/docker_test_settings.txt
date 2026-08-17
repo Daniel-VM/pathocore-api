@@ -1,58 +1,83 @@
-### Installation path
+# Safe local/test values. Never use these credentials in production.
+
+### Application layout and Django project
+REPO_PATH='/srv/pathocore-api'
 INSTALL_PATH='/opt/pathocore-api'
-PROJECT_NAME='pathocore_api'
-REQUIRED_MODULES='core'
+PROJECT_MODULE='conf'
+PYTHON_BIN_PATH='python3.12'
 
-### Python executable inside container
-PYTHON_BIN_PATH='python3'
+### Application-specific installation modules
+# Optional lists used only when install.sh implements these operations.
+REQUIRED_MODULES=''
+MIGRATION_MODULES=''
 
-### Database settings for docker-compose.test.yml
+### Container runtime identity
+APP_UID='1212'
+APP_GID='1212'
+APP_SHELL='/bin/bash'
+APP_PORT='8001'
+
+### Disposable persistence paths
+HOST_LOG_PATH='/tmp/pathocore-api/logs'
+# Test images render settings during build and do not mount this host path.
+DJANGO_SETTINGS_PATH='/tmp/pathocore-api/data/settings/conf/settings.py'
+
+### Compose test database
+DB_HOST='conf_app_db'
+DB_PORT='3306'
+DB_NAME='conf'
 DB_USER='django'
-DB_PASS='djangopass'
-DB_NAME='pathocore_api'
-DB_SERVER_IP='db'
-DB_PORT=3306
+DB_PASSWORD='djangopass'
+DB_ROOT_PASSWORD='root'
 
-### PathoCore API host settings
-PATHOCORE_API_LOCAL_SERVER_IP='127.0.0.1'
-PATHOCORE_API_DNS_URL='localhost'
-PATHOCORE_API_ALLOWED_HOSTS=""
-PATHOCORE_API_CSRF_TRUSTED_ORIGINS="http://127.0.0.1:8000,http://localhost:8000"
+### Django and local email defaults
+DJANGO_DEBUG='true'
+DJANGO_SECRET_KEY='test-only-change-me'
+DJANGO_ALLOWED_HOSTS='*'
+DJANGO_CSRF_TRUSTED_ORIGINS='http://localhost:8001,http://127.0.0.1:8001'
+DB_CONN_MAX_AGE='60'
 
-### Keycloak authentication settings
-PATHOCORE_ENABLE_LEGACY_BASIC_AUTH="true"
-PATHOCORE_ENABLE_PUBLIC_READ_ENDPOINTS="true"
-PUBLIC_API_THROTTLE_RATE="500/hour"
-PATHOCORE_CREATE_DEFAULT_SUPERUSER="true"
-DJANGO_SUPERUSER_USERNAME="admin"
-DJANGO_SUPERUSER_EMAIL="admin@example.org"
-DJANGO_SUPERUSER_PASSWORD="admin_pass"
-KEYCLOAK_ISSUER=""
-KEYCLOAK_JWKS_URL=""
-KEYCLOAK_REALM="ciberisciii_datahub"
-KEYCLOAK_AUDIENCE="pathocore-api"
-KEYCLOAK_CLIENT_ID="pathocore-api"
-KEYCLOAK_JWKS_CACHE_TTL_SECONDS=300
-KEYCLOAK_JWKS_TIMEOUT_SECONDS=5
-KEYCLOAK_ADMIN_BASE_URL="http://host.docker.internal:8080"
-KEYCLOAK_ADMIN_TOKEN_REALM="master"
-KEYCLOAK_ADMIN_CLIENT_ID="admin-cli"
-KEYCLOAK_ADMIN_CLIENT_SECRET=""
-KEYCLOAK_ADMIN_USERNAME="admin"
-KEYCLOAK_ADMIN_PASSWORD="admin"
-KEYCLOAK_ADMIN_SEND_ACTION_EMAILS="false"
-KEYCLOAK_ADMIN_ACTION_EMAIL_REDIRECT_URI=""
-PATHOCORE_ACCESS_REQUEST_ADMIN_EMAILS=""
+### Optional Django API behavior
+# Generated because this Django service declares "API": true.
+API_CORS_ALLOWED_ORIGINS='http://127.0.0.1:3000,http://localhost:3000'
+API_THROTTLE_RATE='500/hour'
+API_DOCS_REQUIRE_STAFF='true'
 
-### Email notifications
-EMAIL_HOST_SERVER="mailpit"
-EMAIL_HOST="mailpit"
-EMAIL_PORT=1025
-EMAIL_HOST_USER=""
-EMAIL_HOST_PASSWORD=""
-EMAIL_USE_TLS="false"
-DEFAULT_FROM_EMAIL="no-reply@pathocore.local"
+### OIDC token validation for this application
+# Generated because ADDONS.keycloak.CONFIG_SERVICE selects this service.
+# Disabled by default so disposable tests do not require identity bootstrap.
+OIDC_AUTH_REQUIRED='false'
+OIDC_ISSUER='http://127.0.0.1:8081/realms/test'
+OIDC_JWKS_URL='http://127.0.0.1:8081/realms/test/protocol/openid-connect/certs'
+OIDC_AUDIENCE='test-api'
+OIDC_CLIENT_ID='test-client'
+OIDC_JWKS_CACHE_TTL_SECONDS='300'
+OIDC_JWKS_TIMEOUT_SECONDS='5'
 
-### Logs settings
-LOG_TYPE="regular_folder"
-LOG_PATH=""
+### Local email defaults
+EMAIL_HOST='host.docker.internal'
+EMAIL_PORT='25'
+EMAIL_HOST_USER='bioinformatica@isciii.es'
+EMAIL_HOST_PASSWORD=''
+EMAIL_USE_TLS='False'
+
+### Initial administrator (bootstrap install only)
+CREATE_INITIAL_SUPERUSER='false'
+DJANGO_SUPERUSER_USERNAME='admin'
+DJANGO_SUPERUSER_EMAIL=''
+DJANGO_SUPERUSER_PASSWORD=''
+
+### Gunicorn and startup tuning
+WEB_CONCURRENCY='2'
+GUNICORN_THREADS='2'
+GUNICORN_TIMEOUT='300'
+GUNICORN_KEEPALIVE='5'
+APP_START_WAIT_TIMEOUT_SECONDS='100'
+
+### Application log policy compatibility
+# Set LOG_PATH when LOG_TYPE='symbolic_link'.
+LOG_TYPE='regular_folder'
+LOG_PATH=''
+
+### Selected infrastructure add-ons
+# Infrastructure add-ons use files below conf/<addon>/.

@@ -1,495 +1,511 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-PATHOCORE_API_VERSION="1.0.0"
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck disable=SC1091
+source "$script_dir/deployment/lib/container/common.sh"
+# shellcheck disable=SC1091
+source "$script_dir/deployment/lib/container/django.sh"
+
+APP_VERSION="0.1.0"
+APPLICATION_NAME="PathoCore API"
+
+# ============================================================================
+# GENERATED SERVICE/ADD-ON CUSTOMIZATION
+# Regenerate these callbacks from the descriptor; keep application-neutral
+# lifecycle mechanics below unchanged.
+# ============================================================================
+install_services=(app)
+addon_build_services=()
+permission_services=(app apache keycloak_db keycloak)
+configured_services=(app apache keycloak)
+
+default_service_install_conf() {
+    case "$1" in
+        app) [ "$mode" = test ] && echo conf/docker_test_settings.txt || echo conf/docker_production_settings.txt ;;
+        apache) [ "$mode" = test ] && echo conf/apache/apache_test_settings.txt || echo conf/apache/apache_production_settings.txt ;;
+        keycloak) [ "$mode" = test ] && echo conf/keycloak/keycloak_test_settings.txt || echo conf/keycloak/keycloak_production_settings.txt ;;
+        *) return 1 ;;
+    esac
+}
+service_build_context_dir() {
+    case "$1" in
+        app) echo . ;;
+        *) return 1 ;;
+    esac
+}
+service_environment_prefix() {
+    local prefix
+    array_contains "$1" "${install_services[@]}" || return 1
+    prefix="${1^^}"
+    printf '%s\n' "${prefix//-/_}"
+}
+service_environment_value() {
+    local prefix variable
+    prefix="$(service_environment_prefix "$1")" || return 1
+    variable="${prefix}_$2"
+    if [ -n "${!variable:-}" ]; then
+        printf '%s\n' "${!variable}"
+    elif [ "$#" -ge 3 ]; then
+        printf '%s\n' "$3"
+    else
+        die "$variable is required in the rendered service settings"
+    fi
+}
+service_repo_path() {
+    service_environment_value "$1" REPO_PATH
+}
+service_install_path() {
+    service_environment_value "$1" INSTALL_PATH
+}
+service_readiness_path() {
+    case "$1" in
+        app) echo "$(service_install_path "$1")/manage.py" ;;
+        *) return 1 ;;
+    esac
+}
+service_image_name() {
+    case "$1" in
+        app) echo pathocore-api:local ;;
+        *) return 1 ;;
+    esac
+}
+service_profile() {
+    case "$1" in
+        app) echo django ;;
+        *) return 1 ;;
+    esac
+}
+service_dockerfile() {
+    case "$1" in
+        app) echo Dockerfile ;;
+        *) return 1 ;;
+    esac
+}
+service_container_install_conf() {
+    case "$1" in
+        app) echo conf/.runtime_install_settings.txt ;;
+        *) return 1 ;;
+    esac
+}
+service_uid() {
+    service_environment_value "$1" APP_UID
+}
+service_gid() {
+    service_environment_value "$1" APP_GID
+}
+
+prepare_compose_environment() {
+    local -a settings_sources=(
+        "APP|${install_conf_host_by_service[app]}"
+        "|${install_conf_host_by_service[apache]}"
+        "|${install_conf_host_by_service[keycloak]}"
+    )
+    local -a deployment_values=(
+        "GIT_REVISION|$git_revision"
+        "APP_IMAGE|pathocore-api:local"
+    )
+    compose_env_file="$script_dir/.env.${mode}.file"
+    write_compose_environment_file "$compose_env_file" settings_sources deployment_values
+}
+
+# Every project uses the generated interpolation file in both modes because it
+# combines service-specific settings sources with collision-safe prefixes.
+deployment_compose() {
+    compose_exec --env-file "$compose_env_file" "$@"
+}
+current_service_container() {
+    resolve_service_container "$1"
+}
+
+print_service_summary() {
+    echo
+    echo "Running services and published ports:"
+    deployment_compose -f "$compose_file" ps
+}
+
+# Each Django service renders its own protected host settings bind. React
+# services and add-ons have no Django settings source.
+prepare_application_host_sources() {
+    local settings_output
+    if [ "$mode" = production ]; then
+        settings_output="$(service_environment_value app DJANGO_SETTINGS_PATH)"
+        [ -n "$settings_output" ] || { echo "DJANGO_SETTINGS_PATH is required for app" >&2; return 1; }
+        mkdir -p "$(dirname "$settings_output")"
+        prepare_django_settings_bind_mount ./conf/template_settings.py "$settings_output" "${install_conf_host_by_service[app]}"
+    fi
+    # conf/apache contains the application-owned Apache sources. Render every
+    # deployment value only after the protected settings environment is loaded,
+    # then expose the completed files as Compose bind sources.
+    local apache_source_dir="$script_dir/conf/apache"
+    local apache_output_dir="$script_dir/deployment/apache"
+    local apache_conf_name apache_config_service apache_log_path
+    apache_config_service=app
+    [ -d "$apache_source_dir" ] || {
+        echo "Apache source configuration directory not found: $apache_source_dir" >&2
+        return 1
+    }
+    mkdir -p "$apache_output_dir"
+
+    export APACHE_SERVER_NAME="${APACHE_SERVER_NAME:?APACHE_SERVER_NAME is required}"
+    export APACHE_UPSTREAM_SERVICE="${APACHE_UPSTREAM_SERVICE:-$apache_config_service}"
+    export APACHE_UPSTREAM_PORT="${APACHE_UPSTREAM_PORT:-$(service_environment_value "$apache_config_service" APP_PORT)}"
+    # For the default route, INSTALL_PATH means the service selected by
+    # ADDONS.apache.CONFIG_SERVICE. Multi-service routes use their explicit
+    # API_INSTALL_PATH, WEB_INSTALL_PATH, etc. values instead.
+    export INSTALL_PATH="$(service_install_path "$apache_config_service")"
+    export APACHE_PROXY_TIMEOUT="${APACHE_PROXY_TIMEOUT:-$(service_environment_value "$apache_config_service" GUNICORN_TIMEOUT 120)}"
+    export APACHE_LOG_STEM="${APACHE_LOG_STEM:-$(normalize_apache_server_name "$APACHE_SERVER_NAME")}"
+
+    for apache_conf_name in 00-logs.conf 01-reverse-proxy.conf 02-server-status.conf; do
+        [ -f "$apache_source_dir/$apache_conf_name" ] || {
+            echo "Apache source configuration not found: $apache_source_dir/$apache_conf_name" >&2
+            return 1
+        }
+        render_environment_config_template \
+            "$apache_source_dir/$apache_conf_name" \
+            "$apache_output_dir/$apache_conf_name" 0644 || return 1
+    done
+
+    # Production bind-mounts Apache logs from the host; tests use a named volume.
+    if [ "$mode" = production ]; then
+        apache_log_path="${APACHE_LOG_PATH:?APACHE_LOG_PATH is required}"
+        mkdir -p "$apache_log_path"
+    fi
+    # Keep repository-owned realm JSON immutable. Stage it into the deployment
+    # bind tree before Compose validates and starts the Keycloak container.
+    local keycloak_realm_source_path keycloak_import_path realm_source realm_target
+    keycloak_realm_source_path="${KEYCLOAK_REALM_SOURCE_PATH:?KEYCLOAK_REALM_SOURCE_PATH is required}"
+    keycloak_import_path="${KEYCLOAK_IMPORT_PATH:?KEYCLOAK_IMPORT_PATH is required}"
+    [[ "$keycloak_realm_source_path" == /* ]] || keycloak_realm_source_path="$script_dir/$keycloak_realm_source_path"
+    [[ "$keycloak_import_path" == /* ]] || keycloak_import_path="$script_dir/$keycloak_import_path"
+    compgen -G "$keycloak_realm_source_path/*.json" >/dev/null || {
+        echo "Keycloak realm source JSON not found in $keycloak_realm_source_path" >&2
+        return 1
+    }
+    mkdir -p "$keycloak_import_path"
+    for realm_source in "$keycloak_realm_source_path"/*.json; do
+        realm_target="$keycloak_import_path/$(basename "$realm_source")"
+        copy_with_podman_fallback "$realm_source" "$realm_target" || return 1
+    done
+}
+
+# Apply the same permission workflow in test and production. Keep one
+# independently reviewable specification per application and selected add-on;
+# the shared helper skips paths that are not used by the active mode.
+prepare_host_bind_source_permissions() {
+    local log_path settings_path uid gid
+    log_path="$(service_environment_value app HOST_LOG_PATH)"
+    settings_path="$(service_environment_value app DJANGO_SETTINGS_PATH)"
+    [ -n "$log_path" ] || { echo "HOST_LOG_PATH is required for app" >&2; return 1; }
+    [ -n "$settings_path" ] || { echo "DJANGO_SETTINGS_PATH is required for app" >&2; return 1; }
+    uid="$(service_uid app)"; gid="$(service_gid app)"
+    local -a app_host_bind_permission_spec=(
+        "$log_path|$uid:$gid|0775"
+        "$(dirname "$settings_path")|-|0755"
+        "$settings_path|$uid:$gid|0664"
+    )
+    apply_host_permission_spec "${app_host_bind_permission_spec[@]}"
+    # Generated proxy configuration is read-only in Apache. Its host files need
+    # traversal/read permissions, while the configured log source must be writable.
+    apache_log_path="${APACHE_LOG_PATH:?APACHE_LOG_PATH is required}"
+    local -a apache_host_bind_permission_spec=(
+        "$script_dir/deployment/apache|-|0755"
+        "$script_dir/deployment/apache/00-logs.conf|-|0644"
+        "$script_dir/deployment/apache/01-reverse-proxy.conf|-|0644"
+        "$script_dir/deployment/apache/02-server-status.conf|-|0644"
+        # registry.access.redhat.com/ubi9/httpd-24 runs as UID 1001 with GID 0.
+        # The shared helper applies these IDs directly for Docker and through
+        # podman unshare when the bind source belongs to a rootless userns.
+        "$apache_log_path|1001:0|0775"
+    )
+    apply_host_permission_spec "${apache_host_bind_permission_spec[@]}"
+    # Realm imports contain deployment configuration and may contain sensitive
+    # client data. Keep the directory traversable and every JSON file non-public.
+    local keycloak_import_path
+    keycloak_import_path="${KEYCLOAK_IMPORT_PATH:?KEYCLOAK_IMPORT_PATH is required}"
+    [[ "$keycloak_import_path" == /* ]] || keycloak_import_path="$script_dir/$keycloak_import_path"
+    local -a keycloak_host_bind_permission_spec=(
+        "$keycloak_import_path|-|0755"
+    )
+    for realm_file in "$keycloak_import_path"/*.json; do
+        keycloak_host_bind_permission_spec+=("$realm_file|1000:0|0640")
+    done
+    apply_host_permission_spec "${keycloak_host_bind_permission_spec[@]}"
+}
+
+# Keep a separate running-mount specification in every service/add-on case.
+prepare_running_container_mount_permissions() {
+    local service_name="$1" container_id="$2"
+    local install_path uid gid
+    case "$service_name" in
+        app)
+            install_path="$(service_install_path "$service_name")"
+            uid="$(service_uid "$service_name")"; gid="$(service_gid "$service_name")"
+            local -a app_running_mount_permission_spec=(
+                "$install_path/logs|$uid:$gid|u+rwX,g+rwX"
+                "$install_path/documents|$uid:$gid|u+rwX,g+rwX"
+                "$install_path/static|$uid:$gid|u+rwX,g+rwX,o+rX"
+            )
+            apply_container_directory_permission_spec "$container_id" "${app_running_mount_permission_spec[@]}"
+            prepare_django_container_settings_permissions "$container_id" "$install_path/conf/settings.py" "$uid" "$gid"
+            ;;
+        apache)
+            # Apache currently needs no ownership repair inside its running
+            # container. Keep an explicit add-on policy ready for future mounts.
+            local -a apache_running_mount_permission_spec=()
+            apply_container_directory_permission_spec "$container_id" "${apache_running_mount_permission_spec[@]}"
+            ;;
+        keycloak)
+            # Realm imports are read-only, so the Keycloak container currently
+            # has no writable mount requiring an in-container ownership repair.
+            local -a keycloak_running_mount_permission_spec=()
+            apply_container_directory_permission_spec "$container_id" "${keycloak_running_mount_permission_spec[@]}"
+            ;;
+        keycloak_db)
+            # The persistent MySQL volume must remain owned by the UID/GID used
+            # by the database image, including after restoring or moving data.
+            local -a keycloak_db_running_mount_permission_spec=(
+                "/var/lib/mysql|999:999|u+rwX,g+rwX,o-rwx"
+            )
+            apply_container_directory_permission_spec "$container_id" "${keycloak_db_running_mount_permission_spec[@]}"
+            ;;
+        *) return 0 ;;
+    esac
+}
+
+bootstrap_service() {
+    local service_name="$1" container_id="$2" deployment_action="$3"
+    local repo_path runtime_conf uid gid status
+    local -a args
+    case "$service_name" in
+        app)
+            repo_path="$(service_repo_path "$service_name")"
+            # Fixed temporary in-container path; this is not operator configuration.
+            runtime_conf=conf/.runtime_install_settings.txt
+            [[ "$runtime_conf" == /* ]] || runtime_conf="$repo_path/$runtime_conf"
+            uid="$(service_uid "$service_name")"; gid="$(service_gid "$service_name")"
+            stage_container_runtime_config "$container_id" "${install_conf_host_by_service[$service_name]}" "$runtime_conf" "$uid" "$gid"
+            args=(--bootstrap "$deployment_action" --git_revision "$git_revision" --conf "$runtime_conf" --skip_apache_restart)
+            for hook in "${migration_script_before[@]}"; do args+=(--script_before "$hook"); done
+            for hook in "${migration_script_after[@]}"; do args+=(--script_after "$hook"); done
+            status=0; engine_exec exec "$container_id" bash "$repo_path/install.sh" "${args[@]}" || status=$?
+            [ "$mode" = test ] || remove_container_runtime_config "$container_id" "$runtime_conf" || true
+            return "$status"
+            ;;
+        *) return 0 ;;
+    esac
+}
+
+# Applications with disposable fixtures or demo files customize this callback
+# in their generated wrapper and set application_supports_test_data=true. Keep
+# application-specific fixture names, users/groups, downloads, and data-service
+# layout here so the complete data-loading workflow remains readable in one file.
+application_supports_test_data=false
+load_test_deployment_data() {
+    die "Test/demo data loading is not implemented for $APPLICATION_NAME"
+}
+
+action="install"; mode="production"; engine="docker"; git_revision="current"
+install_conf=""; compose_file=""; compose_env_file=""
+install_conf_map_entries=(); migration_script_before=(); migration_script_after=()
+demo_data=""; skip_demo_data=""; skip_test_data=""
 
 usage() {
-cat << EOF
-This script installs and upgrades PathoCore API in containers.
-
-Usage:
-  $0 [--test] [--git_revision <branch|tag|sha|current>] [--compose_file <path>] [--install_conf <path>] [--engine docker|podman] [--action install|upgrade|fix-permissions] [--tables] [--pathocore_api_sql <path>]
+    cat <<'EOF'
+Install, upgrade, or repair the application deployment.
 
 Options:
-  --test           Use docker-compose.test.yml and conf/docker_test_settings.txt
-  --git_revision   Git revision passed to image build/install. Use 'current' to keep current checked-out branch
-  --compose_file   Override compose file path
-  --install_conf   Settings file consumed at runtime by install.sh
-  --engine         docker (default) or podman
-  --action         install (default), upgrade, or fix-permissions
-  --tables         Load conf/first_install_tables.json after migrate
-  --pathocore_api_sql
-                   Import a PathoCore API MySQL seed dump after migrations (.sql or .sql.gz).
-                   This requires a Compose-managed db service, as in test mode.
-  --help           Show this help
-  --version        Show script version
-
-Examples:
-  bash $0 --test --git_revision current
-  bash $0 --test --git_revision current --pathocore_api_sql ../pathocore_api_testing_seed.sql.gz
-  bash $0 --install_conf /srv/containers/bind/pathocore-api/production_settings.txt --git_revision main
-  bash $0 --install_conf /srv/containers/bind/pathocore-api/production_settings.txt --action upgrade --git_revision main
+  --action install|upgrade|fix-permissions
+  --test
+  --engine docker|podman
+  --git_revision <branch|tag|commit|current>
+  --install_conf <path>              First application service only.
+  --install_conf_map <component,path>  Repeat for application and add-on overrides.
+  --compose_file <path>
+  --script_before <name[,args]>
+  --script_after <name[,args]>
+  --script <name[,args]>
+  --demo_data <path>                 Import application demo data on install.
+  --skip_demo_data
+  --skip_test_data
+  --help
+  --version
 EOF
 }
+die() { echo "ERROR: $*" >&2; exit 1; }
 
-reset=true
-for arg in "$@"; do
-    if [ -n "${reset:-}" ]; then
-        unset reset
-        set --
-    fi
-    case "$arg" in
-        --test) set -- "$@" -t ;;
-        --git_revision) set -- "$@" -g ;;
-        --compose_file) set -- "$@" -c ;;
-        --install_conf) set -- "$@" -s ;;
-        --engine) set -- "$@" -e ;;
-        --action) set -- "$@" -a ;;
-        --tables) set -- "$@" -l ;;
-        --pathocore_api_sql) set -- "$@" -p ;;
-        --help) set -- "$@" -h ;;
-        --version) set -- "$@" -v ;;
-        *) set -- "$@" "$arg" ;;
+# 1. Parse the canonical outer-installer interface.
+while (($#)); do
+    case "$1" in
+        --action) action="${2:-}"; shift 2 ;;
+        --test) mode="test"; shift ;;
+        --engine) engine="${2:-}"; shift 2 ;;
+        --git_revision) git_revision="${2:-}"; shift 2 ;;
+        --install_conf) install_conf="${2:-}"; shift 2 ;;
+        --install_conf_map) install_conf_map_entries+=("${2:-}"); shift 2 ;;
+        --compose_file) compose_file="${2:-}"; shift 2 ;;
+        --script_before) migration_script_before+=("${2:-}"); shift 2 ;;
+        --script_after|--script) migration_script_after+=("${2:-}"); shift 2 ;;
+        --demo_data) demo_data="${2:-}"; shift 2 ;;
+        --skip_demo_data) skip_demo_data=true; shift ;;
+        --skip_test_data) skip_test_data=true; shift ;;
+        --help) usage; exit 0 ;;
+        --version) echo "$APP_VERSION"; exit 0 ;;
+        *) die "Unknown option: $1" ;;
     esac
 done
 
-mode="production"
-git_revision=""
-compose_file=""
-install_conf=""
-engine="docker"
-action="install"
-load_tables=false
-pathocore_api_sql=""
+# 2. Validate arguments before modifying deployment state.
+[[ "$action" =~ ^(install|upgrade|fix-permissions)$ ]] || die "Invalid action: $action"
+[[ "$engine" =~ ^(docker|podman)$ ]] || die "Invalid engine: $engine"
+if [ -n "$demo_data" ] && [ "$application_supports_test_data" != true ]; then
+    die "--demo_data is not implemented for $APPLICATION_NAME"
+fi
+if [ -n "$demo_data" ]; then
+    [ -f "$demo_data" ] || die "Demo-data file not found: $demo_data"
+    demo_data="$(cd "$(dirname "$demo_data")" && pwd)/$(basename "$demo_data")"
+fi
+# Test installs may use application defaults. Production remains strictly
+# opt-in, loads only an explicitly supplied demo file, and never enables test
+# fixtures alongside it.
+if [ "$mode" = test ] && [ "$action" = install ] \
+    && [ "$application_supports_test_data" = true ]; then
+    skip_demo_data="${skip_demo_data:-false}"
+    skip_test_data="${skip_test_data:-false}"
+elif [ "$action" = install ] && [ -n "$demo_data" ] \
+    && [ "$application_supports_test_data" = true ]; then
+    skip_demo_data="${skip_demo_data:-false}"
+    skip_test_data=true
+else
+    skip_demo_data=true
+    skip_test_data=true
+fi
 
-while getopts ":tg:c:s:e:a:lp:hv" opt; do
-    case "$opt" in
-        t) mode="test" ;;
-        g) git_revision="$OPTARG" ;;
-        c) compose_file="$OPTARG" ;;
-        s) install_conf="$OPTARG" ;;
-        e)
-            engine="$OPTARG"
-            if [[ "$engine" != "docker" && "$engine" != "podman" ]]; then
-                echo "Invalid engine '$engine'. Use docker or podman."
-                exit 1
-            fi
-            ;;
-        a)
-            action="$OPTARG"
-            if [[ "$action" != "install" && "$action" != "upgrade" && "$action" != "fix-permissions" ]]; then
-                echo "Invalid action '$action'. Use install, upgrade, or fix-permissions."
-                exit 1
-            fi
-            ;;
-        l) load_tables=true ;;
-        p) pathocore_api_sql="$OPTARG" ;;
-        h)
-            usage
-            exit 0
-            ;;
-        v)
-            echo "$PATHOCORE_API_VERSION"
-            exit 0
-            ;;
-        :)
-            echo "Option -$OPTARG requires an argument."
-            exit 1
-            ;;
-        \?)
-            echo "Invalid option: -$OPTARG"
-            exit 1
-            ;;
-    esac
+# 3. Resolve one protected configuration source per configured component.
+cd "$script_dir"
+declare -A install_conf_host_by_service=()
+for service_name in "${configured_services[@]}"; do
+    install_conf_host_by_service["$service_name"]="$(default_service_install_conf "$service_name")"
 done
-shift $((OPTIND-1))
-
-repo_root="$(pwd)"
-
-if [ "$mode" = "test" ]; then
-    compose_file="${compose_file:-docker-compose.test.yml}"
-    install_conf="${install_conf:-conf/docker_test_settings.txt}"
-    git_revision="${git_revision:-develop}"
-else
-    compose_file="${compose_file:-docker-compose.prod.yml}"
-    git_revision="${git_revision:-main}"
-    if [ -z "$install_conf" ]; then
-        echo "Production deployments require --install_conf with a non-committed settings file."
-        exit 1
+if [ -n "$install_conf" ]; then install_conf_host_by_service["${install_services[0]}"]="$install_conf"; fi
+for mapping in "${install_conf_map_entries[@]}"; do
+    [[ "$mapping" == *,* ]] || die "Invalid --install_conf_map: $mapping"
+    service_name="${mapping%%,*}"; path="${mapping#*,}"
+    array_contains "$service_name" "${configured_services[@]}" || die "Unknown mapped component: $service_name"
+    install_conf_host_by_service["$service_name"]="$path"
+done
+for service_name in "${configured_services[@]}"; do
+    path="${install_conf_host_by_service[$service_name]}"
+    [[ "$path" = /* ]] || path="$script_dir/$path"
+    [ -f "$path" ] || die "Configuration for $service_name not found: $path"
+    if [ "$mode" = production ] \
+        && grep -Eq '^[A-Z0-9_]+=.*CHANGE_ME' "$path"; then
+        die "Production configuration for $service_name contains CHANGE_ME: $path"
     fi
-fi
+    install_conf_host_by_service["$service_name"]="$(cd "$(dirname "$path")" && pwd)/$(basename "$path")"
+done
 
-if [ ! -f "$compose_file" ]; then
-    echo "Compose file not found: $compose_file"
-    exit 1
-fi
+# 4. Select the engine, prepare host sources and validate the final Compose model.
+set_engine "$engine"
+compose_file="${compose_file:-docker-compose.$([ "$mode" = test ] && echo test || echo prod).yml}"
+require_compose_file "$compose_file"
+prepare_compose_environment
+load_compose_environment_file "$compose_env_file"
+prepare_application_host_sources
+prepare_host_bind_source_permissions
+deployment_compose -f "$compose_file" config \
+    || die "Compose configuration validation failed: $compose_file"
 
-if [ ! -f "$install_conf" ]; then
-    echo "Install settings file not found: $install_conf"
-    exit 1
-fi
-
-if [ -n "$pathocore_api_sql" ] && [ ! -f "$pathocore_api_sql" ]; then
-    echo "PathoCore API SQL file not found: $pathocore_api_sql"
-    exit 1
-fi
-
-if [[ "$install_conf" = /* ]]; then
-    host_install_conf_path="$install_conf"
-else
-    host_install_conf_path="$repo_root/$install_conf"
-fi
-
-read_install_conf_value() {
-    local key="$1"
-    local file="$2"
-    bash -c '
-        set -a
-        . "$1"
-        key="$2"
-        printf "%s" "${!key-}"
-    ' _ "$file" "$key"
-}
-
-config_value_or_default() {
-    local key="$1"
-    local default_value="$2"
-    local env_value="${!key:-}"
-    local config_value=""
-
-    if [ -n "$env_value" ]; then
-        echo "$env_value"
-        return 0
-    fi
-
-    config_value="$(read_install_conf_value "$key" "$host_install_conf_path")"
-    if [ -n "$config_value" ]; then
-        echo "$config_value"
-    else
-        echo "$default_value"
-    fi
-}
-
-if [ "$git_revision" = "current" ]; then
-    git_revision="$(git rev-parse --abbrev-ref HEAD)"
-fi
-
-if [ "$engine" = "docker" ]; then
-    command -v docker >/dev/null 2>&1 || { echo "docker not found"; exit 1; }
-    COMPOSE_CMD=(docker compose)
-    ENGINE_CMD=(docker)
-else
-    command -v podman >/dev/null 2>&1 || { echo "podman not found"; exit 1; }
-    if command -v podman-compose >/dev/null 2>&1; then
-        COMPOSE_CMD=(podman-compose)
-    else
-        COMPOSE_CMD=(podman compose)
-    fi
-    ENGINE_CMD=(podman)
-fi
-
-compose_exec() {
-    "${COMPOSE_CMD[@]}" "$@"
-}
-
-engine_exec() {
-    "${ENGINE_CMD[@]}" "$@"
-}
-
-APP_REPO_PATH="${APP_REPO_PATH:-/srv/pathocore-api}"
-APP_INSTALL_PATH="$(config_value_or_default INSTALL_PATH /opt/pathocore-api)"
-APP_READY_FILE="${APP_READY_FILE:-${APP_INSTALL_PATH}/.container_install_ready}"
-APP_SERVICE="${APP_SERVICE:-app}"
-APP_PORT="$(config_value_or_default APP_PORT 8000)"
-PATHOCORE_API_BIND_HOST="$(config_value_or_default PATHOCORE_API_BIND_HOST 127.0.0.1)"
-PATHOCORE_API_PORT="$(config_value_or_default PATHOCORE_API_PORT "$APP_PORT")"
-PATHOCORE_HOST_LOG_DIR="$(config_value_or_default PATHOCORE_HOST_LOG_DIR /var/log/local/pathocore-api/apps)"
-WEB_CONCURRENCY="$(config_value_or_default WEB_CONCURRENCY 2)"
-GUNICORN_THREADS="$(config_value_or_default GUNICORN_THREADS 2)"
-GUNICORN_TIMEOUT="$(config_value_or_default GUNICORN_TIMEOUT 120)"
-GUNICORN_KEEPALIVE="$(config_value_or_default GUNICORN_KEEPALIVE 5)"
-DATABROWSER_CACHE_SCHEDULER_ENABLED="$(config_value_or_default DATABROWSER_CACHE_SCHEDULER_ENABLED true)"
-DATABROWSER_CACHE_REFRESH_WEEKDAY="$(config_value_or_default DATABROWSER_CACHE_REFRESH_WEEKDAY 4)"
-DATABROWSER_CACHE_REFRESH_TIME="$(config_value_or_default DATABROWSER_CACHE_REFRESH_TIME 12:00)"
-DATABROWSER_CACHE_REFRESH_ON_START="$(config_value_or_default DATABROWSER_CACHE_REFRESH_ON_START false)"
-
-if [ "$mode" = "production" ]; then
-    build_install_conf_container="${PATHOCORE_BUILD_INSTALL_CONF:-conf/docker_production_settings.txt}"
-else
-    build_install_conf_container="${PATHOCORE_BUILD_INSTALL_CONF:-conf/docker_test_settings.txt}"
-fi
-runtime_install_conf_container="${APP_REPO_PATH}/.runtime_install_conf.txt"
-
-compose_env_file="$repo_root/.env.prod.file"
-
-write_compose_env_file() {
-    if [ "$mode" != "production" ]; then
-        return 0
-    fi
-
-    cat > "$compose_env_file" << EOF
-# Generated by container_install.sh from $(basename "$host_install_conf_path").
-# Used by Docker Compose for docker-compose.prod.yml interpolation.
-# It intentionally contains runtime metadata, not database/SMTP/Keycloak secrets.
-GIT_REVISION=$git_revision
-INSTALL_CONF=$build_install_conf_container
-APP_INSTALL_PATH=$APP_INSTALL_PATH
-APP_REPO_PATH=$APP_REPO_PATH
-APP_READY_FILE=$APP_READY_FILE
-APP_PORT=$APP_PORT
-PATHOCORE_API_BIND_HOST=$PATHOCORE_API_BIND_HOST
-PATHOCORE_API_PORT=$PATHOCORE_API_PORT
-PATHOCORE_HOST_LOG_DIR=$PATHOCORE_HOST_LOG_DIR
-WEB_CONCURRENCY=$WEB_CONCURRENCY
-GUNICORN_THREADS=$GUNICORN_THREADS
-GUNICORN_TIMEOUT=$GUNICORN_TIMEOUT
-GUNICORN_KEEPALIVE=$GUNICORN_KEEPALIVE
-DATABROWSER_CACHE_SCHEDULER_ENABLED=$DATABROWSER_CACHE_SCHEDULER_ENABLED
-DATABROWSER_CACHE_REFRESH_WEEKDAY=$DATABROWSER_CACHE_REFRESH_WEEKDAY
-DATABROWSER_CACHE_REFRESH_TIME=$DATABROWSER_CACHE_REFRESH_TIME
-DATABROWSER_CACHE_REFRESH_ON_START=$DATABROWSER_CACHE_REFRESH_ON_START
-EOF
-    echo "Wrote Compose environment file: $compose_env_file"
-}
-
-compose_with_env_exec() {
-    if [ "$mode" = "production" ] && [ -f "$compose_env_file" ]; then
-        compose_exec --env-file "$compose_env_file" "$@"
-    else
-        compose_exec "$@"
-    fi
-}
-
-service_container_id() {
-    compose_with_env_exec -f "$compose_file" ps -q "$1" | head -n 1
-}
-
-compose_has_service() {
-    local service="$1"
-    compose_with_env_exec -f "$compose_file" config --services | grep -Fxq "$service"
-}
-
-wait_for_running() {
-    local service="$1"
-    local container_id=""
-    local attempts=60
-    local running=""
-
-    while [ "$attempts" -gt 0 ]; do
-        container_id="$(service_container_id "$service")"
-        if [ -n "$container_id" ]; then
-            running="$(engine_exec inspect -f '{{.State.Running}}' "$container_id" 2>/dev/null || true)"
-            if [ "$running" = "true" ]; then
-                return 0
-            fi
-        fi
-        attempts=$((attempts - 1))
-        sleep 2
+# 5. Dispatch permission-only repair without building or bootstrapping.
+if [ "$action" = fix-permissions ]; then
+    for service_name in "${permission_services[@]}"; do
+        container_id="$(current_service_container "$service_name" 2>/dev/null || true)"
+        [ -z "$container_id" ] || prepare_running_container_mount_permissions "$service_name" "$container_id"
     done
-
-    echo "Service '$service' is not running."
-    if [ -n "$container_id" ]; then
-        engine_exec logs "$container_id" || true
-    fi
-    exit 1
-}
-
-wait_for_healthy() {
-    local service="$1"
-    local container_id=""
-    local attempts=90
-    local health=""
-
-    while [ "$attempts" -gt 0 ]; do
-        container_id="$(service_container_id "$service")"
-        if [ -n "$container_id" ]; then
-            health="$(engine_exec inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}running{{end}}' "$container_id" 2>/dev/null || true)"
-            if [ "$health" = "healthy" ] || [ "$health" = "running" ]; then
-                return 0
-            fi
-        fi
-        attempts=$((attempts - 1))
-        sleep 2
-    done
-
-    echo "Service '$service' did not become healthy."
-    if [ -n "$container_id" ]; then
-        engine_exec logs "$container_id" || true
-    fi
-    exit 1
-}
-
-import_pathocore_api_sql() {
-    local sql_path="$1"
-    local db_user db_password db_name
-
-    if ! compose_has_service "db"; then
-        echo "Cannot import --pathocore_api_sql because compose file '$compose_file' has no 'db' service."
-        echo "Use this option with the isolated test stack, or import the dump manually into the external production database."
-        exit 1
-    fi
-
-    db_user="$(config_value_or_default DB_USER django)"
-    db_password="$(config_value_or_default DB_PASSWORD djangopass)"
-    db_name="$(config_value_or_default DB_NAME pathocore_api)"
-
-    echo "Importing PathoCore API SQL into service db database '$db_name'"
-    if [[ "$sql_path" == *.gz ]]; then
-        gzip -dc "$sql_path" | compose_with_env_exec -f "$compose_file" exec -T db \
-          mysql -u"$db_user" -p"$db_password" "$db_name"
-    else
-        compose_with_env_exec -f "$compose_file" exec -T db \
-          mysql -u"$db_user" -p"$db_password" "$db_name" < "$sql_path"
-    fi
-}
-
-ensure_seed_migration_state() {
-    local db_user db_password db_name
-
-    if ! compose_has_service "db"; then
-        return 0
-    fi
-
-    db_user="$(config_value_or_default DB_USER django)"
-    db_password="$(config_value_or_default DB_PASSWORD djangopass)"
-    db_name="$(config_value_or_default DB_NAME pathocore_api)"
-
-    echo "Ensuring PathoCore API seed migration state"
-    compose_with_env_exec -f "$compose_file" exec -T db \
-      mysql -u"$db_user" -p"$db_password" "$db_name" -e "
-        INSERT IGNORE INTO django_migrations (app, name, applied)
-        VALUES
-            ('core', '0009_alter_schema_user_name_nullable', NOW()),
-            ('core', '0010_remove_unused_metadata_models', NOW()),
-            ('core', '0011_access_request', NOW()),
-            ('core', '0012_access_request_revoked_status', NOW());
-    "
-}
-
-prepare_host_bind_mount_permissions() {
-    if [ "$mode" != "production" ]; then
-        return 0
-    fi
-
-    mkdir -p "$PATHOCORE_HOST_LOG_DIR"
-    chmod 0775 "$PATHOCORE_HOST_LOG_DIR" || true
-}
-
-copy_runtime_install_conf() {
-    local container_id
-    container_id="$(service_container_id "$APP_SERVICE")"
-    if [ -z "$container_id" ]; then
-        echo "Unable to resolve app container for copying runtime install config."
-        exit 1
-    fi
-    echo "Copying runtime install config into the running container."
-    engine_exec cp "$host_install_conf_path" "${container_id}:${runtime_install_conf_container}"
-}
-
-prepare_app_mount_permissions() {
-    if [ "$mode" != "production" ]; then
-        return 0
-    fi
-
-    compose_with_env_exec -f "$compose_file" exec -T --user 0 "$APP_SERVICE" bash -lc "
-        set -e
-        mkdir -p '$APP_INSTALL_PATH/logs' '$APP_INSTALL_PATH/static' '$APP_INSTALL_PATH/documents'
-        chmod -R u+rwX,g+rwX '$APP_INSTALL_PATH/logs' '$APP_INSTALL_PATH/static' '$APP_INSTALL_PATH/documents'
-    " || true
-}
-
-if [ "$action" = "fix-permissions" ]; then
-    if [ "$mode" != "production" ]; then
-        echo "fix-permissions is only needed for production bind mounts. Nothing to repair in test mode."
-        exit 0
-    fi
-    app_container_id=""
-    write_compose_env_file
-    prepare_host_bind_mount_permissions
-    app_container_id="$(service_container_id "$APP_SERVICE" 2>/dev/null || true)"
-    if [ -n "$app_container_id" ] \
-        && [ "$(engine_exec inspect -f '{{.State.Running}}' "$app_container_id" 2>/dev/null || true)" = "true" ]; then
-        prepare_app_mount_permissions
-    else
-        echo "App container is not running; repaired host bind mount permissions only."
-    fi
-    echo "PathoCore API production permissions repaired."
+    echo "Permissions repaired without build or bootstrap."
     exit 0
 fi
 
-write_compose_env_file
-prepare_host_bind_mount_permissions
+# 6. Build application services in declared order. Production builds use the
+# engine directly: Django receives its settings as
+# an ephemeral build secret, while React receives only its public VITE value.
+# This avoids requiring Compose implementations to support build.secrets.
+for service_name in "${install_services[@]}"; do
+    if [ "$mode" = test ]; then
+        deployment_compose -f "$compose_file" build --no-cache "$service_name"
+        continue
+    fi
+    context="$(service_build_context_dir "$service_name")"
+    dockerfile="$(service_dockerfile "$service_name")"
+    profile="$(service_profile "$service_name")"
+    if [ "$profile" = django ]; then
+        engine_build --no-cache --file "$context/$dockerfile" \
+            --secret "id=install_conf,src=${install_conf_host_by_service[$service_name]}" \
+            --build-arg GIT_REVISION="$git_revision" \
+            --build-arg INSTALL_CONF="$(service_container_install_conf "$service_name")" \
+            --build-arg USE_INSTALL_CONF_SECRET=true \
+            --build-arg RENDER_DJANGO_SETTINGS=false \
+            --build-arg APP_REPO_PATH="$(service_repo_path "$service_name")" \
+            --build-arg APP_INSTALL_PATH="$(service_install_path "$service_name")" \
+            --build-arg APP_PORT="$(service_environment_value "$service_name" APP_PORT)" \
+            --build-arg APP_UID="$(service_uid "$service_name")" \
+            --build-arg APP_GID="$(service_gid "$service_name")" \
+            --tag "$(service_image_name "$service_name")" "$context"
+    else
+        vite_api_url="$(service_environment_value "$service_name" VITE_API_BASE_URL)"
+        engine_build --no-cache --file "$context/$dockerfile" \
+            --build-arg GIT_REVISION="$git_revision" \
+            --build-arg VITE_API_BASE_URL="$vite_api_url" \
+            --tag "$(service_image_name "$service_name")" "$context"
+    fi
+done
+# Build add-on images through Compose so their declared build arguments and
+# add-on-owned Dockerfiles remain the single source of truth.
+for service_name in "${addon_build_services[@]}"; do
+    deployment_compose -f "$compose_file" build --no-cache "$service_name"
+done
+# 7. Recreate and start the complete topology from one Compose invocation so
+# freshly built images and the current configuration are deployed consistently.
+# Named volumes and bind-mounted persistent data are preserved.
+deployment_compose -f "$compose_file" up -d --force-recreate
 
-echo "Building PathoCore API image with compose file: $compose_file"
-compose_with_env_exec -f "$compose_file" build \
-    --build-arg GIT_REVISION="$git_revision" \
-    --build-arg INSTALL_CONF="$build_install_conf_container"
+# 8. Wait for every application service readiness contract.
+for service_name in "${install_services[@]}"; do
+    container_id="$(current_service_container "$service_name")"
+    [ -n "$container_id" ] || die "Unable to resolve $service_name container"
+    ensure_service_running "$service_name" "$container_id" >/dev/null
+    readiness_path="$(service_readiness_path "$service_name")"
+    deadline=$((SECONDS + 120))
+    until engine_exec exec "$container_id" test -f "$readiness_path"; do
+        ((SECONDS < deadline)) || { engine_exec logs --tail 200 "$container_id"; die "$service_name readiness timeout"; }
+        sleep 2
+    done
+done
 
-echo "Starting containers"
-compose_with_env_exec -f "$compose_file" up -d
+# 9. Repair running mounts for applications and selected add-ons.
+for service_name in "${permission_services[@]}"; do
+    container_id="$(current_service_container "$service_name")"
+    prepare_running_container_mount_permissions "$service_name" "$container_id"
+done
 
-if compose_with_env_exec -f "$compose_file" config --services | grep -Fxq "db"; then
-    echo "Waiting for database container to become healthy"
-    wait_for_healthy "db"
+# 10. Bootstrap only application profiles that require runtime bootstrap.
+for service_name in "${install_services[@]}"; do
+    container_id="$(current_service_container "$service_name")"
+    bootstrap_service "$service_name" "$container_id" "$action" || die "$service_name bootstrap failed"
+done
+
+# 11. Load application-owned data for a fresh test install, or for an explicit
+# production --demo_data request. Production never imports data implicitly.
+if [ "$action" = install ] \
+    && [ "$application_supports_test_data" = true ] \
+    && { [ "$mode" = test ] || [ -n "$demo_data" ]; }; then
+    load_test_deployment_data
 fi
 
-echo "Waiting for application container to be running"
-wait_for_running "$APP_SERVICE"
-copy_runtime_install_conf
-
-echo "Resetting installation marker"
-compose_with_env_exec -f "$compose_file" exec -T "$APP_SERVICE" bash -lc "rm -f '$APP_READY_FILE'"
-
-APP_INSTALL_MODE="$action"
-if [ "$APP_INSTALL_MODE" = "install" ]; then
-    detected_mode="$(compose_with_env_exec -f "$compose_file" exec -T "$APP_SERVICE" bash -lc \
-      "if [ -f '$APP_INSTALL_PATH/manage.py' ]; then echo upgrade; else echo install; fi")"
-    APP_INSTALL_MODE="$detected_mode"
-fi
-
-if [ "$APP_INSTALL_MODE" = "upgrade" ]; then
-    echo "Running install.sh --upgrade app inside the container"
-    compose_with_env_exec -f "$compose_file" exec -T "$APP_SERVICE" bash -lc \
-      "cd '$APP_REPO_PATH' && bash install.sh --upgrade app --docker --git_revision '$git_revision' --conf '$runtime_install_conf_container' </dev/null"
-else
-    echo "Running install.sh --install app inside the container"
-    compose_with_env_exec -f "$compose_file" exec -T "$APP_SERVICE" bash -lc \
-      "cd '$APP_REPO_PATH' && bash install.sh --install app --docker --git_revision '$git_revision' --conf '$runtime_install_conf_container'"
-fi
-
-echo "Running database migrations"
-compose_with_env_exec -f "$compose_file" exec -T "$APP_SERVICE" bash -lc \
-  "cd '$APP_INSTALL_PATH' && source virtualenv/bin/activate && python manage.py migrate --noinput"
-
-if [ -n "$pathocore_api_sql" ]; then
-    import_pathocore_api_sql "$pathocore_api_sql"
-    ensure_seed_migration_state
-else
-    echo "Skipping PathoCore API SQL import"
-fi
-
-if [ "$load_tables" = true ]; then
-    echo "Loading initial tables"
-    compose_with_env_exec -f "$compose_file" exec -T "$APP_SERVICE" bash -lc \
-      "cd '$APP_INSTALL_PATH' && source virtualenv/bin/activate && python manage.py loaddata conf/first_install_tables.json"
-fi
-
-if [ "$(read_install_conf_value PATHOCORE_CREATE_DEFAULT_SUPERUSER "$host_install_conf_path")" = "true" ]; then
-    echo "Ensuring default Django superuser exists"
-    compose_with_env_exec -f "$compose_file" exec -T "$APP_SERVICE" bash -lc \
-      "cd '$APP_INSTALL_PATH' && source virtualenv/bin/activate && python manage.py ensure_default_superuser"
-fi
-
-prepare_app_mount_permissions
-
-echo "Marking installation as ready"
-compose_with_env_exec -f "$compose_file" exec -T "$APP_SERVICE" bash -lc "touch '$APP_READY_FILE'"
-
-echo
-echo "PathoCore API container installation finished."
-echo "Running services and published ports:"
-compose_with_env_exec -f "$compose_file" ps
-echo "App URL: http://${PATHOCORE_API_BIND_HOST}:${PATHOCORE_API_PORT}/swagger/"
-echo "Useful commands:"
-echo "  ${COMPOSE_CMD[*]} --env-file .env.prod.file -f $compose_file logs -f app"
-echo "  ${COMPOSE_CMD[*]} --env-file .env.prod.file -f $compose_file exec app bash"
+# 12. Execute the common smoke dispatcher with generated profile checks.
+smoke_args=(--engine "$engine" --compose_file "$compose_file" --env_file "$compose_env_file")
+[ "$mode" = test ] && smoke_args+=(--test)
+bash "$script_dir/scripts/smoke_test.sh" "${smoke_args[@]}"
+echo "$action completed successfully for $APPLICATION_NAME."
+print_service_summary
