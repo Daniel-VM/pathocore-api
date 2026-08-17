@@ -299,11 +299,11 @@ bootstrap_service() {
     esac
 }
 
-# PathoCore accepts an explicit data-only SQL seed for its disposable test
-# database. Schema and migration history remain owned by Django migrations.
+# PathoCore accepts an explicit data-only SQL seed for fresh test or production
+# installs. Schema and migration history remain owned by Django migrations.
 application_supports_test_data=true
 load_test_deployment_data() {
-    local db_service db_container db_user db_password db_name status
+    local app_container app_install_path container_seed status
 
     if [ "$skip_demo_data" = true ] \
         || { [ "$mode" = test ] && [ "$skip_test_data" = true ]; }; then
@@ -314,34 +314,18 @@ load_test_deployment_data() {
         echo "No PathoCore SQL seed was provided; skipping import"
         return 0
     fi
-    [ "$mode" = test ] \
-        || die "PathoCore SQL seed import is supported only by the disposable test stack"
+    app_container="$(current_service_container app)" \
+        || die "Unable to resolve the PathoCore application container"
+    app_install_path="$(service_install_path app)"
+    container_seed="/tmp/$(basename "$demo_data")"
 
-    db_service="$(service_environment_value app DB_HOST)"
-    service_exists "$db_service" \
-        || die "PathoCore SQL seed requires a Compose-managed database service: $db_service"
-    db_container="$(current_service_container "$db_service")" \
-        || die "Unable to resolve PathoCore database container: $db_service"
-    db_user="$(service_environment_value app DB_USER)"
-    db_password="$(service_environment_value app DB_PASSWORD)"
-    db_name="$(service_environment_value app DB_NAME)"
-
-    echo "Loading PathoCore SQL seed into test database $db_name"
+    echo "Loading PathoCore SQL seed into the configured application database"
+    engine_exec cp "$demo_data" "$app_container:$container_seed"
     status=0
-    case "$demo_data" in
-        *.sql.gz)
-            gzip -dc "$demo_data" \
-                | engine_exec exec -i "$db_container" env \
-                    "MYSQL_PWD=$db_password" mysql -u "$db_user" "$db_name" \
-                || status=$?
-            ;;
-        *.sql)
-            engine_exec exec -i "$db_container" env \
-                "MYSQL_PWD=$db_password" mysql -u "$db_user" "$db_name" \
-                < "$demo_data" || status=$?
-            ;;
-        *) die "PathoCore SQL seed must use .sql or .sql.gz" ;;
-    esac
+    engine_exec exec -w "$app_install_path" "$app_container" \
+        "$app_install_path/virtualenv/bin/python" manage.py \
+        import_sql_seed "$container_seed" || status=$?
+    engine_exec exec "$app_container" rm -f "$container_seed" || true
     [ "$status" -eq 0 ] || die "PathoCore SQL seed import failed"
 }
 
@@ -409,8 +393,6 @@ fi
 if [ -n "$demo_data" ]; then
     [ -f "$demo_data" ] || die "Demo-data file not found: $demo_data"
     demo_data="$(cd "$(dirname "$demo_data")" && pwd)/$(basename "$demo_data")"
-    [ "$mode" = test ] \
-        || die "PathoCore SQL seed import is supported only by the disposable test stack"
     case "$demo_data" in
         *.sql|*.sql.gz) ;;
         *) die "PathoCore SQL seed must use .sql or .sql.gz" ;;
