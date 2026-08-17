@@ -562,11 +562,63 @@ use `keycloak_db_data` as the authoritative identity backup.
 
 ## Final configuration steps
 
-The application developer must document real post-install workflows here:
-initial administrator ownership, email delivery, identity-provider clients,
-storage credentials, scheduled jobs, and one representative user workflow.
-The generated baseline creates the initial Django administrator only when its
-profile settings explicitly request it.
+Complete these checks with reviewed non-production identities before accepting
+a new installation. Set `PUBLIC_URL` to the externally visible PathoCore base
+URL and obtain a valid access token from the configured Keycloak client.
+
+1. Verify the unauthenticated deployment health endpoint:
+
+   ```bash
+   PUBLIC_URL='https://pathocore-api.example.org'
+   curl --fail --show-error "$PUBLIC_URL/health/"
+   ```
+
+2. Confirm that `/swagger/` rejects anonymous access, then opens successfully
+   for an authenticated user:
+
+   ```bash
+   curl --output /dev/null --silent --write-out '%{http_code}\n' \
+     "$PUBLIC_URL/swagger/"
+   ACCESS_TOKEN='<reviewed-user-access-token>'
+   curl --fail --show-error --header "Authorization: Bearer $ACCESS_TOKEN" \
+     "$PUBLIC_URL/swagger/" >/dev/null
+   ```
+
+3. Validate OIDC token verification and inspect the derived Keycloak groups,
+   use-case roles, and laboratory permissions:
+
+   ```bash
+   curl --fail --show-error \
+     --header "Authorization: Bearer $ACCESS_TOKEN" \
+     "$PUBLIC_URL/v1/auth/me"
+   ```
+
+4. Exercise the access-request workflow from `/swagger/`: load the public
+   `GET /v1/access-requests/catalog`, submit a controlled request with
+   `POST /v1/access-requests`, and approve it with a reviewer token. Confirm
+   that PathoCore creates or enables the Keycloak user, assigns the expected
+   `/use-cases/...` group, and allows the approved token to access that scope.
+
+5. Confirm SMTP delivery to both the requester and configured administrators
+   during the controlled access-request workflow. Check the SMTP relay and
+   application logs as well as the recipient inboxes; PathoCore notifications
+   use `fail_silently=True`, so API success alone does not prove delivery.
+
+6. Run both cache refreshes once and inspect their output. Then confirm the
+   Friday 12:00 job is present in the container and writes to
+   `logs/crontab.log`:
+
+   ```bash
+   podman compose --env-file .env.production.file -f docker-compose.prod.yml \
+     exec app bash -lc \
+     'cd "$INSTALL_PATH" && source virtualenv/bin/activate && python manage.py refresh_databrowser_cache && python manage.py refresh_use_case_cache'
+   podman compose --env-file .env.production.file -f docker-compose.prod.yml \
+     exec app bash -lc 'cat "$INSTALL_PATH/cron/pathocore-api"'
+   ```
+
+Record the tested revision, public URL, Keycloak realm/client, test identity,
+email evidence, cache result, and acceptance owner without storing tokens or
+credentials in the report.
 
 ## Developer notes
 
