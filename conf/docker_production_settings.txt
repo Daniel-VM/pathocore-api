@@ -30,8 +30,8 @@ APP_UID='1212'
 APP_GID='1212'
 # Production services should normally use a non-login shell. Example: /sbin/nologin
 APP_SHELL='/sbin/nologin'
-# Internal application port used by Gunicorn and the reverse proxy. Example: 8001
-APP_PORT='8001'
+# Application port published on host loopback and used by Gunicorn. Example: 8301
+APP_PORT='8301'
 
 ### Persistent host sources
 # Documents use the Compose-managed app_documents named volume.
