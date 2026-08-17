@@ -14,7 +14,7 @@ abajo con valores o referencias institucionales verificadas.
 - [Configurar los ajustes de produccion](#configurar-los-ajustes-de-produccion)
 - [Preparar directorios persistentes del host](#preparar-directorios-persistentes-del-host)
 - [Backup antes de actualizar](#backup-antes-de-actualizar)
-- [Ejecutar la actualizacion](#ejecutar-la-actualizacion)
+- [Ejecutar la primera instalacion o una actualizacion](#ejecutar-la-primera-instalacion-o-una-actualizacion)
 - [Comprobaciones posteriores](#comprobaciones-posteriores)
 - [Rollback](#rollback)
 - [Reparar permisos](#reparar-permisos)
@@ -239,14 +239,71 @@ sha256sum "$BACKUP_DIR"/* > "$BACKUP_DIR/SHA256SUMS"
 No continuar hasta verificar los ficheros, espacio disponible y procedimiento
 de restauracion.
 
-## Ejecutar la actualizacion
+## Ejecutar la primera instalacion o una actualizacion
 
-Ejecutar el comando de instalación/upgrade:
+### Primera instalacion local desde el dump completo
+
+El fichero `../pathocore_api_testing_seed.mepram_enriched_20260610_093035.sql`
+es un dump completo: contiene tablas, datos y el historial
+`django_migrations`. No usarlo con `--demo_data`, que admite exclusivamente SQL
+data-only despues de ejecutar las migraciones.
+
+Crear primero la base de datos externa local que coincide con
+`deployment/settings/app_production_settings.txt`:
+
+```bash
+podman volume create pathocore_api_local_db
+podman run -d \
+  --name pathocore-api-local-db \
+  --restart unless-stopped \
+  --publish 127.0.0.1:8607:3306 \
+  --env MYSQL_DATABASE=pathocore_api \
+  --env MYSQL_USER=django \
+  --env MYSQL_PASSWORD=djangopass \
+  --env MYSQL_ROOT_PASSWORD=root \
+  --volume pathocore_api_local_db:/var/lib/mysql \
+  docker.io/library/mysql:8.0 \
+  --default-authentication-plugin=mysql_native_password
+
+until podman exec pathocore-api-local-db \
+  mysqladmin ping -h 127.0.0.1 -udjango -pdjangopass --silent; do sleep 2; done
+
+podman exec -i pathocore-api-local-db \
+  mysql -udjango -pdjangopass pathocore_api \
+  < ../pathocore_api_testing_seed.mepram_enriched_20260610_093035.sql
+```
+
+La importacion se realiza una sola vez sobre un volumen vacio. Ejecutar despues
+la instalacion inicial con `--skip_tables`, porque el dump ya contiene las
+tablas y datos iniciales. `install` conserva el historial restaurado, comprueba
+las migraciones y aplica unicamente las posteriores al dump:
+
+```bash
+bash container_install.sh --action install --engine podman \
+  --git_revision <revision-aprobada> \
+  --skip_tables --skip_demo_data \
+  --install_conf_map app,deployment/settings/app_production_settings.txt \
+  --install_conf_map apache,deployment/settings/apache_production_settings.txt \
+  --install_conf_map keycloak,deployment/settings/keycloak_production_settings.txt \
+  2>&1 | tee "$(date +%Y%m%d_%H%M%S)_prod_install.log"
+```
+
+Detenerse si la comprobacion de migraciones indica que el historial del dump no
+corresponde a la revision seleccionada; no usar `--fake` para ocultar esa
+diferencia.
+
+### Actualizaciones posteriores
+
+No volver a importar el dump ni cargar las tablas iniciales durante una
+actualizacion:
 
 ```bash
 bash container_install.sh --action upgrade --engine podman \
   --git_revision <nueva-revision-aprobada> \
-  --install_conf_map app,deployment/settings/app_production_settings.txt --install_conf_map apache,deployment/settings/apache_production_settings.txt --install_conf_map keycloak,deployment/settings/keycloak_production_settings.txt 2>&1 | tee "$(date +%Y%m%d_%H%M%S)_prod_install.log"
+  --install_conf_map app,deployment/settings/app_production_settings.txt \
+  --install_conf_map apache,deployment/settings/apache_production_settings.txt \
+  --install_conf_map keycloak,deployment/settings/keycloak_production_settings.txt \
+  2>&1 | tee "$(date +%Y%m%d_%H%M%S)_prod_install.log"
 ```
 
 Durante `--action upgrade`, `container_install.sh`:
