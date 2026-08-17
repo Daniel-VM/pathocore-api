@@ -9,6 +9,32 @@ OpenAPI documentation, with project and laboratory access derived from
 Keycloak groups. Deployment supports Docker, Podman, and reviewed bare-metal
 installations through the BU-ISCIII deployment standard.
 
+```mermaid
+flowchart LR
+    client[Web applications and API clients]
+
+    subgraph deployment[PathoCore deployment]
+        apache[Apache reverse proxy]
+        api[PathoCore Django REST API]
+        scheduler[Supercronic scheduler]
+        keycloak[Keycloak identity service]
+        keycloak_db[(Keycloak MySQL data)]
+    end
+
+    app_db[(PathoCore application database)]
+    smtp[SMTP service]
+
+    client -->|REST, OpenAPI and health| apache
+    client -->|OIDC authentication| apache
+    apache -->|API routes| api
+    apache -->|Identity routes| keycloak
+    api -->|Samples, metadata and cached summaries| app_db
+    api -->|Validate tokens and manage approved access| keycloak
+    keycloak --> keycloak_db
+    api -.->|Notifications| smtp
+    scheduler -->|Refresh DataBrowser caches| api
+```
+
 For bugs, deployment problems, or feature requests, open an issue in the
 [PathoCore API issue tracker](https://github.com/BU-ISCIII/pathocore-api/issues).
 Do not include credentials, tokens, patient data, or other sensitive deployment
