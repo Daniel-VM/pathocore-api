@@ -393,7 +393,6 @@ settings files, and backup identifiers.
 
 ```bash
 BACKUP_DIR="/srv/containers/backup/pathocore-api/$(date +%Y%m%d_%H%M%S)"
-SETTINGS_FILE='deployment/settings/app_production_settings.txt'
 DOCUMENTS_VOLUME='CHANGE_ME'
 DB_HOST='CHANGE_ME'
 DB_PORT='3306'
@@ -401,7 +400,10 @@ DB_NAME='CHANGE_ME'
 DB_USER='CHANGE_ME'
 mkdir -p "$BACKUP_DIR"
 git rev-parse HEAD > "$BACKUP_DIR/git-revision.txt"
-cp .env.production.file "$SETTINGS_FILE" "$BACKUP_DIR/"
+cp .env.production.file "$BACKUP_DIR/"
+cp deployment/settings/app_production_settings.txt "$BACKUP_DIR/"
+cp deployment/settings/apache_production_settings.txt "$BACKUP_DIR/"
+cp deployment/settings/keycloak_production_settings.txt "$BACKUP_DIR/"
 chmod -R go-rwx "$BACKUP_DIR"
 
 mysqldump --single-transaction --routines --triggers \
@@ -456,6 +458,10 @@ mysql --host="$DB_HOST" --port="$DB_PORT" --user="$DB_USER" --password \
   "$DB_NAME" < "$BACKUP_DIR/database.sql"
 podman volume import "$DOCUMENTS_VOLUME" "$BACKUP_DIR/documents.tar"
 tar -C /srv/containers/bind -xzf "$BACKUP_DIR/bind-mounts.tar.gz"
+install -d -m 0700 deployment/settings
+install -m 0600 "$BACKUP_DIR/app_production_settings.txt" deployment/settings/app_production_settings.txt
+install -m 0600 "$BACKUP_DIR/apache_production_settings.txt" deployment/settings/apache_production_settings.txt
+install -m 0600 "$BACKUP_DIR/keycloak_production_settings.txt" deployment/settings/keycloak_production_settings.txt
 bash container_install.sh --action fix-permissions --engine podman \
   --install_conf_map app,deployment/settings/app_production_settings.txt --install_conf_map apache,deployment/settings/apache_production_settings.txt --install_conf_map keycloak,deployment/settings/keycloak_production_settings.txt
 ```
