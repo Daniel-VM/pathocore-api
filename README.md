@@ -143,6 +143,20 @@ The same explicit `--demo_data <path>` input may be used on a fresh production
 install when an application needs a controlled seed import. Production never
 selects or loads demo data by default, and upgrades never reload it.
 
+PathoCore accepts `.sql` and `.sql.gz` data-only seeds for the disposable test
+database. The seed must match the checked-out migrations and must not create or
+replace schema or `django_migrations` history:
+
+```bash
+bash container_install.sh --test --action install --engine docker \
+  --demo_data /path/to/pathocore-test-data.sql.gz
+```
+
+Use `--skip_tables` as well when a reviewed seed already contains the initial
+PathoCore reference rows. Direct SQL seed import is intentionally rejected for
+production deployments, which require the operator-owned database restore
+procedure.
+
 For an automatic first administrator, set `CREATE_INITIAL_SUPERUSER=true` and
 the `DJANGO_SUPERUSER_*` values in the selected test settings before install.
 An existing account is never reset. Open the loopback URL using `APP_PORT` from
