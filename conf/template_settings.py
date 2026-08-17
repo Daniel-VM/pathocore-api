@@ -5,21 +5,35 @@ project behavior here; deployment-specific values are replaced from the
 selected production or test installation settings file.
 """
 
+import json
 import os
 from pathlib import Path
 
 
 def env_bool(name, default=False):
     """Read a conventional boolean environment variable."""
-    value = os.environ.get(name)
-    if value is None:
-        return default
-    return value.strip().lower() in {"1", "true", "yes", "on"}
+    value = os.environ.get(name, default)
+    if isinstance(value, bool):
+        return value
+    return str(value).strip().lower() in {"1", "true", "yes", "on"}
 
 
 def env_list(name, default=""):
     """Read a comma-separated environment variable as a clean list."""
     return [item.strip() for item in os.environ.get(name, default).split(",") if item.strip()]
+
+
+def env_json(name, default):
+    """Read a JSON environment value, falling back to a safe default."""
+    value = os.environ.get(name, default)
+    if not isinstance(value, str):
+        return value
+    if not value:
+        return []
+    try:
+        return json.loads(value)
+    except json.JSONDecodeError:
+        return []
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -50,6 +64,9 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
+    "core.apps.CoreConfig",
+    "rest_framework",
+    "drf_spectacular",
 ]
 
 # Optional application display metadata. Define the exact structure consumed
@@ -118,9 +135,10 @@ AUTH_PASSWORD_VALIDATORS = [
 ]
 
 LANGUAGE_CODE = "en-us"
-TIME_ZONE = "Europe/Madrid"
+TIME_ZONE = "UTC"
 USE_I18N = True
-USE_TZ = True
+USE_L10N = True
+USE_TZ = False
 
 STATIC_URL = "/static/"
 STATIC_ROOT = BASE_DIR / "static"
@@ -133,6 +151,9 @@ EMAIL_PORT = emailport
 EMAIL_HOST_USER = "emailhostuser"
 EMAIL_HOST_PASSWORD = "emailhostpassword"
 EMAIL_USE_TLS = emailhosttls
+DEFAULT_FROM_EMAIL = os.environ.get(
+    "DEFAULT_FROM_EMAIL", settingsconf_DEFAULT_FROM_EMAIL
+)
 
 # Optional django-crontab configuration. Enable "django_crontab" in
 # INSTALLED_APPS before activating these settings.
@@ -155,21 +176,67 @@ EMAIL_USE_TLS = emailhosttls
 # Generic values generated for Django services that declare "API": true.
 # Application code decides which CORS, throttling and documentation packages
 # consume them; the deployment standard does not force a specific API library.
-API_CORS_ALLOWED_ORIGINS = env_list("API_CORS_ALLOWED_ORIGINS")
-API_THROTTLE_RATE = os.environ.get("API_THROTTLE_RATE", "500/hour")
-API_DOCS_REQUIRE_STAFF = env_bool("API_DOCS_REQUIRE_STAFF", True)
+API_CORS_ALLOWED_ORIGINS = env_list(
+    "API_CORS_ALLOWED_ORIGINS", settingsconf_API_CORS_ALLOWED_ORIGINS
+)
+API_THROTTLE_RATE = os.environ.get(
+    "API_THROTTLE_RATE", settingsconf_API_THROTTLE_RATE
+)
+API_DOCS_REQUIRE_STAFF = env_bool(
+    "API_DOCS_REQUIRE_STAFF", settingsconf_API_DOCS_REQUIRE_STAFF
+)
 
 # Generic relying-party values generated for the application selected by the
 # Keycloak add-on. Application authentication code consumes these OIDC values.
-OIDC_AUTH_REQUIRED = env_bool("OIDC_AUTH_REQUIRED", False)
-OIDC_ISSUER = os.environ.get("OIDC_ISSUER", "")
-OIDC_JWKS_URL = os.environ.get("OIDC_JWKS_URL", "")
-OIDC_AUDIENCE = os.environ.get("OIDC_AUDIENCE", "")
-OIDC_CLIENT_ID = os.environ.get("OIDC_CLIENT_ID", "")
+OIDC_AUTH_REQUIRED = env_bool("OIDC_AUTH_REQUIRED", settingsconf_OIDC_AUTH_REQUIRED)
+OIDC_ISSUER = os.environ.get("OIDC_ISSUER", settingsconf_OIDC_ISSUER)
+OIDC_JWKS_URL = os.environ.get("OIDC_JWKS_URL", settingsconf_OIDC_JWKS_URL)
+OIDC_AUDIENCE = os.environ.get("OIDC_AUDIENCE", settingsconf_OIDC_AUDIENCE)
+OIDC_CLIENT_ID = os.environ.get("OIDC_CLIENT_ID", settingsconf_OIDC_CLIENT_ID)
 OIDC_JWKS_CACHE_TTL_SECONDS = int(
-    os.environ.get("OIDC_JWKS_CACHE_TTL_SECONDS", "300")
+    os.environ.get(
+        "OIDC_JWKS_CACHE_TTL_SECONDS", settingsconf_OIDC_JWKS_CACHE_TTL_SECONDS
+    )
 )
-OIDC_JWKS_TIMEOUT_SECONDS = int(os.environ.get("OIDC_JWKS_TIMEOUT_SECONDS", "5"))
+OIDC_JWKS_TIMEOUT_SECONDS = int(
+    os.environ.get("OIDC_JWKS_TIMEOUT_SECONDS", settingsconf_OIDC_JWKS_TIMEOUT_SECONDS)
+)
+
+KEYCLOAK_ADMIN_API_BASE_URL = os.environ.get(
+    "KEYCLOAK_ADMIN_API_BASE_URL", settingsconf_KEYCLOAK_ADMIN_API_BASE_URL
+)
+KEYCLOAK_ADMIN_API_REALM = os.environ.get(
+    "KEYCLOAK_ADMIN_API_REALM", settingsconf_KEYCLOAK_ADMIN_API_REALM
+)
+KEYCLOAK_ADMIN_API_TOKEN_REALM = os.environ.get(
+    "KEYCLOAK_ADMIN_API_TOKEN_REALM", settingsconf_KEYCLOAK_ADMIN_API_TOKEN_REALM
+)
+KEYCLOAK_ADMIN_API_CLIENT_ID = os.environ.get(
+    "KEYCLOAK_ADMIN_API_CLIENT_ID", settingsconf_KEYCLOAK_ADMIN_API_CLIENT_ID
+)
+KEYCLOAK_ADMIN_API_CLIENT_SECRET = os.environ.get(
+    "KEYCLOAK_ADMIN_API_CLIENT_SECRET", settingsconf_KEYCLOAK_ADMIN_API_CLIENT_SECRET
+)
+KEYCLOAK_ADMIN_API_USERNAME = os.environ.get(
+    "KEYCLOAK_ADMIN_API_USERNAME", settingsconf_KEYCLOAK_ADMIN_API_USERNAME
+)
+KEYCLOAK_ADMIN_API_PASSWORD = os.environ.get(
+    "KEYCLOAK_ADMIN_API_PASSWORD", settingsconf_KEYCLOAK_ADMIN_API_PASSWORD
+)
+KEYCLOAK_ADMIN_API_TIMEOUT_SECONDS = int(
+    os.environ.get(
+        "KEYCLOAK_ADMIN_API_TIMEOUT_SECONDS",
+        settingsconf_KEYCLOAK_ADMIN_API_TIMEOUT_SECONDS,
+    )
+)
+KEYCLOAK_ADMIN_API_SEND_ACTION_EMAILS = env_bool(
+    "KEYCLOAK_ADMIN_API_SEND_ACTION_EMAILS",
+    settingsconf_KEYCLOAK_ADMIN_API_SEND_ACTION_EMAILS,
+)
+KEYCLOAK_ADMIN_API_ACTION_EMAIL_REDIRECT_URI = os.environ.get(
+    "KEYCLOAK_ADMIN_API_ACTION_EMAIL_REDIRECT_URI",
+    settingsconf_KEYCLOAK_ADMIN_API_ACTION_EMAIL_REDIRECT_URI,
+)
 
 # PathoCore's authentication backend predates the shared deployment contract
 # and reads these Django setting names. Keep the application code stable while
@@ -181,5 +248,93 @@ KEYCLOAK_AUDIENCE = OIDC_AUDIENCE
 KEYCLOAK_CLIENT_ID = OIDC_CLIENT_ID
 KEYCLOAK_JWKS_CACHE_TTL_SECONDS = OIDC_JWKS_CACHE_TTL_SECONDS
 KEYCLOAK_JWKS_TIMEOUT_SECONDS = OIDC_JWKS_TIMEOUT_SECONDS
+
+# Public endpoint and Keycloak administration behavior remain PathoCore-owned;
+# only token validation uses the shared OIDC deployment contract.
+PATHOCORE_ENABLE_PUBLIC_READ_ENDPOINTS = env_bool(
+    "PATHOCORE_ENABLE_PUBLIC_READ_ENDPOINTS",
+    settingsconf_PATHOCORE_ENABLE_PUBLIC_READ_ENDPOINTS,
+)
+KEYCLOAK_REALM = KEYCLOAK_ADMIN_API_REALM
+KEYCLOAK_ADMIN_BASE_URL = KEYCLOAK_ADMIN_API_BASE_URL
+KEYCLOAK_ADMIN_TOKEN_REALM = KEYCLOAK_ADMIN_API_TOKEN_REALM
+KEYCLOAK_ADMIN_CLIENT_ID = KEYCLOAK_ADMIN_API_CLIENT_ID
+KEYCLOAK_ADMIN_CLIENT_SECRET = KEYCLOAK_ADMIN_API_CLIENT_SECRET
+KEYCLOAK_ADMIN_USERNAME = KEYCLOAK_ADMIN_API_USERNAME
+KEYCLOAK_ADMIN_PASSWORD = KEYCLOAK_ADMIN_API_PASSWORD
+KEYCLOAK_ADMIN_REQUEST_TIMEOUT_SECONDS = KEYCLOAK_ADMIN_API_TIMEOUT_SECONDS
+KEYCLOAK_ADMIN_SEND_ACTION_EMAILS = KEYCLOAK_ADMIN_API_SEND_ACTION_EMAILS
+KEYCLOAK_ADMIN_ACTION_EMAIL_REDIRECT_URI = (
+    KEYCLOAK_ADMIN_API_ACTION_EMAIL_REDIRECT_URI
+)
+
+PATHOCORE_ACCESS_REQUEST_USE_CASES = env_json(
+    "PATHOCORE_ACCESS_REQUEST_USE_CASES",
+    settingsconf_PATHOCORE_ACCESS_REQUEST_USE_CASES,
+)
+PATHOCORE_ACCESS_REQUEST_ADMIN_EMAILS = env_list(
+    "PATHOCORE_ACCESS_REQUEST_ADMIN_EMAILS",
+    settingsconf_PATHOCORE_ACCESS_REQUEST_ADMIN_EMAILS,
+)
+
+REST_FRAMEWORK = {
+    "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
+    "EXCEPTION_HANDLER": "core.api.exceptions.pathocore_exception_handler",
+    "DEFAULT_AUTHENTICATION_CLASSES": [
+        "core.api.authentication.AdminBasicOrSessionAuthentication",
+        "core.api.authentication.KeycloakJWTAuthentication",
+    ]
+    + (
+        ["core.api.authentication.LegacyBasicOrSessionAuthentication"]
+        if PATHOCORE_ENABLE_LEGACY_BASIC_AUTH
+        else []
+    ),
+    "DEFAULT_PERMISSION_CLASSES": ["rest_framework.permissions.IsAuthenticated"],
+    "DEFAULT_THROTTLE_CLASSES": [
+        "rest_framework.throttling.AnonRateThrottle",
+        "rest_framework.throttling.UserRateThrottle",
+    ],
+    "DEFAULT_THROTTLE_RATES": {
+        "anon": API_THROTTLE_RATE,
+        "user": API_THROTTLE_RATE,
+    },
+}
+
+SPECTACULAR_SETTINGS = {
+    "TITLE": "PathoCore API",
+    "DESCRIPTION": (
+        "PathoCore API for schema management, sample ingestion, metadata ingestion, "
+        "and search/discovery endpoints used by multiple client projects."
+    ),
+    "VERSION": "v1",
+    "CONTACT": {"name": "PathoCore API Team"},
+    "SERVE_INCLUDE_SCHEMA": True,
+    "GENERIC_ADDITIONAL_PROPERTIES": "dict",
+    "COMPONENT_SPLIT_REQUEST": True,
+    "SORT_OPERATIONS": False,
+    "SECURITY": [{"bearerAuth": []}, {"adminBasicAuth": []}]
+    + ([{"basicAuth": []}] if PATHOCORE_ENABLE_LEGACY_BASIC_AUTH else []),
+    "SCHEMA_PATH_PREFIX": "/v1",
+    "SCHEMA_PATH_PREFIX_TRIM": True,
+    "SERVERS": [{"url": "/v1", "description": "PathoCore API v1"}],
+    "TAGS": [
+        {"name": "Schemas", "description": "Upload, list and inspect JSON Schemas."},
+        {"name": "Samples", "description": "Create and list samples."},
+        {"name": "Sample Metadata", "description": "Ingest and query sample metadata."},
+        {"name": "Sample History", "description": "Inspect sample state transitions."},
+    ],
+}
+
+# Compatibility settings retained pending an application-level review.
+X_FRAME_OPTIONS = "SAMEORIGIN"
+ASGI_APPLICATION = "conf.asgi.application"
+SWAGGER_SETTINGS = {
+    "SECURITY_DEFINITIONS": {
+        "adminBasicAuth": {"type": "basic"},
+        "basic": {"type": "basic"},
+        "bearerAuth": {"type": "apiKey", "name": "Authorization", "in": "header"},
+    }
+}
+LOGIN_REDIRECT_URL = "/intranet/"
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"

@@ -54,12 +54,28 @@ OIDC_CLIENT_ID='test-client'
 OIDC_JWKS_CACHE_TTL_SECONDS='300'
 OIDC_JWKS_TIMEOUT_SECONDS='5'
 
+### PathoCore authorization and Keycloak administration
+PATHOCORE_ENABLE_PUBLIC_READ_ENDPOINTS='true'
+PATHOCORE_ACCESS_REQUEST_USE_CASES='[{"name":"mepram","label":"MEPRAM","labs":[]},{"name":"relecov","label":"RELECOV","labs":[]},{"name":"redlabra","label":"RedLaBRA","labs":[]},{"name":"ai-models","label":"AI Models","labs":[]}]'
+PATHOCORE_ACCESS_REQUEST_ADMIN_EMAILS=''
+KEYCLOAK_ADMIN_API_BASE_URL='http://keycloak:8080'
+KEYCLOAK_ADMIN_API_REALM='test'
+KEYCLOAK_ADMIN_API_TOKEN_REALM='master'
+KEYCLOAK_ADMIN_API_CLIENT_ID='admin-cli'
+KEYCLOAK_ADMIN_API_CLIENT_SECRET=''
+KEYCLOAK_ADMIN_API_USERNAME='admin'
+KEYCLOAK_ADMIN_API_PASSWORD='admin'
+KEYCLOAK_ADMIN_API_TIMEOUT_SECONDS='10'
+KEYCLOAK_ADMIN_API_SEND_ACTION_EMAILS='false'
+KEYCLOAK_ADMIN_API_ACTION_EMAIL_REDIRECT_URI=''
+
 ### Local email defaults
 EMAIL_HOST='host.docker.internal'
 EMAIL_PORT='25'
 EMAIL_HOST_USER='bioinformatica@isciii.es'
 EMAIL_HOST_PASSWORD=''
 EMAIL_USE_TLS='False'
+DEFAULT_FROM_EMAIL='pathocore-api@localhost'
 
 ### Initial administrator (bootstrap install only)
 CREATE_INITIAL_SUPERUSER='false'

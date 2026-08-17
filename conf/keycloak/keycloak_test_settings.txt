@@ -2,17 +2,30 @@
 # Used only when ADDONS.keycloak selects this application as CONFIG_SERVICE.
 # These values are disposable and must never be reused in production.
 
+# Disposable Keycloak database/schema name. Example: keycloak
 KEYCLOAK_DB_NAME='keycloak'
+# Disposable least-privilege database user. Example: keycloak
 KEYCLOAK_DB_USER='keycloak'
+# Disposable database-user password. Example: keycloak_password
 KEYCLOAK_DB_PASSWORD='keycloak_password'
+# Disposable database initialization root password. Example: root
 KEYCLOAK_DB_ROOT_PASSWORD='root'
+# Host loopback port exposing the test database for diagnostics. Example: 6607
 KEYCLOAK_DB_PORT_HOST='6607'
 
+# Exact browser-facing URL for the disposable Keycloak service.
+# Example: http://127.0.0.1:8081
 KEYCLOAK_PUBLIC_URL='http://127.0.0.1:8081'
+# Host loopback port exposing Keycloak. Example: 8081
 KEYCLOAK_PORT='8081'
+# Disposable server-bootstrap administrator username. Example: admin
 KEYCLOAK_ADMIN='admin'
+# Disposable server-bootstrap administrator password. Example: admin
 KEYCLOAK_ADMIN_PASSWORD='admin'
 
 # Repository source is staged into a disposable test bind directory.
+# Repository-owned realm JSON directory. Example: ./conf/keycloak/realm-import
 KEYCLOAK_REALM_SOURCE_PATH='./conf/keycloak/realm-import'
+# Disposable read-only realm-import staging directory.
+# Example: /tmp/example-app/data/keycloak/realm-import
 KEYCLOAK_IMPORT_PATH='/tmp/pathocore-api/data/keycloak/realm-import'

@@ -93,6 +93,21 @@ OIDC_CLIENT_ID='CHANGE_ME'
 OIDC_JWKS_CACHE_TTL_SECONDS='300'
 OIDC_JWKS_TIMEOUT_SECONDS='5'
 
+### PathoCore authorization and Keycloak administration
+PATHOCORE_ENABLE_PUBLIC_READ_ENDPOINTS='true'
+PATHOCORE_ACCESS_REQUEST_USE_CASES='[{"name":"mepram","label":"MEPRAM","labs":[]},{"name":"relecov","label":"RELECOV","labs":[]},{"name":"redlabra","label":"RedLaBRA","labs":[]},{"name":"ai-models","label":"AI Models","labs":[]}]'
+PATHOCORE_ACCESS_REQUEST_ADMIN_EMAILS=''
+KEYCLOAK_ADMIN_API_BASE_URL='https://CHANGE_ME'
+KEYCLOAK_ADMIN_API_REALM='CHANGE_ME'
+KEYCLOAK_ADMIN_API_TOKEN_REALM='master'
+KEYCLOAK_ADMIN_API_CLIENT_ID='admin-cli'
+KEYCLOAK_ADMIN_API_CLIENT_SECRET=''
+KEYCLOAK_ADMIN_API_USERNAME=''
+KEYCLOAK_ADMIN_API_PASSWORD=''
+KEYCLOAK_ADMIN_API_TIMEOUT_SECONDS='10'
+KEYCLOAK_ADMIN_API_SEND_ACTION_EMAILS='true'
+KEYCLOAK_ADMIN_API_ACTION_EMAIL_REDIRECT_URI=''
+
 ### Email
 # SMTP endpoint reachable from the application container. Example: smtp.example.org
 EMAIL_HOST='CHANGE_ME'
@@ -105,6 +120,7 @@ EMAIL_HOST_PASSWORD='CHANGE_ME'
 # Python boolean spelling is used because settings rendering writes this value
 # directly into settings.py. Example: True for STARTTLS on port 587.
 EMAIL_USE_TLS='False'
+DEFAULT_FROM_EMAIL='pathocore-api@localhost'
 
 ### Initial administrator (bootstrap install only)
 # Opt in only when a fresh installation should create its first Django
