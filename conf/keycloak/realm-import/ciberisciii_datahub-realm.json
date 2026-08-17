@@ -1,0 +1,417 @@
+{
+  "realm": "ciberisciii_datahub",
+  "enabled": true,
+  "registrationAllowed": false,
+  "groups": [
+    {
+      "name": "superusers"
+    },
+    {
+      "name": "use-cases",
+      "subGroups": [
+        {
+          "name": "mepram",
+          "subGroups": [
+            {
+              "name": "view"
+            },
+            {
+              "name": "admin"
+            }
+          ]
+        },
+        {
+          "name": "relecov",
+          "subGroups": [
+            {
+              "name": "view"
+            },
+            {
+              "name": "admin"
+            }
+          ]
+        },
+        {
+          "name": "redlabra",
+          "subGroups": [
+            {
+              "name": "view"
+            },
+            {
+              "name": "admin"
+            }
+          ]
+        },
+        {
+          "name": "ai-models",
+          "subGroups": [
+            {
+              "name": "view"
+            },
+            {
+              "name": "admin"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "clientScopes": [
+    {
+      "name": "pathocore-common",
+      "protocol": "openid-connect",
+      "attributes": {
+        "display.on.consent.screen": "false",
+        "include.in.token.scope": "true"
+      },
+      "protocolMappers": [
+        {
+          "name": "preferred username",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-property-mapper",
+          "consentRequired": false,
+          "config": {
+            "user.attribute": "username",
+            "claim.name": "preferred_username",
+            "jsonType.label": "String",
+            "access.token.claim": "true",
+            "id.token.claim": "true",
+            "userinfo.token.claim": "true"
+          }
+        },
+        {
+          "name": "given name",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-property-mapper",
+          "consentRequired": false,
+          "config": {
+            "user.attribute": "firstName",
+            "claim.name": "given_name",
+            "jsonType.label": "String",
+            "access.token.claim": "true",
+            "id.token.claim": "true",
+            "userinfo.token.claim": "true"
+          }
+        },
+        {
+          "name": "family name",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-property-mapper",
+          "consentRequired": false,
+          "config": {
+            "user.attribute": "lastName",
+            "claim.name": "family_name",
+            "jsonType.label": "String",
+            "access.token.claim": "true",
+            "id.token.claim": "true",
+            "userinfo.token.claim": "true"
+          }
+        },
+        {
+          "name": "full name",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-full-name-mapper",
+          "consentRequired": false,
+          "config": {
+            "access.token.claim": "true",
+            "id.token.claim": "true",
+            "userinfo.token.claim": "true"
+          }
+        },
+        {
+          "name": "sub",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-sub-mapper",
+          "consentRequired": false,
+          "config": {
+            "access.token.claim": "true",
+            "id.token.claim": "true",
+            "userinfo.token.claim": "true"
+          }
+        },
+        {
+          "name": "groups",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-group-membership-mapper",
+          "consentRequired": false,
+          "config": {
+            "claim.name": "groups",
+            "full.path": "true",
+            "access.token.claim": "true",
+            "id.token.claim": "true",
+            "userinfo.token.claim": "true"
+          }
+        },
+        {
+          "name": "audience-pathocore-api",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.client.audience": "pathocore-api",
+            "access.token.claim": "true",
+            "id.token.claim": "false"
+          }
+        },
+        {
+          "name": "audience-mepram-api",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.client.audience": "mepram-api",
+            "access.token.claim": "true",
+            "id.token.claim": "false"
+          }
+        }
+      ]
+    }
+  ],
+  "users": [
+    {
+      "username": "mepram_admin",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "MEPRAM",
+      "lastName": "Admin",
+      "email": "mepram.admin@example.org",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "mepram_admin_pass",
+          "temporary": false
+        }
+      ],
+      "groups": [
+        "/use-cases/mepram/admin",
+        "/use-cases/relecov/view"
+      ]
+    },
+    {
+      "username": "mepram_viewer",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "MEPRAM",
+      "lastName": "Viewer",
+      "email": "mepram.viewer@example.org",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "mepram_viewer_pass",
+          "temporary": false
+        }
+      ],
+      "groups": [
+        "/use-cases/mepram/view"
+      ]
+    },
+    {
+      "username": "relecov_viewer",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "RELECOV",
+      "lastName": "Viewer",
+      "email": "relecov.viewer@example.org",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "relecov_viewer_pass",
+          "temporary": false
+        }
+      ],
+      "groups": [
+        "/use-cases/relecov/view"
+      ]
+    },
+    {
+      "username": "relecov_admin",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "RELECOV",
+      "lastName": "Admin",
+      "email": "relecov.admin@example.org",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "relecov_admin_pass",
+          "temporary": false
+        }
+      ],
+      "groups": [
+        "/use-cases/relecov/admin"
+      ]
+    },
+    {
+      "username": "redlabra_viewer",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "RedLabRa",
+      "lastName": "Viewer",
+      "email": "redlabra.viewer@example.org",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "redlabra_viewer_pass",
+          "temporary": false
+        }
+      ],
+      "groups": [
+        "/use-cases/redlabra/view"
+      ]
+    },
+    {
+      "username": "multi_viewer",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Multi",
+      "lastName": "Viewer",
+      "email": "multi.viewer@example.org",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "multi_viewer_pass",
+          "temporary": false
+        }
+      ],
+      "groups": [
+        "/use-cases/mepram/view",
+        "/use-cases/relecov/view"
+      ]
+    },
+    {
+      "username": "models_admin",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Models",
+      "lastName": "Admin",
+      "email": "models.admin@example.org",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "models_admin_pass",
+          "temporary": false
+        }
+      ],
+      "groups": [
+        "/use-cases/ai-models/admin"
+      ]
+    }
+  ],
+  "clients": [
+    {
+      "clientId": "pathocore-web",
+      "name": "PathoCore Web",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": true,
+      "bearerOnly": false,
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": true,
+      "serviceAccountsEnabled": false,
+      "authorizationServicesEnabled": false,
+      "defaultClientScopes": [
+        "profile",
+        "email",
+        "roles",
+        "web-origins",
+        "pathocore-common"
+      ],
+      "optionalClientScopes": [],
+      "redirectUris": [
+        "http://127.0.0.1:3000/auth/callback",
+        "http://localhost:3000/auth/callback",
+        "http://127.0.0.1:3001/auth/callback",
+        "http://localhost:3001/auth/callback",
+        "http://127.0.0.1:5173/auth/callback",
+        "http://localhost:5173/auth/callback"
+      ],
+      "webOrigins": [
+        "http://127.0.0.1:3000",
+        "http://localhost:3000",
+        "http://127.0.0.1:3001",
+        "http://localhost:3001",
+        "http://127.0.0.1:5173",
+        "http://localhost:5173"
+      ],
+      "attributes": {
+        "pkce.code.challenge.method": "S256"
+      }
+    },
+    {
+      "clientId": "pathocore-api",
+      "name": "PathoCore API",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "bearerOnly": true,
+      "standardFlowEnabled": false,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "authorizationServicesEnabled": false,
+      "defaultClientScopes": [
+        "profile",
+        "email",
+        "roles"
+      ],
+      "optionalClientScopes": []
+    },
+    {
+      "clientId": "ai-model-api",
+      "name": "AI Model API",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "bearerOnly": true,
+      "standardFlowEnabled": false,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "authorizationServicesEnabled": false,
+      "defaultClientScopes": [
+        "profile",
+        "email",
+        "roles"
+      ],
+      "optionalClientScopes": []
+    },
+    {
+      "clientId": "mepram-api",
+      "name": "MePRAM API",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "bearerOnly": true,
+      "standardFlowEnabled": false,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "authorizationServicesEnabled": false,
+      "defaultClientScopes": [
+        "profile",
+        "email",
+        "roles"
+      ],
+      "optionalClientScopes": []
+    }
+  ],
+  "smtpServer": {
+    "host": "mailpit",
+    "port": "1025",
+    "from": "no-reply@pathocore.local",
+    "fromDisplayName": "PathoCore",
+    "replyTo": "support@pathocore.local",
+    "replyToDisplayName": "PathoCore Support",
+    "auth": "false",
+    "ssl": "false",
+    "starttls": "false"
+  },
+  "ssoSessionIdleTimeout": 28800,
+  "ssoSessionMaxLifespan": 86400,
+  "clientSessionIdleTimeout": 28800,
+  "clientSessionMaxLifespan": 86400,
+  "accessTokenLifespan": 900,
+  "revokeRefreshToken": true,
+  "refreshTokenMaxReuse": 0
+}
