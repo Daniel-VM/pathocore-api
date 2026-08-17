@@ -26,6 +26,21 @@ from core.api.services import sample_metadata_ingestion
 from core.api.services import schema_ingestion
 from core.api.utils import access_control
 from core.api.v1.views import auth_me_view
+from core import cron
+
+
+class CronTests(SimpleTestCase):
+    @patch("core.cron.call_command")
+    def test_refresh_databrowser_caches(self, call_command_mock):
+        cron.refresh_databrowser_caches()
+
+        self.assertEqual(
+            call_command_mock.call_args_list,
+            [
+                (("refresh_databrowser_cache",), {}),
+                (("refresh_use_case_cache",), {}),
+            ],
+        )
 
 
 class AccessControlTests(SimpleTestCase):

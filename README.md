@@ -51,6 +51,8 @@ Services:
 | `app` | `django` | `.` | settings: `APP_PORT` |
 
 - Django services build with an ephemeral settings secret, render protected host settings, and run controlled migration/bootstrap steps.
+- Scheduled Django jobs run through Supercronic inside the application
+  container from the project's `CRONJOBS` setting.
 
 Selected add-ons:
 
@@ -194,9 +196,19 @@ request limits, timeouts, health paths, and static/media routing together.
 
 #### Scheduled jobs
 
-The application developer must list every scheduler/worker, whether a failed
-job blocks a workflow, and how operators inspect and retry it. Do not add an
-untracked host cron job when the application profile owns scheduling.
+PathoCore refreshes its DataBrowser and use-case summary caches every Friday at
+12:00 through `core.cron.refresh_databrowser_caches`. Container deployments run
+the job through Supercronic from the project's `CRONJOBS` setting and append
+output to `logs/crontab.log`. Retry either cache manually with:
+
+```bash
+python manage.py refresh_databrowser_cache
+python manage.py refresh_use_case_cache
+```
+
+For bare-metal deployments, register the same setting with
+`python manage.py crontab add` and verify it with
+`python manage.py crontab show`.
 
 ### Manage containers after installation
 

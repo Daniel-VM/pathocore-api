@@ -67,6 +67,7 @@ INSTALLED_APPS = [
     "core.apps.CoreConfig",
     "rest_framework",
     "drf_spectacular",
+    "django_crontab",
 ]
 
 # Optional application display metadata. Define the exact structure consumed
@@ -155,13 +156,18 @@ DEFAULT_FROM_EMAIL = os.environ.get(
     "DEFAULT_FROM_EMAIL", settingsconf_DEFAULT_FROM_EMAIL
 )
 
-# Optional django-crontab configuration. Enable "django_crontab" in
-# INSTALLED_APPS before activating these settings.
-# LOG_CRONTAB_FILE = BASE_DIR / "logs" / "crontab.log"
-# CRONJOBS = [
-#     ("*/15 * * * *", "your_app.cron.job", f">>{LOG_CRONTAB_FILE}"),
-# ]
-# CRONTAB_COMMAND_SUFFIX = "2>&1"
+# Keep the same CRONJOBS structure used by RELECOV Platform and iSkyLIMS.
+# Containers render these jobs for Supercronic; bare-metal installations can
+# register them with `python manage.py crontab add`.
+LOG_CRONTAB_FILE = BASE_DIR / "logs" / "crontab.log"
+CRONJOBS = [
+    (
+        "0 12 * * 5",
+        "core.cron.refresh_databrowser_caches",
+        f">>{LOG_CRONTAB_FILE}",
+    ),
+]
+CRONTAB_COMMAND_SUFFIX = "2>&1"
 
 # Optional upload limit in bytes. Django's default is 2.5 MiB.
 # DATA_UPLOAD_MAX_MEMORY_SIZE = 10_000_000
