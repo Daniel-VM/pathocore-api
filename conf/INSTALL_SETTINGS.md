@@ -102,6 +102,13 @@ operational values, not Django or React application settings.
 `APACHE_LOG_STEM` defaults to a filename-safe form of `APACHE_SERVER_NAME`.
 Leave those four derived values empty unless the proxy route needs an override.
 
+PathoCore also declares a dedicated Keycloak VirtualHost. Its non-secret
+`APACHE_KEYCLOAK_*` values define the identity hostname, the `keycloak:8080`
+upstream, forwarded scheme/port, timeout, request limit, and separate log stem.
+`APACHE_KEYCLOAK_SERVER_NAME` must describe the same public URL as
+`KEYCLOAK_PUBLIC_URL`; do not route the API and Keycloak catch-all proxies from
+the same hostname.
+
 `SERVER_STATUS_SERVER_NAME`, `SERVER_STATUS_ALIASES`, and
 `SERVER_STATUS_ALLOW_FROM` configure the restricted Apache status endpoint.
 Keep its allow-list limited to trusted diagnostic hosts.
