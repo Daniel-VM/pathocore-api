@@ -68,6 +68,8 @@ INSTALLED_APPS = [
     "rest_framework",
     "drf_spectacular",
     "django_crontab",
+    # Required by the standard --script_before/--script_after deployment hooks.
+    "django_extensions",
 ]
 
 # Optional application display metadata. Define the exact structure consumed
