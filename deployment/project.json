@@ -23,7 +23,8 @@
       "CONFIG_SERVICE": "app"
     },
     "keycloak": {
-      "CONFIG_SERVICE": "app"
+      "CONFIG_SERVICE": "app",
+      "ADMIN_ACCESS": true
     }
   }
 }
