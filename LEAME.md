@@ -9,9 +9,10 @@ abajo con valores o referencias institucionales verificadas.
 
 - [Requisitos](#requisitos)
 - [Estructura de directorios en los servidores](#estructura-de-directorios-en-los-servidores)
-- [Preparar directorios del host](#preparar-directorios-del-host)
+- [Preparar checkout y backup](#preparar-checkout-y-backup)
 - [Actualizar codigo](#actualizar-codigo)
 - [Configurar los ajustes de produccion](#configurar-los-ajustes-de-produccion)
+- [Preparar directorios persistentes del host](#preparar-directorios-persistentes-del-host)
 - [Backup antes de actualizar](#backup-antes-de-actualizar)
 - [Ejecutar la actualizacion](#ejecutar-la-actualizacion)
 - [Comprobaciones posteriores](#comprobaciones-posteriores)
@@ -86,11 +87,11 @@ Persistencia declarada por el despliegue:
 | Keycloak database | `keycloak_db_data` MySQL named volume | Database and identity backup |
 | Keycloak staged realm | `/srv/containers/bind/pathocore-api/keycloak/realm-import/` read-only host bind | Back up with deployment configuration; reproducible bootstrap input, not authoritative identity state |
 
-## Preparar directorios del host
+## Preparar checkout y backup
 
-Crear primero la estructura comun. Sustituir `<usuario-podman>` por la cuenta
-que ejecutara siempre Podman y el instalador; normalmente es la cuenta de la
-sesion actual.
+Crear solo las ubicaciones necesarias para obtener el codigo y guardar backups.
+Sustituir `<usuario-podman>` por la cuenta que ejecutara siempre Podman y el
+instalador. Los binds y logs se crean despues de completar los ajustes.
 
 ```bash
 sudo mkdir -p /opt/containers_apps/pathocore-api
@@ -135,7 +136,20 @@ install -m 0600 conf/keycloak/keycloak_production_settings.txt deployment/settin
 Editar unicamente las copias bajo `deployment/settings/`. Los comandos de
 instalacion y actualizacion usan estas rutas protegidas.
 
-Crear ahora los binds exactamente donde indican los ajustes revisados:
+Valores que requieren decision del responsable de la aplicacion:
+
+- hostnames publicos, TLS y proxy;
+- base de datos y credenciales de minimo privilegio;
+- rutas persistentes, UID/GID, SELinux y politica de backup;
+- correo, identidad, almacenamiento y ajustes propios de la aplicacion;
+- administrador inicial y transferencia segura de sus credenciales.
+
+Completar todas esas decisiones y resolver cada `CHANGE_ME` antes de continuar.
+
+## Preparar directorios persistentes del host
+
+Solo despues de completar y revisar los ajustes, crear los binds exactamente
+donde indican:
 
 ```bash
 PODMAN_USER='<usuario-podman>'
@@ -161,17 +175,8 @@ PODMAN_USER='<usuario-podman>'
 Los ficheros se cargan como el usuario actual dentro de subshells; solo
 `install -d` usa privilegios. No ejecutar los ficheros completos con `sudo`.
 
-Valores que requieren decision del responsable de la aplicacion:
-
-- hostnames publicos, TLS y proxy;
-- base de datos y credenciales de minimo privilegio;
-- rutas persistentes, UID/GID, SELinux y politica de backup;
-- correo, identidad, almacenamiento y ajustes propios de la aplicacion;
-- administrador inicial y transferencia segura de sus credenciales.
-
-Solo despues de crear y completar todos los ficheros bajo
-`deployment/settings/`, aplicar UID/GID internos, modos y etiquetas SELinux
-mediante el instalador. No modificar el arbol `/srv/containers/storage/`
+Con los directorios preparados, aplicar UID/GID internos, modos y etiquetas
+SELinux mediante el instalador. No modificar `/srv/containers/storage/`
 manualmente.
 
 ```bash
