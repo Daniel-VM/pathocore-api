@@ -1,36 +1,172 @@
 services:
+  # BEGIN BU-ISCIII SERVICE: app (django)
   app:
-    container_name: pathocore_api_app
+    image: "${APP_IMAGE:-pathocore-api:local}"
     build:
-      context: .
+      context: "."
+      dockerfile: "Dockerfile"
       args:
-        GIT_REVISION: ${GIT_REVISION:-main}
-        INSTALL_CONF: ${INSTALL_CONF:-conf/docker_production_settings.txt}
-    environment:
-      APP_PORT: ${APP_PORT:-8000}
-      APP_INSTALL_PATH: ${APP_INSTALL_PATH:-/opt/pathocore-api}
-      APP_REPO_PATH: ${APP_REPO_PATH:-/srv/pathocore-api}
-      APP_READY_FILE: ${APP_READY_FILE:-/opt/pathocore-api/.container_install_ready}
-      PATHOCORE_ENV_FILE: ${APP_INSTALL_PATH:-/opt/pathocore-api}/.env
-      WEB_CONCURRENCY: ${WEB_CONCURRENCY:-2}
-      GUNICORN_THREADS: ${GUNICORN_THREADS:-2}
-      GUNICORN_TIMEOUT: ${GUNICORN_TIMEOUT:-120}
-      GUNICORN_KEEPALIVE: ${GUNICORN_KEEPALIVE:-5}
-      DATABROWSER_CACHE_SCHEDULER_ENABLED: ${DATABROWSER_CACHE_SCHEDULER_ENABLED:-true}
-      # Python weekday: Monday=0, Friday=4.
-      DATABROWSER_CACHE_REFRESH_WEEKDAY: ${DATABROWSER_CACHE_REFRESH_WEEKDAY:-4}
-      DATABROWSER_CACHE_REFRESH_TIME: ${DATABROWSER_CACHE_REFRESH_TIME:-12:00}
-      DATABROWSER_CACHE_REFRESH_ON_START: ${DATABROWSER_CACHE_REFRESH_ON_START:-false}
-    ports:
-      - "${PATHOCORE_API_BIND_HOST:-127.0.0.1}:${PATHOCORE_API_PORT:-8000}:8000"
+        GIT_REVISION: ${GIT_REVISION:-current}
+        # Fixed internal path used only while install.sh reads the build secret.
+        INSTALL_CONF: "conf/.runtime_install_settings.txt"
+        USE_INSTALL_CONF_SECRET: "true"
+        RENDER_DJANGO_SETTINGS: "false"
+        APP_UID: ${APP_APP_UID:?APP_APP_UID is required}
+        APP_GID: ${APP_APP_GID:?APP_APP_GID is required}
+        APP_PORT: ${APP_APP_PORT:?APP_APP_PORT is required}
+        APP_REPO_PATH: ${APP_REPO_PATH:?APP_REPO_PATH is required}
+        APP_INSTALL_PATH: ${APP_INSTALL_PATH:?APP_INSTALL_PATH is required}
     restart: unless-stopped
+    user: "${APP_APP_UID:?APP_APP_UID is required}:${APP_APP_GID:?APP_APP_GID is required}"
+    environment:
+      APP_MODE: prod
+      INSTALL_PATH: ${APP_INSTALL_PATH:?APP_INSTALL_PATH is required}
+      APP_INSTALL_PATH: ${APP_INSTALL_PATH:?APP_INSTALL_PATH is required}
+      APP_PORT: ${APP_APP_PORT:?APP_APP_PORT is required}
+      PROJECT_MODULE: "conf"
+      DB_HOST: ${APP_DB_HOST:?APP_DB_HOST is required}
+      DB_PORT: ${APP_DB_PORT:?APP_DB_PORT is required}
+      DB_NAME: ${APP_DB_NAME:?APP_DB_NAME is required}
+      DB_USER: ${APP_DB_USER:?APP_DB_USER is required}
+      DB_PASSWORD: ${APP_DB_PASSWORD:?APP_DB_PASSWORD is required}
+      DJANGO_SECRET_KEY: ${APP_DJANGO_SECRET_KEY:?APP_DJANGO_SECRET_KEY is required}
+      DJANGO_ALLOWED_HOSTS: ${APP_DJANGO_ALLOWED_HOSTS:?APP_DJANGO_ALLOWED_HOSTS is required}
+      API_CORS_ALLOWED_ORIGINS: ${APP_API_CORS_ALLOWED_ORIGINS:-}
+      API_THROTTLE_RATE: ${APP_API_THROTTLE_RATE:-500/hour}
+      API_DOCS_REQUIRE_STAFF: ${APP_API_DOCS_REQUIRE_STAFF:-true}
+      OIDC_AUTH_REQUIRED: ${APP_OIDC_AUTH_REQUIRED:?APP_OIDC_AUTH_REQUIRED is required}
+      OIDC_ISSUER: ${APP_OIDC_ISSUER:?APP_OIDC_ISSUER is required}
+      OIDC_JWKS_URL: ${APP_OIDC_JWKS_URL:?APP_OIDC_JWKS_URL is required}
+      OIDC_AUDIENCE: ${APP_OIDC_AUDIENCE:?APP_OIDC_AUDIENCE is required}
+      OIDC_CLIENT_ID: ${APP_OIDC_CLIENT_ID:?APP_OIDC_CLIENT_ID is required}
+      OIDC_JWKS_CACHE_TTL_SECONDS: ${APP_OIDC_JWKS_CACHE_TTL_SECONDS:-300}
+      OIDC_JWKS_TIMEOUT_SECONDS: ${APP_OIDC_JWKS_TIMEOUT_SECONDS:-5}
     volumes:
-      - pathocore_api_documents:/opt/pathocore-api/documents
-      # Production logs stay on the host filesystem for easier operations,
-      # inspection and log rotation.
-      - ${PATHOCORE_HOST_LOG_DIR:-/var/log/local/pathocore-api/apps}:/opt/pathocore-api/logs
-      - pathocore_api_static:/opt/pathocore-api/static
+      - app_documents:${APP_INSTALL_PATH:?APP_INSTALL_PATH is required}/documents:z
+      - ${APP_HOST_LOG_PATH:?APP_HOST_LOG_PATH is required}:${APP_INSTALL_PATH:?APP_INSTALL_PATH is required}/logs:Z
+      - ${APP_DJANGO_SETTINGS_PATH:?APP_DJANGO_SETTINGS_PATH is required}:${APP_INSTALL_PATH:?APP_INSTALL_PATH is required}/conf/settings.py:Z
+      - app_static:${APP_INSTALL_PATH:?APP_INSTALL_PATH is required}/static:z
+    healthcheck:
+      test: ["CMD", "python", "-c", "import os, urllib.request; urllib.request.urlopen('http://127.0.0.1:' + os.environ['APP_PORT'] + '/health/', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    ports:
+      - "127.0.0.1:${APP_APP_PORT:?APP_APP_PORT is required}:${APP_APP_PORT:?APP_APP_PORT is required}"
+    # Docker Engine on Linux needs this explicit mapping. Podman also supports
+    # host-gateway and conventionally exposes host.docker.internal itself, so
+    # host-based dependencies can use one hostname with either engine.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks: [deployment_net]
+  # END BU-ISCIII SERVICE: app
+  # BEGIN BU-ISCIII ADDON: apache
+  apache:
+    image: registry.access.redhat.com/ubi9/httpd-24:latest
+    restart: unless-stopped
+    depends_on:
+      app:
+        condition: service_healthy
+      keycloak:
+        condition: service_healthy
+    ports:
+      # Public binding can be restricted to loopback when another host proxy
+      # terminates TLS before forwarding traffic to this container.
+      - "${APACHE_BIND_HOST:?APACHE_BIND_HOST is required}:${APACHE_PORT:?APACHE_PORT is required}:8080"
+    expose:
+      - "8080"
+    healthcheck:
+      test: ["CMD-SHELL", "bash -ec '</dev/tcp/127.0.0.1/8080'"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 30s
+    volumes:
+      # REQUIRED runtime-rendered read-only configuration bind sources.
+      - ./deployment/apache/00-logs.conf:/etc/httpd/conf.d/00-logs.conf:ro,z
+      - ./deployment/apache/01-reverse-proxy.conf:/etc/httpd/conf.d/01-reverse-proxy.conf:ro,z
+      - ./deployment/apache/02-server-status.conf:/etc/httpd/conf.d/02-server-status.conf:ro,z
+      # REQUIRED persistent host log bind. Back it up/rotate per host policy.
+      - ${APACHE_LOG_PATH:?APACHE_LOG_PATH is required}:/var/log/httpd:z
+      # REQUIRED when container and host timezone must agree in log records.
+      - /etc/localtime:/etc/localtime:ro
+      - /usr/share/zoneinfo:/usr/share/zoneinfo:ro
+      # GENERATED MULTI-APP MOUNTS: one read-only static/documents pair for
+      # every Django service. React assets remain inside the React image.
+      - app_static:${APP_INSTALL_PATH:?APP_INSTALL_PATH is required}/static:ro,z
+      - app_documents:${APP_INSTALL_PATH:?APP_INSTALL_PATH is required}/documents:ro,z
+      # OPTIONAL APP MOUNTS belong in ADDONS.apache.MOUNTS. Examples:
+      # - reports_data:/var/www/reports:ro,z
+      # - /srv/public-downloads:/var/www/downloads:ro,Z
+    networks: [deployment_net]
+  # END BU-ISCIII ADDON: apache
+  # BEGIN BU-ISCIII ADDON: keycloak
+  keycloak_db:
+    image: docker.io/library/mysql:8.0
+    command: --default-authentication-plugin=mysql_native_password
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: ${KEYCLOAK_DB_NAME:-keycloak}
+      MYSQL_USER: ${KEYCLOAK_DB_USER:-keycloak}
+      MYSQL_PASSWORD: ${KEYCLOAK_DB_PASSWORD:?KEYCLOAK_DB_PASSWORD is required}
+      MYSQL_ROOT_PASSWORD: ${KEYCLOAK_DB_ROOT_PASSWORD:?KEYCLOAK_DB_ROOT_PASSWORD is required}
+    expose: ["3306"]
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -u$$MYSQL_USER -p$$MYSQL_PASSWORD --silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 30s
+    volumes:
+      # REQUIRED persistent identity database. This is the primary Keycloak
+      # state and MUST be included in backup/restore procedures.
+      - keycloak_db_data:/var/lib/mysql
+    networks: [deployment_net]
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.6.1
+    command: ["start", "--import-realm"]
+    restart: unless-stopped
+    depends_on:
+      keycloak_db:
+        condition: service_healthy
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_ADMIN:-admin}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:?KEYCLOAK_ADMIN_PASSWORD is required}
+      KC_DB: mysql
+      KC_DB_URL: jdbc:mysql://keycloak_db:3306/${KEYCLOAK_DB_NAME:-keycloak}?useSSL=false&allowPublicKeyRetrieval=true
+      KC_DB_USERNAME: ${KEYCLOAK_DB_USER:-keycloak}
+      KC_DB_PASSWORD: ${KEYCLOAK_DB_PASSWORD:?KEYCLOAK_DB_PASSWORD is required}
+      KC_HEALTH_ENABLED: "true"
+      KC_HOSTNAME: ${KEYCLOAK_PUBLIC_URL:?KEYCLOAK_PUBLIC_URL is required}
+      KC_HOSTNAME_STRICT: "true"
+      KC_HTTP_ENABLED: "true"
+      KC_PROXY_HEADERS: xforwarded
+    expose: ["8080"]
+    ports:
+      # Loopback publishing supports direct diagnostics; Apache remains the
+      # normal public route. Remove only when another documented path exists.
+      - "127.0.0.1:${KEYCLOAK_PORT:-8081}:8080"
+    healthcheck:
+      test: ["CMD-SHELL", "bash -ec '</dev/tcp/127.0.0.1/8080'"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 90s
+    volumes:
+      # REQUIRED reproducible realm import bind. Keycloak imports it only when
+      # the realm is absent, normally on a fresh keycloak_db_data volume.
+      - ${KEYCLOAK_IMPORT_PATH:-./keycloak/tmp-import}:/opt/keycloak/data/import:ro,z
+      # OPTIONAL provider/theme mounts for multi-app deployments, when needed:
+      # - ${KEYCLOAK_PROVIDER_PATH}:/opt/keycloak/providers:ro,z
+      # - ${KEYCLOAK_THEME_PATH}:/opt/keycloak/themes/custom:ro,z
+    networks: [deployment_net]
+  # END BU-ISCIII ADDON: keycloak
+
+networks:
+  deployment_net:
 
 volumes:
-  pathocore_api_documents:
-  pathocore_api_static:
+  app_documents:
+  app_static:
+  keycloak_db_data:
