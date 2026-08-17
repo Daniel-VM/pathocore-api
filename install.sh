@@ -206,14 +206,17 @@ install_application_system_packages() {
     if [[ -f /etc/debian_version ]]; then
         apt-get update
         apt-get install -y --no-install-recommends \
-            python3-dev default-libmysqlclient-dev passwd
+            python3-dev default-libmysqlclient-dev passwd tzdata
     elif command -v microdnf >/dev/null 2>&1; then
         microdnf install -y \
             python3.12-devel mariadb-connector-c-devel shadow-utils
+        # UBI minimal can record tzdata as installed without its zoneinfo
+        # payload. Reinstall it so Python can resolve Django TIME_ZONE values.
+        microdnf reinstall -y tzdata
         microdnf clean all
     elif command -v dnf >/dev/null 2>&1; then
         dnf install -y \
-            python3.12-devel mariadb-connector-c-devel shadow-utils
+            python3.12-devel mariadb-connector-c-devel shadow-utils tzdata
     else
         die "Unsupported package manager for system dependency installation"
     fi
