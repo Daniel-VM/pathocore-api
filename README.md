@@ -164,8 +164,9 @@ bash container_install.sh --test --action install --engine docker \
   --demo_data /path/to/pathocore-test-data.sql.gz
 ```
 
-Use `--skip_tables` as well when a reviewed seed already contains the initial
-PathoCore reference rows. Production never selects a seed implicitly, and
+The reviewed PathoCore seed may replace initial reference rows, but it must not
+replace their tables. Fresh installs still run the standard initial fixture
+before importing demo data. Production never selects a seed implicitly, and
 upgrades never reload one.
 
 For an automatic first administrator, set `CREATE_INITIAL_SUPERUSER=true` and
