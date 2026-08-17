@@ -172,9 +172,8 @@ CRONTAB_COMMAND_SUFFIX = "2>&1"
 # Optional upload limit in bytes. Django's default is 2.5 MiB.
 # DATA_UPLOAD_MAX_MEMORY_SIZE = 10_000_000
 
-# Enable only when every request reaches Django through a trusted proxy that
-# overwrites X-Forwarded-Proto. Incorrect use lets clients spoof HTTPS.
-# SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+# Apache overwrites this header before forwarding requests to Django.
+SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 
 # Add application/framework-specific settings below, for example REST framework
 # authentication, Swagger, Crispy Forms, logging or cleanup policies.
