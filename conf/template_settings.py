@@ -181,15 +181,19 @@ SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 # Generic values generated for Django services that declare "API": true.
 # Application code decides which CORS, throttling and documentation packages
 # consume them; the deployment standard does not force a specific API library.
-API_CORS_ALLOWED_ORIGINS = env_list(
-    "API_CORS_ALLOWED_ORIGINS", settingsconf_API_CORS_ALLOWED_ORIGINS
-)
+# Available from the standard API settings when PathoCore adopts CORS
+# middleware. Defining the value alone would not enforce a CORS policy.
+# API_CORS_ALLOWED_ORIGINS = env_list(
+#     "API_CORS_ALLOWED_ORIGINS", settingsconf_API_CORS_ALLOWED_ORIGINS
+# )
 API_THROTTLE_RATE = os.environ.get(
     "API_THROTTLE_RATE", settingsconf_API_THROTTLE_RATE
 )
-API_DOCS_REQUIRE_STAFF = env_bool(
-    "API_DOCS_REQUIRE_STAFF", settingsconf_API_DOCS_REQUIRE_STAFF
-)
+# Available from the standard API settings when PathoCore implements a
+# configurable public/authenticated/staff documentation access policy.
+# API_DOCS_REQUIRE_STAFF = env_bool(
+#     "API_DOCS_REQUIRE_STAFF", settingsconf_API_DOCS_REQUIRE_STAFF
+# )
 
 # Generic relying-party values generated for the application selected by the
 # Keycloak add-on. Application authentication code consumes these OIDC values.
