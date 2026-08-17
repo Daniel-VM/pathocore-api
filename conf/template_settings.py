@@ -171,4 +171,15 @@ OIDC_JWKS_CACHE_TTL_SECONDS = int(
 )
 OIDC_JWKS_TIMEOUT_SECONDS = int(os.environ.get("OIDC_JWKS_TIMEOUT_SECONDS", "5"))
 
+# PathoCore's authentication backend predates the shared deployment contract
+# and reads these Django setting names. Keep the application code stable while
+# sourcing every token-validation value from the generic OIDC environment.
+PATHOCORE_ENABLE_LEGACY_BASIC_AUTH = not OIDC_AUTH_REQUIRED
+KEYCLOAK_ISSUER = OIDC_ISSUER
+KEYCLOAK_JWKS_URL = OIDC_JWKS_URL
+KEYCLOAK_AUDIENCE = OIDC_AUDIENCE
+KEYCLOAK_CLIENT_ID = OIDC_CLIENT_ID
+KEYCLOAK_JWKS_CACHE_TTL_SECONDS = OIDC_JWKS_CACHE_TTL_SECONDS
+KEYCLOAK_JWKS_TIMEOUT_SECONDS = OIDC_JWKS_TIMEOUT_SECONDS
+
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"

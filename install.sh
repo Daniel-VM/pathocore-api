@@ -273,12 +273,30 @@ write_application_runtime_env() {
 }
 
 validate_application_runtime() {
-    # Called after DB connectivity and before migrations. Validate optional
-    # identity-provider or feature configuration here.
-    # Example: require KEYCLOAK_ISSUER only when legacy auth is disabled:
-    #   [[ "${ENABLE_LEGACY_AUTH:-true}" == true || -n "${KEYCLOAK_ISSUER:-}" ]] ||
-    #       die "KEYCLOAK_ISSUER is required when legacy auth is disabled"
-    :
+    # Authentication is optional for isolated test deployments. When enabled,
+    # validate every value needed to verify OIDC tokens before migrations and
+    # service startup proceed.
+    case "${OIDC_AUTH_REQUIRED:-false}" in
+        true|True|TRUE|1|yes|Yes|YES|on|On|ON)
+            : "${OIDC_ISSUER:?OIDC_ISSUER is required when authentication is enabled}"
+            : "${OIDC_JWKS_URL:?OIDC_JWKS_URL is required when authentication is enabled}"
+            : "${OIDC_AUDIENCE:?OIDC_AUDIENCE is required when authentication is enabled}"
+            : "${OIDC_CLIENT_ID:?OIDC_CLIENT_ID is required when authentication is enabled}"
+            [[ "$OIDC_ISSUER" =~ ^https?:// ]] \
+                || die "OIDC_ISSUER must be an HTTP(S) URL"
+            [[ "$OIDC_JWKS_URL" =~ ^https?:// ]] \
+                || die "OIDC_JWKS_URL must be an HTTP(S) URL"
+            ;;
+        false|False|FALSE|0|no|No|NO|off|Off|OFF) ;;
+        *) die "OIDC_AUTH_REQUIRED must be a boolean value" ;;
+    esac
+
+    : "${OIDC_JWKS_CACHE_TTL_SECONDS:=300}"
+    : "${OIDC_JWKS_TIMEOUT_SECONDS:=5}"
+    [[ "$OIDC_JWKS_CACHE_TTL_SECONDS" =~ ^[1-9][0-9]*$ ]] \
+        || die "OIDC_JWKS_CACHE_TTL_SECONDS must be a positive integer"
+    [[ "$OIDC_JWKS_TIMEOUT_SECONDS" =~ ^[1-9][0-9]*$ ]] \
+        || die "OIDC_JWKS_TIMEOUT_SECONDS must be a positive integer"
 }
 
 before_django_migrate() {
@@ -412,6 +430,13 @@ run_hook() {
     python "${args[@]}"
 }
 
+check_for_missing_migrations() {
+    # Deployment must never invent schema history. Fail when model changes need
+    # migration files that have not been generated and committed by developers.
+    python manage.py makemigrations --check --dry-run --noinput \
+        || die "Model changes detected without committed Django migrations"
+}
+
 bootstrap_application() {
     [[ -f "$INSTALL_PATH/manage.py" ]] || die "manage.py not found; run --stage first"
     [[ -x "$INSTALL_PATH/virtualenv/bin/python" ]] || die "virtualenv not found; run --stage first"
@@ -423,6 +448,7 @@ bootstrap_application() {
     python manage.py check --deploy
     local hook
     for hook in "${SCRIPT_BEFORE[@]}"; do run_hook "$hook"; done
+    check_for_missing_migrations
     before_django_migrate "$ACTION" "$MIGRATION_MODULES"
     python manage.py migrate --noinput
     if [[ "$LOAD_TABLES" == "true" && "$SKIP_TABLES" == "false" ]]; then
