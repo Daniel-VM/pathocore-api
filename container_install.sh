@@ -311,8 +311,8 @@ load_test_deployment_data() {
         return 0
     fi
     if [ -z "$demo_data" ]; then
-        echo "No PathoCore SQL seed was provided; skipping import"
-        return 0
+        die "PathoCore has no default demo-data download URL; provide " \
+            "--demo_data or explicitly use --skip_demo_data"
     fi
     app_container="$(current_service_container app)" \
         || die "Unable to resolve the PathoCore application container"
