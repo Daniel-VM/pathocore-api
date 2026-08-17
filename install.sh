@@ -263,9 +263,14 @@ prepare_application_directories() {
 
 stage_application_custom_files() {
     # Arguments: source directory, final INSTALL_PATH, action (install|upgrade).
-    # Copy application-owned files that intentionally need extra processing;
-    # the standard already installs the Django URL and optional routing files.
-    :
+    # PROJECT_MODULE is conf, so the generic staging step excludes the source
+    # conf directory before generating the Django project package. Preserve the
+    # application-owned fixture that fresh installs load after migrations.
+    local source_path="$1"
+    local application_path="$2"
+
+    install -m 0644 "$source_path/conf/first_install_tables.json" \
+        "$application_path/$PROJECT_MODULE/first_install_tables.json"
 }
 
 write_application_runtime_env() {
