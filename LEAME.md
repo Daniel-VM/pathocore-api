@@ -100,34 +100,6 @@ sudo chown -R <usuario-podman>:<usuario-podman> \
   /srv/containers/backup/pathocore-api
 ```
 
-Despues de copiar y completar todos los ficheros protegidos en
-`deployment/settings/`, crear los binds exactamente donde indica cada servicio:
-
-```bash
-PODMAN_USER='<usuario-podman>'
-(
-  source deployment/settings/app_production_settings.txt
-  : "${HOST_LOG_PATH:?HOST_LOG_PATH is required for app}"
-  : "${DJANGO_SETTINGS_PATH:?DJANGO_SETTINGS_PATH is required for app}"
-  sudo install -d -o "$PODMAN_USER" -g "$PODMAN_USER" \
-    "$HOST_LOG_PATH" "$(dirname "$DJANGO_SETTINGS_PATH")"
-)
-(
-  source deployment/settings/apache_production_settings.txt
-  : "${APACHE_LOG_PATH:?APACHE_LOG_PATH is required for apache}"
-  sudo install -d -o "$PODMAN_USER" -g "$PODMAN_USER" "$APACHE_LOG_PATH"
-)
-(
-  source deployment/settings/keycloak_production_settings.txt
-  : "${KEYCLOAK_IMPORT_PATH:?KEYCLOAK_IMPORT_PATH is required for keycloak}"
-  sudo install -d -o "$PODMAN_USER" -g "$PODMAN_USER" "$KEYCLOAK_IMPORT_PATH"
-)
-```
-
-Los ficheros se cargan como el usuario actual dentro de subshells; solo
-`install -d` usa privilegios. Revisar antes las rutas y no ejecutar los
-ficheros completos con `sudo`.
-
 ## Actualizar codigo
 
 Para un checkout nuevo:
@@ -162,6 +134,32 @@ install -m 0600 conf/keycloak/keycloak_production_settings.txt deployment/settin
 
 Editar unicamente las copias bajo `deployment/settings/`. Los comandos de
 instalacion y actualizacion usan estas rutas protegidas.
+
+Crear ahora los binds exactamente donde indican los ajustes revisados:
+
+```bash
+PODMAN_USER='<usuario-podman>'
+(
+  source deployment/settings/app_production_settings.txt
+  : "${HOST_LOG_PATH:?HOST_LOG_PATH is required for app}"
+  : "${DJANGO_SETTINGS_PATH:?DJANGO_SETTINGS_PATH is required for app}"
+  sudo install -d -o "$PODMAN_USER" -g "$PODMAN_USER" \
+    "$HOST_LOG_PATH" "$(dirname "$DJANGO_SETTINGS_PATH")"
+)
+(
+  source deployment/settings/apache_production_settings.txt
+  : "${APACHE_LOG_PATH:?APACHE_LOG_PATH is required for apache}"
+  sudo install -d -o "$PODMAN_USER" -g "$PODMAN_USER" "$APACHE_LOG_PATH"
+)
+(
+  source deployment/settings/keycloak_production_settings.txt
+  : "${KEYCLOAK_IMPORT_PATH:?KEYCLOAK_IMPORT_PATH is required for keycloak}"
+  sudo install -d -o "$PODMAN_USER" -g "$PODMAN_USER" "$KEYCLOAK_IMPORT_PATH"
+)
+```
+
+Los ficheros se cargan como el usuario actual dentro de subshells; solo
+`install -d` usa privilegios. No ejecutar los ficheros completos con `sudo`.
 
 Valores que requieren decision del responsable de la aplicacion:
 
@@ -212,11 +210,17 @@ Localizar y exportar cada volumen no reconstruible declarado en la tabla:
 podman volume ls | grep 'pathocore-api'
 podman volume export <volumen-documents> > "$BACKUP_DIR/documents.tar"
 podman volume export <volumen-static> > "$BACKUP_DIR/static.tar"
+podman compose --env-file .env.production.file -f docker-compose.prod.yml \
+  exec -T keycloak_db sh -c \
+  'exec mysqldump --single-transaction --routines --triggers -u"$MYSQL_USER" -p"$MYSQL_PASSWORD" "$MYSQL_DATABASE"' \
+  > "$BACKUP_DIR/keycloak-database.sql"
 ```
 
 Exportar `documents` y `static` por cada servicio Django que los declare;
 omitir esos comandos para perfiles sin dichos volumenes. Aunque `static` puede
 regenerarse con `collectstatic`, conservarlo permite una restauracion exacta.
+El dump logico de Keycloak es obligatorio: contiene realms, usuarios, clientes
+y grupos, mientras que el JSON staged solo inicializa realms nuevos.
 
 Guardar tambien los bind mounts persistentes. Los logs se conservan segun su
 politica de retencion; la configuracion protegida debe incluirse siempre.
@@ -289,7 +293,8 @@ bash container_install.sh --action upgrade --engine podman \
   --install_conf_map app,deployment/settings/app_production_settings.txt --install_conf_map apache,deployment/settings/apache_production_settings.txt --install_conf_map keycloak,deployment/settings/keycloak_production_settings.txt
 ```
 
-Si no son compatibles, detener escrituras y restaurar el punto completo:
+Si no son compatibles, detener escrituras, usar un checkout limpio de la
+revision guardada en `git-revision.txt` y restaurar el punto completo:
 
 ```bash
 podman compose --env-file .env.production.file -f docker-compose.prod.yml down
@@ -302,11 +307,21 @@ install -d -m 0700 deployment/settings
 install -m 0600 "$BACKUP_DIR/app_production_settings.txt" deployment/settings/app_production_settings.txt
 install -m 0600 "$BACKUP_DIR/apache_production_settings.txt" deployment/settings/apache_production_settings.txt
 install -m 0600 "$BACKUP_DIR/keycloak_production_settings.txt" deployment/settings/keycloak_production_settings.txt
+bash container_install.sh --action fix-permissions --engine podman \
+  --install_conf_map app,deployment/settings/app_production_settings.txt --install_conf_map apache,deployment/settings/apache_production_settings.txt --install_conf_map keycloak,deployment/settings/keycloak_production_settings.txt
+podman compose --env-file .env.production.file -f docker-compose.prod.yml up -d keycloak_db
+until podman compose --env-file .env.production.file -f docker-compose.prod.yml \
+  exec -T keycloak_db sh -c \
+  'mysqladmin ping -h 127.0.0.1 -u"$MYSQL_USER" -p"$MYSQL_PASSWORD" --silent'; do sleep 2; done
+podman compose --env-file .env.production.file -f docker-compose.prod.yml \
+  exec -T keycloak_db sh -c \
+  'exec mysql -u"$MYSQL_USER" -p"$MYSQL_PASSWORD" "$MYSQL_DATABASE"' \
+  < "$BACKUP_DIR/keycloak-database.sql"
 ```
 
-Restaurar el fichero de ajustes protegido, desplegar la revision anotada en
-`git-revision.txt` y dejar que el instalador regenere `.env.production.file`.
-Ejecutar `fix-permissions`, arrancar y validar antes de
+`fix-permissions` regenera `.env.production.file` desde todos los ajustes
+protegidos antes de restaurar Keycloak. Desplegar la revision ya comprobada,
+arrancar y validar antes de
 reabrir el servicio. Los volumenes deben existir y estar vacios antes de
 `podman volume import`; recrearlos con Compose cuando sea necesario.
 

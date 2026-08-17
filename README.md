@@ -412,6 +412,10 @@ mysqldump --single-transaction --routines --triggers \
 
 podman volume ls | grep 'pathocore-api'
 podman volume export "$DOCUMENTS_VOLUME" > "$BACKUP_DIR/documents.tar"
+podman compose --env-file .env.production.file -f docker-compose.prod.yml \
+  exec -T keycloak_db sh -c \
+  'exec mysqldump --single-transaction --routines --triggers -u"$MYSQL_USER" -p"$MYSQL_PASSWORD" "$MYSQL_DATABASE"' \
+  > "$BACKUP_DIR/keycloak-database.sql"
 tar -C /srv/containers/bind -czf "$BACKUP_DIR/bind-mounts.tar.gz" pathocore-api
 sha256sum "$BACKUP_DIR"/* > "$BACKUP_DIR/SHA256SUMS"
 ```
@@ -444,7 +448,8 @@ bash container_install.sh --action upgrade --engine podman \
   --install_conf_map app,deployment/settings/app_production_settings.txt --install_conf_map apache,deployment/settings/apache_production_settings.txt --install_conf_map keycloak,deployment/settings/keycloak_production_settings.txt
 ```
 
-Full restore when schema or persistent-file formats are incompatible:
+Full restore when schema or persistent-file formats are incompatible must run
+from a clean checkout of the revision recorded in `git-revision.txt`:
 
 ```bash
 BACKUP_DIR='/srv/containers/backup/pathocore-api/CHANGE_ME'
@@ -464,6 +469,14 @@ install -m 0600 "$BACKUP_DIR/apache_production_settings.txt" deployment/settings
 install -m 0600 "$BACKUP_DIR/keycloak_production_settings.txt" deployment/settings/keycloak_production_settings.txt
 bash container_install.sh --action fix-permissions --engine podman \
   --install_conf_map app,deployment/settings/app_production_settings.txt --install_conf_map apache,deployment/settings/apache_production_settings.txt --install_conf_map keycloak,deployment/settings/keycloak_production_settings.txt
+podman compose --env-file .env.production.file -f docker-compose.prod.yml up -d keycloak_db
+until podman compose --env-file .env.production.file -f docker-compose.prod.yml \
+  exec -T keycloak_db sh -c \
+  'mysqladmin ping -h 127.0.0.1 -u"$MYSQL_USER" -p"$MYSQL_PASSWORD" --silent'; do sleep 2; done
+podman compose --env-file .env.production.file -f docker-compose.prod.yml \
+  exec -T keycloak_db sh -c \
+  'exec mysql -u"$MYSQL_USER" -p"$MYSQL_PASSWORD" "$MYSQL_DATABASE"' \
+  < "$BACKUP_DIR/keycloak-database.sql"
 ```
 
 Then deploy the revision recorded in `git-revision.txt`, start the deployment,
@@ -666,10 +679,17 @@ manually changing engine storage.
 bash scripts/smoke_test.sh --engine podman
 ```
 
-Application developers must extend the baseline smoke test with authenticated
-and domain-specific read workflows without removing the generated checks.
+After the baseline smoke test succeeds, complete the authenticated OIDC,
+access-request, email and DataBrowser cache checks in
+[Final configuration steps](#final-configuration-steps).
 
 ## Application documentation
 
-Application developers: replace this paragraph with links to user,
-administrator, API, upgrade, and support documentation.
+- The deployed OpenAPI interface is available at authenticated `/swagger/` and
+  `/swagger/redoc/` routes.
+- Deployment configuration is documented in
+  [`conf/INSTALL_SETTINGS.md`](conf/INSTALL_SETTINGS.md).
+- Report defects and request support through the
+  [PathoCore API issue tracker](https://github.com/BU-ISCIII/pathocore-api/issues).
+  Never include credentials, access tokens, patient data or protected settings
+  in an issue.
