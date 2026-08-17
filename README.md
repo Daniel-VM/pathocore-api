@@ -143,6 +143,10 @@ The same explicit `--demo_data <path>` input may be used on a fresh production
 install when an application needs a controlled seed import. Production never
 selects or loads demo data by default, and upgrades never reload it.
 
+PathoCore has no default demo-data download URL. A fresh test install therefore
+requires `--demo_data <path>` unless demo loading is explicitly disabled with
+`--skip_demo_data` or `--skip_test_data`.
+
 PathoCore accepts `.sql` and `.sql.gz` data-only seeds for fresh test or
 production installations when `--demo_data` is explicitly supplied. The seed
 must match the checked-out migrations and must not create or replace schema or
