@@ -50,6 +50,7 @@ schema_view = get_schema_view(
 """
 
 urlpatterns = [
+    path("health/", include("deployment_health.urls")),
     path("", RedirectView.as_view(pattern_name="v1-swagger-ui", permanent=False)),
     path("admin/", admin.site.urls),
     # API-only project: UI routes removed
