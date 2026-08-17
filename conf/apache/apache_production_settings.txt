@@ -62,6 +62,17 @@ APACHE_FORWARDED_PORT='443'
 # Example: 52428800 (50 MiB)
 APACHE_LIMIT_REQUEST_BODY='52428800'
 
+# Keycloak VirtualHost. It shares APACHE_PORT with the API and is selected by
+# its distinct public hostname.
+APACHE_KEYCLOAK_SERVER_NAME='CHANGE_ME_KEYCLOAK_DNS_NAME'
+APACHE_KEYCLOAK_UPSTREAM_SERVICE='keycloak'
+APACHE_KEYCLOAK_UPSTREAM_PORT='8080'
+APACHE_KEYCLOAK_PROXY_TIMEOUT='120'
+APACHE_KEYCLOAK_LOG_STEM='keycloak'
+APACHE_KEYCLOAK_FORWARDED_PROTO='https'
+APACHE_KEYCLOAK_FORWARDED_PORT='443'
+APACHE_KEYCLOAK_LIMIT_REQUEST_BODY='52428800'
+
 # Optional additional VirtualHosts are application-owned and are not generated
 # automatically when another add-on (for example Keycloak) is selected. For
 # every enabled extra vhost, define one uniquely prefixed set matching every
