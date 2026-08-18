@@ -30,9 +30,9 @@
     "TIMEZONE": "Europe/Madrid"
   },
   "files": {
-    ".dockerignore": "a76e2a974786736d1d3744ed534ae9996514cb15d921328450f3757fafe273d2",
+    ".dockerignore": "bd9c115511d6b9dae318e4b6a85ddb282e60a46fd89c6cdecccdc20c668eb0e9",
     ".gitignore": "86a6d029356710031e592d78821b3c5a2ef0bc510fa746703bfcef56ea10fc15",
-    "Dockerfile": "712f0b012f7d99932f979955e779794c3b751caeb9cf2c28e314e0a0dea8d463",
+    "Dockerfile": "85cc463641e0a16e7ec4d0b41b1e06b94b6e1b4d5d72f9143e07d59a1aa78412",
     "LEAME.md": "4f1d10d61d0625261d8167ce049e0ea77e449fe0167ec7326fcfd7ce93d4d006",
     "README.md": "80e62df28f7e674aaf82350212a4e3d83e037ffaa4848aea15514b73b9cc417f",
     "conf/INSTALL_SETTINGS.md": "6e2942b250b7435660dc7b341c17a294cdc21e53c8fe9861a64260789b94721d",
@@ -53,7 +53,7 @@
     "deployment_health/views.py": "d19cc3e8fef8519bae2b7fbdc25d17f6ae7df02479aa8890f4b4d250bb07f2e4",
     "docker-compose.prod.yml": "3ed12d9469c37e25f4da16c210a4e5fddb88cf622fdeb419276c4d4eb81ed67e",
     "docker-compose.test.yml": "808ae737723c20f0e5a143799af5202312fa65b6f276a975dcb1088007cfbed1",
-    "install.sh": "a4df28c5f76522fff69a0ae0042fefc9d27ce3bdd1c69bd7ee87b9d278d5d14c",
+    "install.sh": "9710a9a07973c725bb9fd3118d31ab76fd5dc8c8e411a9963ca7fc947c98241e",
     "scripts/container_start.sh": "7a27a79cd238c7155319b23cdf5e13baad278f841a7a96b448c65ef22dca7299",
     "scripts/smoke_test.sh": "2f04e8c7632e6288f4226b34cb5a7737dd186abc2cecaeb14d7c63f0b90748dd"
   },
