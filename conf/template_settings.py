@@ -119,7 +119,7 @@ DATABASES = {
         "NAME": "djangodbname",
         "USER": "djangouser",
         "PASSWORD": "djangopass",
-        "HOST": "djangohost",
+        "HOST": os.getenv("DB_HOST", "djangohost"),
         "PORT": "djangoport",
         "CONN_MAX_AGE": dbconnmaxage,
     }

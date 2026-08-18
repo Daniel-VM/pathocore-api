@@ -24,7 +24,7 @@ services:
       APP_INSTALL_PATH: ${APP_INSTALL_PATH:?APP_INSTALL_PATH is required}
       APP_PORT: ${APP_APP_PORT:?APP_APP_PORT is required}
       PROJECT_MODULE: "conf"
-      DB_HOST: conf_app_db
+      DB_HOST: app_db
       DB_PORT: ${APP_DB_PORT:?APP_DB_PORT is required}
       DB_NAME: ${APP_DB_NAME:?APP_DB_NAME is required}
       DB_USER: ${APP_DB_USER:?APP_DB_USER is required}
@@ -56,7 +56,7 @@ services:
       KEYCLOAK_ADMIN_API_ACTION_EMAIL_REDIRECT_URI: ${APP_KEYCLOAK_ADMIN_API_ACTION_EMAIL_REDIRECT_URI:-}
       DEFAULT_FROM_EMAIL: ${APP_DEFAULT_FROM_EMAIL:-pathocore-api@localhost}
     depends_on:
-      conf_app_db:
+      app_db:
         condition: service_healthy
     volumes:
       - app_test_documents:${APP_INSTALL_PATH:?APP_INSTALL_PATH is required}/documents:z
@@ -155,7 +155,7 @@ services:
       - ${KEYCLOAK_IMPORT_PATH:-./keycloak/tmp-import}:/opt/keycloak/data/import:ro,z
     networks: [deployment_net]
   # END BU-ISCIII ADDON: keycloak
-  conf_app_db:
+  app_db:
     image: docker.io/library/mysql:8.0
     environment:
       MYSQL_DATABASE: ${APP_DB_NAME:?APP_DB_NAME is required}
