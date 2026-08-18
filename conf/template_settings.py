@@ -191,9 +191,7 @@ SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 # API_CORS_ALLOWED_ORIGINS = env_list(
 #     "API_CORS_ALLOWED_ORIGINS", settingsconf_API_CORS_ALLOWED_ORIGINS
 # )
-API_THROTTLE_RATE = os.environ.get(
-    "API_THROTTLE_RATE", settingsconf_API_THROTTLE_RATE
-)
+API_THROTTLE_RATE = os.environ.get("API_THROTTLE_RATE", settingsconf_API_THROTTLE_RATE)
 # Available from the standard API settings when PathoCore implements a
 # configurable public/authenticated/staff documentation access policy.
 # API_DOCS_REQUIRE_STAFF = env_bool(
