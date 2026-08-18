@@ -23,7 +23,7 @@ HOST_LOG_PATH='/tmp/pathocore-api/logs'
 DJANGO_SETTINGS_PATH='/tmp/pathocore-api/data/settings/conf/settings.py'
 
 ### Compose test database
-DB_HOST='conf_app_db'
+DB_HOST='app_db'
 DB_PORT='3306'
 DB_NAME='conf'
 DB_USER='django'
