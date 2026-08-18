@@ -7,7 +7,6 @@ from MySQLdb.constants import CLIENT
 from django.core.management.base import BaseCommand, CommandError
 from django.db import connections
 
-
 UNSAFE_SQL = re.compile(
     rb"\b(?:CREATE|ALTER|DROP|TRUNCATE)\s+(?:TABLE|DATABASE|SCHEMA)\b"
     rb"|\bdjango_migrations\b",

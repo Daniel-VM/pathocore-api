@@ -20,7 +20,11 @@ def env_bool(name, default=False):
 
 def env_list(name, default=""):
     """Read a comma-separated environment variable as a clean list."""
-    return [item.strip() for item in os.environ.get(name, default).split(",") if item.strip()]
+    return [
+        item.strip()
+        for item in os.environ.get(name, default).split(",")
+        if item.strip()
+    ]
 
 
 def env_json(name, default):
@@ -35,6 +39,7 @@ def env_json(name, default):
     except json.JSONDecodeError:
         return []
 
+
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 # The renderer replaces this complete line and preserves the existing generated
@@ -45,9 +50,7 @@ ALLOWED_HOSTS = [
     host.strip() for host in "djangoallowedhosts".split(",") if host.strip()
 ]
 CSRF_TRUSTED_ORIGINS = [
-    origin.strip()
-    for origin in "djangocsrftrustedorigins".split(",")
-    if origin.strip()
+    origin.strip() for origin in "djangocsrftrustedorigins".split(",") if origin.strip()
 ]
 
 # Add every local and third-party Django application used by the project.
@@ -188,9 +191,7 @@ SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 # API_CORS_ALLOWED_ORIGINS = env_list(
 #     "API_CORS_ALLOWED_ORIGINS", settingsconf_API_CORS_ALLOWED_ORIGINS
 # )
-API_THROTTLE_RATE = os.environ.get(
-    "API_THROTTLE_RATE", settingsconf_API_THROTTLE_RATE
-)
+API_THROTTLE_RATE = os.environ.get("API_THROTTLE_RATE", settingsconf_API_THROTTLE_RATE)
 # Available from the standard API settings when PathoCore implements a
 # configurable public/authenticated/staff documentation access policy.
 # API_DOCS_REQUIRE_STAFF = env_bool(
@@ -275,9 +276,7 @@ KEYCLOAK_ADMIN_USERNAME = KEYCLOAK_ADMIN_API_USERNAME
 KEYCLOAK_ADMIN_PASSWORD = KEYCLOAK_ADMIN_API_PASSWORD
 KEYCLOAK_ADMIN_REQUEST_TIMEOUT_SECONDS = KEYCLOAK_ADMIN_API_TIMEOUT_SECONDS
 KEYCLOAK_ADMIN_SEND_ACTION_EMAILS = KEYCLOAK_ADMIN_API_SEND_ACTION_EMAILS
-KEYCLOAK_ADMIN_ACTION_EMAIL_REDIRECT_URI = (
-    KEYCLOAK_ADMIN_API_ACTION_EMAIL_REDIRECT_URI
-)
+KEYCLOAK_ADMIN_ACTION_EMAIL_REDIRECT_URI = KEYCLOAK_ADMIN_API_ACTION_EMAIL_REDIRECT_URI
 
 PATHOCORE_ACCESS_REQUEST_USE_CASES = env_json(
     "PATHOCORE_ACCESS_REQUEST_USE_CASES",
