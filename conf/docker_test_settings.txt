@@ -25,7 +25,7 @@ DJANGO_SETTINGS_PATH='/tmp/pathocore-api/data/settings/conf/settings.py'
 ### Compose test database
 DB_HOST='app-db'
 DB_PORT='3306'
-DB_NAME='conf'
+DB_NAME='pathocore_api'
 DB_USER='django'
 DB_PASSWORD='djangopass'
 DB_ROOT_PASSWORD='root'
