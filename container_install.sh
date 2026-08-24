@@ -325,7 +325,7 @@ load_test_deployment_data() {
     engine_exec exec -w "$app_install_path" "$app_container" \
         "$app_install_path/virtualenv/bin/python" manage.py \
         import_sql_seed "$container_seed" || status=$?
-    engine_exec exec "$app_container" rm -f "$container_seed" || true
+    engine_exec exec -u 0 "$app_container" rm -f "$container_seed" || true
     [ "$status" -eq 0 ] || die "PathoCore SQL seed import failed"
 }
 

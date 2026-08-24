@@ -47,7 +47,7 @@ API_DOCS_REQUIRE_STAFF='true'
 # Generated because ADDONS.keycloak.CONFIG_SERVICE selects this service.
 # Disabled by default so disposable tests do not require identity bootstrap.
 OIDC_AUTH_REQUIRED='false'
-OIDC_ISSUER='http://10.22.140.230:8481/realms/ciberisciii_datahub'
+OIDC_ISSUER='http://keycloak.localhost:8380/realms/ciberisciii_datahub'
 OIDC_JWKS_URL='http://keycloak:8080/realms/ciberisciii_datahub/protocol/openid-connect/certs'
 OIDC_AUDIENCE='pathocore-api'
 OIDC_CLIENT_ID='pathocore-api'
