@@ -27,6 +27,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - [#18](https://github.com/BIPLAT-CIBERINFEC/pathocore-api/pull/18) Use English copy in API response payloads
 - [#26](https://github.com/BIPLAT-CIBERINFEC/pathocore-api/pull/26) Support proxy CSRF settings for admin forms behind HTTPS reverse proxies
 - [#31](https://github.com/BIPLAT-CIBERINFEC/pathocore-api/pull/31/) Add a `send_test_email` management command and configurable Django email backend.
+- [#29](https://github.com/BIPLAT-CIBERINFEC/pathocore-api/pull/29) Refine local/testing deployment migration setup
 
 ### `Fixed`
 
