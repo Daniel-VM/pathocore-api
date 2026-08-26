@@ -1,6 +1,8 @@
+from email.utils import parseaddr
+
 from django.conf import settings
 from django.contrib.auth import get_user_model
-from django.core.mail import send_mail
+from django.core.mail import EmailMessage
 from django.db import transaction
 from django.db.models import Q
 from django.utils import timezone
@@ -327,8 +329,8 @@ def build_group_path_from_scope(scope):
 
 def notify_access_request_created(access_request):
     requested_access = _requested_access_label(access_request)
-    send_mail(
-        subject="PathoCore access request received",
+    _send_access_request_email(
+        access_request,
         message=_with_email_footer(
             f"Hello {access_request.first_name},\n\n"
             "We have received your PathoCore access request and it is pending "
@@ -337,24 +339,23 @@ def notify_access_request_created(access_request):
             "You will receive another notification once the request has been "
             "reviewed.\n"
         ),
-        from_email=getattr(settings, "DEFAULT_FROM_EMAIL", None),
         recipient_list=[access_request.email],
-        fail_silently=True,
+        message_key="received",
     )
 
     recipients = _access_request_admin_recipients(access_request)
     if not recipients:
         return
-    send_mail(
-        subject=f"PathoCore access request pending: {access_request.username}",
+    _send_access_request_email(
+        access_request,
         message=_with_email_footer(
             f"User: {access_request.username} <{access_request.email}>\n"
             f"Requested: {requested_access}\n"
             f"Message: {access_request.message or '-'}"
         ),
-        from_email=getattr(settings, "DEFAULT_FROM_EMAIL", None),
         recipient_list=recipients,
-        fail_silently=True,
+        message_key="admin-pending",
+        reply_to_thread=True,
     )
 
 
@@ -385,9 +386,9 @@ def notify_access_request_reviewed(access_request):
     requested_access = _requested_access_label(access_request)
     section_url = _use_case_section_url(access_request)
     section_line = (
-        f"Web section: {section_url}\n"
+        f"Web section: {section_url}\n\n"
         if section_url
-        else f"Web section: {access_request.requested_use_case}\n"
+        else f"Web section: {access_request.requested_use_case}\n\n"
     )
 
     if access_request.status == core.models.AccessRequest.STATUS_APPROVED:
@@ -420,29 +421,90 @@ def notify_access_request_reviewed(access_request):
             f"Review note: {access_request.review_note or '-'}\n"
         )
 
-    send_mail(
-        subject=f"PathoCore access request {access_request.status}",
+    _send_access_request_email(
+        access_request,
         message=_with_email_footer(message),
-        from_email=getattr(settings, "DEFAULT_FROM_EMAIL", None),
         recipient_list=[access_request.email],
-        fail_silently=True,
+        message_key=access_request.status,
+        reply_to_thread=True,
     )
 
 
 def notify_access_request_revoked(access_request):
     revoked_access = _requested_access_label(access_request)
-    send_mail(
-        subject="PathoCore access revoked",
+    _send_access_request_email(
+        access_request,
         message=_with_email_footer(
             "Your PathoCore access has been revoked.\n\n"
             f"Revoked access: {revoked_access}\n"
             f"Reason: {access_request.review_note or '-'}\n"
             f"{_admin_contact_line(access_request)}"
         ),
-        from_email=getattr(settings, "DEFAULT_FROM_EMAIL", None),
         recipient_list=[access_request.email],
-        fail_silently=True,
+        message_key="revoked",
+        reply_to_thread=True,
     )
+
+
+def _send_access_request_email(
+    access_request,
+    *,
+    message,
+    recipient_list,
+    message_key,
+    reply_to_thread=False,
+):
+    email = EmailMessage(
+        subject=_access_request_email_subject(access_request),
+        body=message,
+        from_email=getattr(settings, "DEFAULT_FROM_EMAIL", None),
+        to=recipient_list,
+        headers=_access_request_email_headers(
+            access_request,
+            message_key,
+            reply_to_thread=reply_to_thread,
+        ),
+    )
+    email.send(fail_silently=True)
+
+
+def _access_request_email_subject(access_request):
+    requested_access = _requested_access_label(access_request)
+    return (
+        f"[PathoCore access #{access_request.pk}] "
+        f"{requested_access} - {access_request.username}"
+    )
+
+
+def _access_request_email_headers(
+    access_request,
+    message_key,
+    *,
+    reply_to_thread=False,
+):
+    root_message_id = _access_request_message_id(access_request, "received")
+    headers = {
+        "Message-ID": _access_request_message_id(access_request, message_key),
+    }
+    if reply_to_thread:
+        headers["In-Reply-To"] = root_message_id
+        headers["References"] = root_message_id
+    return headers
+
+
+def _access_request_message_id(access_request, message_key):
+    request_id = access_request.pk or "new"
+    return (
+        f"<pathocore-access-request-{request_id}-{message_key}"
+        f"@{_message_id_domain()}>"
+    )
+
+
+def _message_id_domain():
+    _, address = parseaddr(getattr(settings, "DEFAULT_FROM_EMAIL", "") or "")
+    if "@" not in address:
+        return "pathocore.local"
+    return address.rsplit("@", 1)[-1].lower()
 
 
 def _with_email_footer(message):
