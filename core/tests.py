@@ -1529,10 +1529,7 @@ class AccessRequestWorkflowTests(TestCase):
         )
         self.assertEqual(
             mail.outbox[0].extra_headers["Message-ID"],
-            (
-                f"<pathocore-access-request-{response.data['id']}-received"
-                "@localhost>"
-            ),
+            (f"<pathocore-access-request-{response.data['id']}-received" "@localhost>"),
         )
 
     def test_legacy_v1_alias_still_accepts_access_request(self):
@@ -1715,10 +1712,7 @@ class AccessRequestWorkflowTests(TestCase):
         )
         self.assertEqual(
             mail.outbox[0].extra_headers["In-Reply-To"],
-            (
-                f"<pathocore-access-request-{access_request.pk}-received"
-                "@localhost>"
-            ),
+            (f"<pathocore-access-request-{access_request.pk}-received" "@localhost>"),
         )
         self.assertIn("MEPRAM (view)", mail.outbox[0].body)
         self.assertIn(
@@ -1753,10 +1747,7 @@ class AccessRequestWorkflowTests(TestCase):
         )
         self.assertEqual(
             mail.outbox[0].extra_headers["In-Reply-To"],
-            (
-                f"<pathocore-access-request-{access_request.pk}-received"
-                "@localhost>"
-            ),
+            (f"<pathocore-access-request-{access_request.pk}-received" "@localhost>"),
         )
         self.assertIn("Reason: Missing project justification", mail.outbox[0].body)
         self.assertIn("contact: mepram.admin@example.org", mail.outbox[0].body)
@@ -1797,10 +1788,7 @@ class AccessRequestWorkflowTests(TestCase):
         )
         self.assertEqual(
             mail.outbox[0].extra_headers["In-Reply-To"],
-            (
-                f"<pathocore-access-request-{access_request.pk}-received"
-                "@localhost>"
-            ),
+            (f"<pathocore-access-request-{access_request.pk}-received" "@localhost>"),
         )
         self.assertIn("Reason: Access no longer required", mail.outbox[0].body)
         self.assertIn("contact: mepram.admin@example.org", mail.outbox[0].body)
