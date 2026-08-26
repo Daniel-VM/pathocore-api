@@ -1523,7 +1523,17 @@ class AccessRequestWorkflowTests(TestCase):
         self.assertEqual(models.AccessRequest.objects.count(), 1)
         self.assertEqual(len(mail.outbox), 1)
         self.assertEqual(mail.outbox[0].to, ["new.user@example.org"])
-        self.assertIn("received", mail.outbox[0].subject.lower())
+        self.assertEqual(
+            mail.outbox[0].subject,
+            f"[PathoCore access #{response.data['id']}] MEPRAM (view) - new_user",
+        )
+        self.assertEqual(
+            mail.outbox[0].extra_headers["Message-ID"],
+            (
+                f"<pathocore-access-request-{response.data['id']}-received"
+                "@localhost>"
+            ),
+        )
 
     def test_legacy_v1_alias_still_accepts_access_request(self):
         response = self.client.post(
@@ -1612,7 +1622,15 @@ class AccessRequestWorkflowTests(TestCase):
             mail.outbox[1].to,
             ["mepram.admin@example.org", "other.admin@example.org"],
         )
-        self.assertIn("pending", mail.outbox[1].subject.lower())
+        self.assertEqual(mail.outbox[1].subject, mail.outbox[0].subject)
+        self.assertEqual(
+            mail.outbox[1].extra_headers["In-Reply-To"],
+            mail.outbox[0].extra_headers["Message-ID"],
+        )
+        self.assertEqual(
+            mail.outbox[1].extra_headers["References"],
+            mail.outbox[0].extra_headers["Message-ID"],
+        )
         self.assertIn("https://github.com/BU-ISCIII", mail.outbox[1].body)
 
     @override_settings(PATHOCORE_ACCESS_REQUEST_ADMIN_EMAILS=["fallback@example.org"])
@@ -1633,6 +1651,23 @@ class AccessRequestWorkflowTests(TestCase):
         self.assertEqual(response.status_code, 201)
         self.assertEqual(len(mail.outbox), 2)
         self.assertEqual(mail.outbox[1].to, ["fallback@example.org"])
+
+    @override_settings(DEFAULT_FROM_EMAIL="bioinformatica.infec@ciberisciii.es")
+    def test_access_request_email_thread_uses_sender_domain(self):
+        response = self.client.post(
+            "/v1/access-requests",
+            data=self._request_payload(),
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(
+            mail.outbox[0].extra_headers["Message-ID"],
+            (
+                f"<pathocore-access-request-{response.data['id']}-received"
+                "@ciberisciii.es>"
+            ),
+        )
 
     def test_admin_can_list_pending_access_requests(self):
         models.AccessRequest.objects.create(**self._request_payload())
@@ -1674,7 +1709,17 @@ class AccessRequestWorkflowTests(TestCase):
         self.assertEqual(response.data["keycloak_user_id"], "keycloak-user-1")
         provision_mock.assert_called_once()
         self.assertEqual(len(mail.outbox), 1)
-        self.assertIn("approved", mail.outbox[0].subject.lower())
+        self.assertEqual(
+            mail.outbox[0].subject,
+            f"[PathoCore access #{access_request.pk}] MEPRAM (view) - new_user",
+        )
+        self.assertEqual(
+            mail.outbox[0].extra_headers["In-Reply-To"],
+            (
+                f"<pathocore-access-request-{access_request.pk}-received"
+                "@localhost>"
+            ),
+        )
         self.assertIn("MEPRAM (view)", mail.outbox[0].body)
         self.assertIn(
             "https://mepram-datahub.ciberisciii.es/use-cases/mepram",
@@ -1702,7 +1747,17 @@ class AccessRequestWorkflowTests(TestCase):
         )
         self.assertEqual(len(mail.outbox), 1)
         self.assertEqual(mail.outbox[0].to, ["new.user@example.org"])
-        self.assertIn("rejected", mail.outbox[0].subject.lower())
+        self.assertEqual(
+            mail.outbox[0].subject,
+            f"[PathoCore access #{access_request.pk}] MEPRAM (view) - new_user",
+        )
+        self.assertEqual(
+            mail.outbox[0].extra_headers["In-Reply-To"],
+            (
+                f"<pathocore-access-request-{access_request.pk}-received"
+                "@localhost>"
+            ),
+        )
         self.assertIn("Reason: Missing project justification", mail.outbox[0].body)
         self.assertIn("contact: mepram.admin@example.org", mail.outbox[0].body)
         self.assertIn("Technical platforms:", mail.outbox[0].body)
@@ -1736,7 +1791,17 @@ class AccessRequestWorkflowTests(TestCase):
         revoke_mock.assert_called_once()
         self.assertEqual(len(mail.outbox), 1)
         self.assertEqual(mail.outbox[0].to, ["new.user@example.org"])
-        self.assertIn("revoked", mail.outbox[0].subject.lower())
+        self.assertEqual(
+            mail.outbox[0].subject,
+            f"[PathoCore access #{access_request.pk}] MEPRAM (view) - new_user",
+        )
+        self.assertEqual(
+            mail.outbox[0].extra_headers["In-Reply-To"],
+            (
+                f"<pathocore-access-request-{access_request.pk}-received"
+                "@localhost>"
+            ),
+        )
         self.assertIn("Reason: Access no longer required", mail.outbox[0].body)
         self.assertIn("contact: mepram.admin@example.org", mail.outbox[0].body)
         self.assertIn("Technical platforms:", mail.outbox[0].body)
