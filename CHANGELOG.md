@@ -24,7 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - [#17](https://github.com/BIPLAT-CIBERINFEC/pathocore-api/pull/17) Notify use-case admins of pending access requests
 - [#18](https://github.com/BIPLAT-CIBERINFEC/pathocore-api/pull/18) Use English copy in API response payloads
 - [#26](https://github.com/BIPLAT-CIBERINFEC/pathocore-api/pull/26) Support proxy CSRF settings for admin forms behind HTTPS reverse proxies
-- Add a `send_test_email` management command and configurable Django email backend.
+- [#31](https://github.com/BIPLAT-CIBERINFEC/pathocore-api/pull/31/) Add a `send_test_email` management command and configurable Django email backend.
 
 ### `Fixed`
 
