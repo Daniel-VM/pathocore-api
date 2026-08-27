@@ -134,10 +134,14 @@ write_runtime_env_file() {
         write_runtime_env_var "EMAIL_PORT" "${EMAIL_PORT:-587}"
         write_runtime_env_var "EMAIL_HOST_USER" "${EMAIL_HOST_USER:-}"
         write_runtime_env_var "EMAIL_HOST_PASSWORD" "${EMAIL_HOST_PASSWORD:-}"
+        write_runtime_env_var \
+            "EMAIL_BACKEND" \
+            "${EMAIL_BACKEND:-django.core.mail.backends.smtp.EmailBackend}"
         write_runtime_env_var "EMAIL_USE_TLS" "${EMAIL_USE_TLS:-true}"
         write_runtime_env_var \
             "DEFAULT_FROM_EMAIL" \
             "${DEFAULT_FROM_EMAIL:-no-reply@pathocore.local}"
+        write_runtime_env_var "ALLOWED_EMAIL_DOMAINS" "${ALLOWED_EMAIL_DOMAINS:-}"
         for env_key in $(compgen -A variable KEYCLOAK_ | sort); do
             write_runtime_env_var "$env_key" "${!env_key}"
         done

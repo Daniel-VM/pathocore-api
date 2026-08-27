@@ -1,5 +1,6 @@
 import base64
 from datetime import date
+from io import StringIO
 from unittest.mock import patch
 
 from django.contrib.auth.models import User
@@ -7,6 +8,7 @@ from django.core import mail
 from django.core.cache import cache
 from django.core.exceptions import PermissionDenied
 from django.core.management import call_command
+from django.core.management.base import CommandError
 from django.test import SimpleTestCase, TestCase
 from django.test import override_settings
 from django.utils import timezone
@@ -1489,6 +1491,42 @@ class DefaultSuperuserCommandTests(TestCase):
 
         user.refresh_from_db()
         self.assertTrue(user.check_password("new_pass"))
+
+
+class SendTestEmailCommandTests(SimpleTestCase):
+    @override_settings(
+        ALLOWED_EMAIL_DOMAINS=["ciberisciii.es"],
+        DEFAULT_FROM_EMAIL="no-reply@pathocore.local",
+        EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend",
+        EMAIL_HOST="mailpit",
+        EMAIL_PORT=1025,
+        EMAIL_USE_TLS=False,
+    )
+    def test_command_uses_configured_backend(self):
+        mail.outbox = []
+        stdout = StringIO()
+
+        call_command("send_test_email", "da.valle@ciberisciii.es", stdout=stdout)
+
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertEqual(mail.outbox[0].to, ["da.valle@ciberisciii.es"])
+        self.assertEqual(mail.outbox[0].from_email, "no-reply@pathocore.local")
+        self.assertIn(
+            "EMAIL_BACKEND=django.core.mail.backends.locmem.EmailBackend",
+            stdout.getvalue(),
+        )
+        self.assertIn("Sent 1 test email(s)", stdout.getvalue())
+
+    @override_settings(
+        ALLOWED_EMAIL_DOMAINS=["ciberisciii.es"],
+        EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend",
+    )
+    def test_command_rejects_disallowed_recipient_domain(self):
+        with self.assertRaisesMessage(
+            CommandError,
+            "recipient domain 'example.org' is not in ALLOWED_EMAIL_DOMAINS",
+        ):
+            call_command("send_test_email", "user@example.org")
 
 
 @override_settings(

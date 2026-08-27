@@ -239,6 +239,9 @@ EMAIL_HOST = os.environ.get("EMAIL_HOST", "emailhostserver")
 EMAIL_PORT = _int_env("EMAIL_PORT", "emailport")
 EMAIL_HOST_USER = os.environ.get("EMAIL_HOST_USER", "emailhostuser")
 EMAIL_HOST_PASSWORD = os.environ.get("EMAIL_HOST_PASSWORD", "emailhostpassword")
+EMAIL_BACKEND = os.environ.get(
+    "EMAIL_BACKEND", "django.core.mail.backends.smtp.EmailBackend"
+)
 EMAIL_USE_TLS = os.environ.get("EMAIL_USE_TLS", "emailhosttls").lower() in (
     "1",
     "true",
@@ -246,6 +249,7 @@ EMAIL_USE_TLS = os.environ.get("EMAIL_USE_TLS", "emailhosttls").lower() in (
     "on",
 )
 DEFAULT_FROM_EMAIL = os.environ.get("DEFAULT_FROM_EMAIL", "pathocore-api@localhost")
+ALLOWED_EMAIL_DOMAINS = _csv_env("ALLOWED_EMAIL_DOMAINS")
 
 SPECTACULAR_SETTINGS = {
     "TITLE": "PathoCore API",
