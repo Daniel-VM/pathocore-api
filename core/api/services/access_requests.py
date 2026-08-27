@@ -1,8 +1,9 @@
 from email.utils import parseaddr
+from html import escape
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
-from django.core.mail import EmailMessage
+from django.core.mail import EmailMultiAlternatives
 from django.db import transaction
 from django.db.models import Q
 from django.utils import timezone
@@ -25,9 +26,6 @@ PathoCore / MEPRAM DataHub
 Technical platforms:
 BIPLAT-CIBERINFEC
 https://github.com/BIPLAT-CIBERINFEC/
-
-BU-ISCIII
-https://github.com/BU-ISCIII
 """
 
 
@@ -328,16 +326,21 @@ def build_group_path_from_scope(scope):
 
 
 def notify_access_request_created(access_request):
-    requested_access = _requested_access_label(access_request)
+    access_summary = _requested_access_text(access_request)
     _send_access_request_email(
         access_request,
         message=_with_email_footer(
             f"Hello {access_request.first_name},\n\n"
             "We have received your PathoCore access request and it is pending "
             "administrator review.\n\n"
-            f"Requested access: {requested_access}\n"
+            f"Requested access:\n{access_summary}\n\n"
             "You will receive another notification once the request has been "
             "reviewed.\n"
+        ),
+        title="Access request received",
+        intro=(
+            "We have received your PathoCore access request and it is pending "
+            "administrator review."
         ),
         recipient_list=[access_request.email],
         message_key="received",
@@ -350,9 +353,18 @@ def notify_access_request_created(access_request):
         access_request,
         message=_with_email_footer(
             f"User: {access_request.username} <{access_request.email}>\n"
-            f"Requested: {requested_access}\n"
+            "Requested access:\n"
+            f"{_requested_access_text(access_request, include_group=True)}\n"
             f"Message: {access_request.message or '-'}"
         ),
+        title="New access request pending review",
+        intro=(
+            f"{access_request.username} requested access to "
+            f"{_requested_access_label(access_request)}."
+        ),
+        note_label="User message",
+        note=access_request.message or "-",
+        include_group=True,
         recipient_list=recipients,
         message_key="admin-pending",
         reply_to_thread=True,
@@ -383,7 +395,7 @@ def _unique_emails(emails):
 
 
 def notify_access_request_reviewed(access_request):
-    requested_access = _requested_access_label(access_request)
+    access_summary = _requested_access_text(access_request)
     section_url = _use_case_section_url(access_request)
     section_line = (
         f"Web section: {section_url}\n\n"
@@ -394,7 +406,7 @@ def notify_access_request_reviewed(access_request):
     if access_request.status == core.models.AccessRequest.STATUS_APPROVED:
         status_message = (
             "Your PathoCore access request has been approved.\n\n"
-            f"You requested access to: {requested_access}\n"
+            f"Requested access:\n{access_summary}\n\n"
             f"{section_line}"
             "If this is your first access, you will receive a Keycloak email "
             "to verify your email and set your password."
@@ -406,7 +418,7 @@ def notify_access_request_reviewed(access_request):
     elif access_request.status == core.models.AccessRequest.STATUS_REJECTED:
         status_message = (
             "Your PathoCore access request has been rejected.\n\n"
-            f"Requested access: {requested_access}\n"
+            f"Requested access:\n{access_summary}\n\n"
             f"Reason: {access_request.review_note or '-'}\n"
             f"{_admin_contact_line(access_request)}"
         )
@@ -424,6 +436,10 @@ def notify_access_request_reviewed(access_request):
     _send_access_request_email(
         access_request,
         message=_with_email_footer(message),
+        title=_review_email_title(access_request),
+        intro=status_message.split("\n\n", 1)[0],
+        note_label="Review note",
+        note=access_request.review_note or "-",
         recipient_list=[access_request.email],
         message_key=access_request.status,
         reply_to_thread=True,
@@ -431,15 +447,18 @@ def notify_access_request_reviewed(access_request):
 
 
 def notify_access_request_revoked(access_request):
-    revoked_access = _requested_access_label(access_request)
     _send_access_request_email(
         access_request,
         message=_with_email_footer(
             "Your PathoCore access has been revoked.\n\n"
-            f"Revoked access: {revoked_access}\n"
+            f"Revoked access:\n{_requested_access_text(access_request)}\n\n"
             f"Reason: {access_request.review_note or '-'}\n"
             f"{_admin_contact_line(access_request)}"
         ),
+        title="Access revoked",
+        intro="Your PathoCore access has been revoked.",
+        note_label="Reason",
+        note=access_request.review_note or "-",
         recipient_list=[access_request.email],
         message_key="revoked",
         reply_to_thread=True,
@@ -450,11 +469,16 @@ def _send_access_request_email(
     access_request,
     *,
     message,
+    title,
+    intro,
     recipient_list,
     message_key,
+    note_label=None,
+    note=None,
+    include_group=False,
     reply_to_thread=False,
 ):
-    email = EmailMessage(
+    email = EmailMultiAlternatives(
         subject=_access_request_email_subject(access_request),
         body=message,
         from_email=getattr(settings, "DEFAULT_FROM_EMAIL", None),
@@ -464,6 +488,17 @@ def _send_access_request_email(
             message_key,
             reply_to_thread=reply_to_thread,
         ),
+    )
+    email.attach_alternative(
+        _access_request_email_html(
+            access_request,
+            title=title,
+            intro=intro,
+            note_label=note_label,
+            note=note,
+            include_group=include_group,
+        ),
+        "text/html",
     )
     email.send(fail_silently=True)
 
@@ -513,9 +548,41 @@ def _with_email_footer(message):
 
 def _requested_access_label(access_request):
     use_case_label = _use_case_label(access_request.requested_use_case)
-    role = access_request.requested_role
+    return f"{use_case_label} {_role_label(access_request.requested_role)} access"
+
+
+def _requested_access_text(access_request, *, include_group=False):
+    use_case_label = _use_case_label(access_request.requested_use_case)
+    lines = [
+        f"- Use case: {use_case_label}",
+        f"- Role: {_role_label(access_request.requested_role)}",
+    ]
+    section_url = _use_case_section_url(access_request)
+    if section_url:
+        lines.append(f"- Web section: {section_url}")
+    if include_group:
+        lines.append(f"- Permission group: {_permission_group_path(access_request)}")
+    return "\n".join(lines)
+
+
+def _permission_group_path(access_request):
     group_path = access_request.approved_group or build_group_path(access_request)
-    return f"{use_case_label} ({role}) [{group_path}]"
+    return group_path
+
+
+def _role_label(role):
+    return str(role or "").strip().replace("_", " ").title()
+
+
+def _review_email_title(access_request):
+    titles = {
+        core.models.AccessRequest.STATUS_APPROVED: "Access request approved",
+        core.models.AccessRequest.STATUS_REJECTED: "Access request rejected",
+    }
+    return titles.get(
+        access_request.status,
+        "Access request status updated",
+    )
 
 
 def _use_case_label(use_case_name):
@@ -537,6 +604,167 @@ def _admin_contact_line(access_request):
     if not contacts:
         return ""
     return f"If you have questions, contact: {', '.join(contacts)}\n"
+
+
+def _access_request_email_html(
+    access_request,
+    *,
+    title,
+    intro,
+    note_label=None,
+    note=None,
+    include_group=False,
+):
+    use_case_label = _use_case_label(access_request.requested_use_case)
+    role_label = _role_label(access_request.requested_role)
+    group_path = _permission_group_path(access_request)
+    section_url = _use_case_section_url(access_request)
+    page_style = _style(
+        "margin:0",
+        "padding:0",
+        "background:#f8fafc",
+        "color:#0f172a",
+        "font-family:Arial,Helvetica,sans-serif",
+    )
+    wrapper_style = _style("background:#f8fafc", "padding:24px 0")
+    card_style = _style(
+        "max-width:640px",
+        "width:100%",
+        "background:#ffffff",
+        "border:1px solid #e2e8f0",
+        "border-radius:6px",
+        "overflow:hidden",
+    )
+    header_style = _style("padding:20px 24px", "background:#0f172a", "color:#ffffff")
+    eyebrow_style = _style(
+        "font-size:13px",
+        "letter-spacing:.04em",
+        "text-transform:uppercase",
+        "color:#99f6e4",
+    )
+    title_style = _style(
+        "margin:8px 0 0",
+        "font-size:22px",
+        "line-height:1.3",
+        "font-weight:700",
+    )
+    intro_style = _style(
+        "margin:0 0 20px",
+        "font-size:15px",
+        "line-height:1.6",
+        "color:#334155",
+    )
+    table_style = _style(
+        "border:1px solid #e2e8f0",
+        "border-radius:6px",
+        "border-collapse:separate",
+        "border-spacing:0",
+        "overflow:hidden",
+    )
+    label_style = _style("padding:12px 16px", "color:#475569")
+    value_style = _style("padding:12px 16px", "color:#0f172a")
+    top_label_style = _style(label_style, "border-top:1px solid #e2e8f0")
+    top_value_style = _style(value_style, "border-top:1px solid #e2e8f0")
+    group_style = _style(
+        top_value_style,
+        "font-family:Consolas,Menlo,monospace",
+        "font-size:13px",
+    )
+    button_style = _style(
+        "display:inline-block",
+        "padding:10px 16px",
+        "background:#0f766e",
+        "color:#ffffff",
+        "text-decoration:none",
+        "border-radius:4px",
+        "font-weight:600",
+    )
+    footer_style = _style(
+        "padding:16px 24px",
+        "background:#f1f5f9",
+        "color:#475569",
+        "font-size:13px",
+        "line-height:1.5",
+    )
+    link_style = _style("color:#0f766e", "text-decoration:none")
+    note_html = ""
+    if note_label and note is not None:
+        note_html = f"""
+        <tr>
+          <td style="{top_label_style}">{escape(note_label)}</td>
+          <td style="{top_value_style}">{escape(str(note))}</td>
+        </tr>
+        """
+    action_html = ""
+    if section_url:
+        action_html = f"""
+        <p style="margin:24px 0 0;">
+          <a href="{escape(section_url)}" style="{button_style}">
+            Open use-case section
+          </a>
+        </p>
+        """
+    group_html = ""
+    if include_group:
+        group_html = f"""
+                  <tr>
+                    <td style="{top_label_style}">Permission group</td>
+                    <td style="{group_style}">{escape(group_path)}</td>
+                  </tr>
+        """
+    return f"""<!doctype html>
+<html>
+  <body style="{page_style}">
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0"
+      style="{wrapper_style}">
+      <tr>
+        <td align="center">
+          <table role="presentation" width="640" cellspacing="0" cellpadding="0"
+            style="{card_style}">
+            <tr>
+              <td style="{header_style}">
+                <div style="{eyebrow_style}">PathoCore / MEPRAM DataHub</div>
+                <h1 style="{title_style}">{escape(title)}</h1>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:24px;">
+                <p style="{intro_style}">{escape(intro)}</p>
+                <table role="presentation" width="100%" cellspacing="0"
+                  cellpadding="0" style="{table_style}">
+                  <tr>
+                    <td style="{_style(label_style, 'width:34%;')}">Use case</td>
+                    <td style="{_style(value_style, 'font-weight:600')}">
+                      {escape(use_case_label)}
+                    </td>
+                  </tr>
+                  <tr>
+                    <td style="{top_label_style}">Role</td>
+                    <td style="{top_value_style}">{escape(role_label)}</td>
+                  </tr>
+                  {group_html}
+                  {note_html}
+                </table>
+                {action_html}
+              </td>
+            </tr>
+            <tr>
+              <td style="{footer_style}">
+                <strong>Technical platform:</strong>
+                <a href="https://github.com/BIPLAT-CIBERINFEC/"
+                  style="{link_style}">BIPLAT-CIBERINFEC</a>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>"""
+
+
+def _style(*rules):
+    return ";".join(rule.rstrip(";") for rule in rules if rule)
 
 
 def _get_use_case_config(use_case_name):
