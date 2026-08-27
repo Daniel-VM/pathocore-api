@@ -1563,8 +1563,14 @@ class AccessRequestWorkflowTests(TestCase):
         self.assertEqual(mail.outbox[0].to, ["new.user@example.org"])
         self.assertEqual(
             mail.outbox[0].subject,
-            f"[PathoCore access #{response.data['id']}] MEPRAM (view) - new_user",
+            f"[PathoCore access #{response.data['id']}] "
+            "MEPRAM View access - new_user",
         )
+        self.assertIn("- Use case: MEPRAM", mail.outbox[0].body)
+        self.assertIn("- Role: View", mail.outbox[0].body)
+        self.assertEqual(mail.outbox[0].alternatives[0][1], "text/html")
+        self.assertIn("Access request received", mail.outbox[0].alternatives[0][0])
+        self.assertNotIn("Permission group", mail.outbox[0].alternatives[0][0])
         self.assertEqual(
             mail.outbox[0].extra_headers["Message-ID"],
             (f"<pathocore-access-request-{response.data['id']}-received" "@localhost>"),
@@ -1666,7 +1672,12 @@ class AccessRequestWorkflowTests(TestCase):
             mail.outbox[1].extra_headers["References"],
             mail.outbox[0].extra_headers["Message-ID"],
         )
-        self.assertIn("https://github.com/BU-ISCIII", mail.outbox[1].body)
+        self.assertIn("- Permission group: /use-cases/mepram/view", mail.outbox[1].body)
+        self.assertIn(
+            "New access request pending review",
+            mail.outbox[1].alternatives[0][0],
+        )
+        self.assertIn("Permission group", mail.outbox[1].alternatives[0][0])
 
     @override_settings(PATHOCORE_ACCESS_REQUEST_ADMIN_EMAILS=["fallback@example.org"])
     @patch("core.api.services.keycloak_admin.list_group_member_emails")
@@ -1746,18 +1757,21 @@ class AccessRequestWorkflowTests(TestCase):
         self.assertEqual(len(mail.outbox), 1)
         self.assertEqual(
             mail.outbox[0].subject,
-            f"[PathoCore access #{access_request.pk}] MEPRAM (view) - new_user",
+            f"[PathoCore access #{access_request.pk}] "
+            "MEPRAM View access - new_user",
         )
         self.assertEqual(
             mail.outbox[0].extra_headers["In-Reply-To"],
             (f"<pathocore-access-request-{access_request.pk}-received" "@localhost>"),
         )
-        self.assertIn("MEPRAM (view)", mail.outbox[0].body)
+        self.assertIn("- Use case: MEPRAM", mail.outbox[0].body)
+        self.assertIn("- Role: View", mail.outbox[0].body)
         self.assertIn(
             "https://mepram-datahub.ciberisciii.es/use-cases/mepram",
             mail.outbox[0].body,
         )
         self.assertIn("Technical platforms:", mail.outbox[0].body)
+        self.assertIn("Access request approved", mail.outbox[0].alternatives[0][0])
 
     @patch("core.api.services.keycloak_admin.list_group_member_emails")
     def test_admin_can_reject_access_request(self, emails_mock):
@@ -1781,7 +1795,8 @@ class AccessRequestWorkflowTests(TestCase):
         self.assertEqual(mail.outbox[0].to, ["new.user@example.org"])
         self.assertEqual(
             mail.outbox[0].subject,
-            f"[PathoCore access #{access_request.pk}] MEPRAM (view) - new_user",
+            f"[PathoCore access #{access_request.pk}] "
+            "MEPRAM View access - new_user",
         )
         self.assertEqual(
             mail.outbox[0].extra_headers["In-Reply-To"],
@@ -1790,6 +1805,7 @@ class AccessRequestWorkflowTests(TestCase):
         self.assertIn("Reason: Missing project justification", mail.outbox[0].body)
         self.assertIn("contact: mepram.admin@example.org", mail.outbox[0].body)
         self.assertIn("Technical platforms:", mail.outbox[0].body)
+        self.assertIn("Access request rejected", mail.outbox[0].alternatives[0][0])
 
     @patch("core.api.services.keycloak_admin.revoke_approved_user_access")
     @patch("core.api.services.keycloak_admin.list_group_member_emails")
@@ -1822,7 +1838,8 @@ class AccessRequestWorkflowTests(TestCase):
         self.assertEqual(mail.outbox[0].to, ["new.user@example.org"])
         self.assertEqual(
             mail.outbox[0].subject,
-            f"[PathoCore access #{access_request.pk}] MEPRAM (view) - new_user",
+            f"[PathoCore access #{access_request.pk}] "
+            "MEPRAM View access - new_user",
         )
         self.assertEqual(
             mail.outbox[0].extra_headers["In-Reply-To"],
@@ -1831,6 +1848,7 @@ class AccessRequestWorkflowTests(TestCase):
         self.assertIn("Reason: Access no longer required", mail.outbox[0].body)
         self.assertIn("contact: mepram.admin@example.org", mail.outbox[0].body)
         self.assertIn("Technical platforms:", mail.outbox[0].body)
+        self.assertIn("Access revoked", mail.outbox[0].alternatives[0][0])
 
     @staticmethod
     def _request_payload():

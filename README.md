@@ -520,8 +520,9 @@ matching use-case admin group, for example `/use-cases/mepram/admin`. Configure
 `PATHOCORE_ACCESS_REQUEST_ADMIN_EMAILS` only as a fallback or general copy.
 Rejected and revoked notifications include the review note as the reason and
 the available use-case admin contact emails.
-All access request workflow emails include a plain-text footer with PathoCore /
-MEPRAM DataHub and the technical platform links.
+Access request workflow emails are sent as multipart plain text and HTML.
+The HTML version presents the requested use-case, role and web section in a
+structured summary instead of exposing raw group paths in the main sentence.
 
 In the local Docker test stack these messages are captured by Mailpit:
 
