@@ -291,8 +291,10 @@ safe defaults and normally do not need to be changed.
 | `EMAIL_PORT` | `1025` or `587` | SMTP port. |
 | `EMAIL_HOST_USER` | SMTP username | Optional SMTP auth username. |
 | `EMAIL_HOST_PASSWORD` | SMTP password | Optional SMTP auth password. |
+| `EMAIL_BACKEND` | `django.core.mail.backends.smtp.EmailBackend` | Django email backend. Use `django.core.mail.backends.console.EmailBackend` for CLI-only development checks. |
 | `EMAIL_USE_TLS` | `false` or `true` | Whether SMTP uses TLS. |
 | `DEFAULT_FROM_EMAIL` | `no-reply@pathocore.local` | Sender shown in PathoCore API emails. |
+| `ALLOWED_EMAIL_DOMAINS` | `ciberisciii.es,externos.isciii.es` | Optional comma-separated recipient domain allow-list for the test email command. |
 | `PATHOCORE_ACCESS_REQUEST_ADMIN_EMAILS` | `admin@example.org` | Optional fallback/copy recipients if Keycloak use-case admins are not found. |
 
 New access requests notify admins from the Keycloak group
@@ -525,6 +527,19 @@ In the local Docker test stack these messages are captured by Mailpit:
 
 ```text
 http://127.0.0.1:8025
+```
+
+Send a test email with the active Django settings:
+
+```bash
+python manage.py send_test_email user@example.org
+```
+
+For a console-only check, override the backend:
+
+```bash
+EMAIL_BACKEND=django.core.mail.backends.console.EmailBackend \
+  python manage.py send_test_email user@example.org
 ```
 
 Revocation removes the approved Keycloak group but does not disable the whole
