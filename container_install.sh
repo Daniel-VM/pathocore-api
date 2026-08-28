@@ -17,7 +17,7 @@ APPLICATION_NAME="PathoCore API"
 # ============================================================================
 install_services=(app)
 addon_build_services=()
-permission_services=(app apache keycloak_db keycloak)
+permission_services=(app pathocore-api-apache pathocore-api-keycloak-db pathocore-api-keycloak)
 configured_services=(app apache keycloak)
 
 default_service_install_conf() {
@@ -250,19 +250,19 @@ prepare_running_container_mount_permissions() {
             apply_container_directory_permission_spec "$container_id" "${app_running_mount_permission_spec[@]}"
             prepare_django_container_settings_permissions "$container_id" "$install_path/conf/settings.py" "$uid" "$gid"
             ;;
-        apache)
+        pathocore-api-apache)
             # Apache currently needs no ownership repair inside its running
             # container. Keep an explicit add-on policy ready for future mounts.
             local -a apache_running_mount_permission_spec=()
             apply_container_directory_permission_spec "$container_id" "${apache_running_mount_permission_spec[@]}"
             ;;
-        keycloak)
+        pathocore-api-keycloak)
             # Realm imports are read-only, so the Keycloak container currently
             # has no writable mount requiring an in-container ownership repair.
             local -a keycloak_running_mount_permission_spec=()
             apply_container_directory_permission_spec "$container_id" "${keycloak_running_mount_permission_spec[@]}"
             ;;
-        keycloak_db)
+        pathocore-api-keycloak-db)
             # The persistent MySQL volume must remain owned by the UID/GID used
             # by the database image, including after restoring or moving data.
             local -a keycloak_db_running_mount_permission_spec=(

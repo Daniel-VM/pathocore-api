@@ -216,7 +216,7 @@ podman volume ls | grep 'pathocore-api'
 podman volume export <volumen-documents> > "$BACKUP_DIR/documents.tar"
 podman volume export <volumen-static> > "$BACKUP_DIR/static.tar"
 podman compose --env-file .env.production.file -f docker-compose.prod.yml \
-  exec -T keycloak_db sh -c \
+  exec -T pathocore-api-keycloak-db sh -c \
   'exec mysqldump --single-transaction --routines --triggers -u"$MYSQL_USER" -p"$MYSQL_PASSWORD" "$MYSQL_DATABASE"' \
   > "$BACKUP_DIR/keycloak-database.sql"
 ```
@@ -349,12 +349,12 @@ install -m 0600 "$BACKUP_DIR/apache_production_settings.txt" deployment/settings
 install -m 0600 "$BACKUP_DIR/keycloak_production_settings.txt" deployment/settings/keycloak_production_settings.txt
 bash container_install.sh --action fix-permissions --engine podman \
   --install_conf_map app,deployment/settings/app_production_settings.txt --install_conf_map apache,deployment/settings/apache_production_settings.txt --install_conf_map keycloak,deployment/settings/keycloak_production_settings.txt
-podman compose --env-file .env.production.file -f docker-compose.prod.yml up -d keycloak_db
+podman compose --env-file .env.production.file -f docker-compose.prod.yml up -d pathocore-api-keycloak-db
 until podman compose --env-file .env.production.file -f docker-compose.prod.yml \
-  exec -T keycloak_db sh -c \
+  exec -T pathocore-api-keycloak-db sh -c \
   'mysqladmin ping -h 127.0.0.1 -u"$MYSQL_USER" -p"$MYSQL_PASSWORD" --silent'; do sleep 2; done
 podman compose --env-file .env.production.file -f docker-compose.prod.yml \
-  exec -T keycloak_db sh -c \
+  exec -T pathocore-api-keycloak-db sh -c \
   'exec mysql -u"$MYSQL_USER" -p"$MYSQL_PASSWORD" "$MYSQL_DATABASE"' \
   < "$BACKUP_DIR/keycloak-database.sql"
 ```
@@ -443,9 +443,9 @@ Registrar este procedimiento excepcional y ejecutar despues el smoke test.
 ```bash
 # Logs separados de Apache y validacion de configuracion.
 podman compose --env-file .env.production.file -f docker-compose.prod.yml \
-  logs --tail 200 apache
+  logs --tail 200 pathocore-api-apache
 podman compose --env-file .env.production.file -f docker-compose.prod.yml \
-  exec apache httpd -t
+  exec pathocore-api-apache httpd -t
 
 # Estado restringido; usar valores del fichero protegido.
 APACHE_PORT='CHANGE_ME'
