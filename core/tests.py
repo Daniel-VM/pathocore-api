@@ -1759,8 +1759,7 @@ class AccessRequestWorkflowTests(TestCase):
         self.assertEqual(len(mail.outbox), 1)
         self.assertEqual(
             mail.outbox[0].subject,
-            f"[PathoCore access #{access_request.pk}] "
-            "MEPRAM View access - new_user",
+            f"[PathoCore access #{access_request.pk}] " "MEPRAM View access - new_user",
         )
         self.assertEqual(
             mail.outbox[0].extra_headers["In-Reply-To"],
@@ -1798,8 +1797,7 @@ class AccessRequestWorkflowTests(TestCase):
         self.assertEqual(mail.outbox[0].to, ["new.user@example.org"])
         self.assertEqual(
             mail.outbox[0].subject,
-            f"[PathoCore access #{access_request.pk}] "
-            "MEPRAM View access - new_user",
+            f"[PathoCore access #{access_request.pk}] " "MEPRAM View access - new_user",
         )
         self.assertEqual(
             mail.outbox[0].extra_headers["In-Reply-To"],
@@ -1842,8 +1840,7 @@ class AccessRequestWorkflowTests(TestCase):
         self.assertEqual(mail.outbox[0].to, ["new.user@example.org"])
         self.assertEqual(
             mail.outbox[0].subject,
-            f"[PathoCore access #{access_request.pk}] "
-            "MEPRAM View access - new_user",
+            f"[PathoCore access #{access_request.pk}] " "MEPRAM View access - new_user",
         )
         self.assertEqual(
             mail.outbox[0].extra_headers["In-Reply-To"],
