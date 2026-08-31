@@ -344,6 +344,7 @@ def notify_access_request_created(access_request):
         ),
         recipient_list=[access_request.email],
         message_key="received",
+        show_action=False,
     )
 
     recipients = _access_request_admin_recipients(access_request)
@@ -368,6 +369,7 @@ def notify_access_request_created(access_request):
         recipient_list=recipients,
         message_key="admin-pending",
         reply_to_thread=True,
+        show_action=True,
     )
 
 
@@ -443,6 +445,7 @@ def notify_access_request_reviewed(access_request):
         recipient_list=[access_request.email],
         message_key=access_request.status,
         reply_to_thread=True,
+        show_action=access_request.status == core.models.AccessRequest.STATUS_APPROVED,
     )
 
 
@@ -462,6 +465,7 @@ def notify_access_request_revoked(access_request):
         recipient_list=[access_request.email],
         message_key="revoked",
         reply_to_thread=True,
+        show_action=False,
     )
 
 
@@ -477,6 +481,7 @@ def _send_access_request_email(
     note=None,
     include_group=False,
     reply_to_thread=False,
+    show_action=False,
 ):
     email = EmailMultiAlternatives(
         subject=_access_request_email_subject(access_request),
@@ -497,6 +502,7 @@ def _send_access_request_email(
             note_label=note_label,
             note=note,
             include_group=include_group,
+            show_action=show_action,
         ),
         "text/html",
     )
@@ -614,6 +620,7 @@ def _access_request_email_html(
     note_label=None,
     note=None,
     include_group=False,
+    show_action=False,
 ):
     use_case_label = _use_case_label(access_request.requested_use_case)
     role_label = _role_label(access_request.requested_role)
@@ -696,7 +703,7 @@ def _access_request_email_html(
         </tr>
         """
     action_html = ""
-    if section_url:
+    if show_action and section_url:
         action_html = f"""
         <p style="margin:24px 0 0;">
           <a href="{escape(section_url)}" style="{button_style}">

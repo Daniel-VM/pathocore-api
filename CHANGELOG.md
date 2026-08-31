@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - [#28](https://github.com/BIPLAT-CIBERINFEC/pathocore-api/pull/28) Keep API documentation public
 - [#30](https://github.com/BIPLAT-CIBERINFEC/pathocore-api/pull/30) Thread access request notification emails
 - Send access request notifications as multipart plain-text and HTML emails.
+- [#32](https://github.com/BIPLAT-CIBERINFEC/pathocore-api/pull/32) Show access request use-case links only after approval.
 
 ### `Added`
 
